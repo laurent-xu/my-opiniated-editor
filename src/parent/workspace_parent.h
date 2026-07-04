@@ -4,6 +4,6 @@
 
 namespace moe::parent {
 
-std::string StartupBanner();
+std::string startup_banner();
 
 }  // namespace moe::parent

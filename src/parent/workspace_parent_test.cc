@@ -7,12 +7,10 @@
 namespace {
 
 TEST(WorkspaceParentTest, StartupBannerNamesProjectAndPhase) {
-  const std::string banner = moe::parent::StartupBanner();
+  std::string const banner = moe::parent::startup_banner();
 
   EXPECT_NE(banner.find("my-opiniated-editor"), std::string::npos);
-  EXPECT_NE(banner.find("phase-0-build-and-test-foundation"),
-            std::string::npos);
+  EXPECT_NE(banner.find("phase-0-build-and-test-foundation"), std::string::npos);
 }
 
 }  // namespace
-

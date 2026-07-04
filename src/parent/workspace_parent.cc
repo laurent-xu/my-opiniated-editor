@@ -6,10 +6,8 @@
 
 namespace moe::parent {
 
-std::string StartupBanner() {
-  return std::string(moe::core::ProjectName()) + " " +
-         std::string(moe::core::PhaseName());
+std::string startup_banner() {
+  return std::string(moe::core::project_name()) + " " + std::string(moe::core::phase_name());
 }
 
 }  // namespace moe::parent
-

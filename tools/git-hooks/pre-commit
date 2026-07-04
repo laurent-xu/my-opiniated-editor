@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+# The hook uses LLVM tools directly. On NixOS they come from clang-tools.
+if ! command -v clang-tidy >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+clang-tidy is required for this repo's pre-commit hook.
+
+On NixOS, install the package that provides clang-tidy:
+  clang-tools
+
+Temporary shell:
+  nix shell nixpkgs#clang-tools
+EOF
+  exit 1
+fi
+
+if ! command -v clang-format >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+clang-format is required for this repo's pre-commit hook.
+
+On NixOS, install the package that provides clang-format:
+  clang-tools
+
+Temporary shell:
+  nix shell nixpkgs#clang-tools
+EOF
+  exit 1
+fi
+
+# Only lint staged C++ files. Other staged files should not pay this cost.
+mapfile -t files < <(
+  git diff --cached --name-only --diff-filter=ACMR -- \
+    '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh'
+)
+
+if [[ "${#files[@]}" -eq 0 ]]; then
+  exit 0
+fi
+
+# clang-tidy reads Bazel's real compile flags, include paths, and external deps
+# from compile_commands.json. Refresh it before linting so we do not guess flags.
+bazel run //:refresh_compile_commands
+
+status=0
+has_header=0
+tidy_candidates=()
+
+# Format every staged C++ header/source. clang-format enforces east const.
+for file in "${files[@]}"; do
+  [[ -f "$file" ]] || continue
+  echo "clang-format --dry-run $file"
+  if ! clang-format --dry-run --Werror "$file"; then
+    status=1
+  fi
+
+  case "$file" in
+    *.h | *.hpp | *.hh)
+      has_header=1
+      ;;
+    *.cc | *.cpp | *.cxx)
+      tidy_candidates+=("$file")
+      ;;
+  esac
+done
+
+# Header-only changes still need clang-tidy coverage. Run the repo's source
+# files so changed headers are checked through real Bazel compile contexts.
+if [[ "$has_header" -eq 1 ]]; then
+  mapfile -t tidy_candidates < <(git ls-files -- 'src/*.cc' 'src/**/*.cc' 'src/*.cpp' 'src/**/*.cpp' 'src/*.cxx' 'src/**/*.cxx')
+fi
+
+if [[ "${#tidy_candidates[@]}" -gt 0 ]]; then
+  mapfile -t tidy_candidates < <(printf '%s\n' "${tidy_candidates[@]}" | sort -u)
+fi
+
+# Run clang-tidy through the compile database instead of passing manual flags.
+for file in "${tidy_candidates[@]}"; do
+  [[ -f "$file" ]] || continue
+  echo "clang-tidy $file"
+  if ! clang-tidy "$file" --quiet -p "$repo_root"; then
+    status=1
+  fi
+done
+
+exit "$status"

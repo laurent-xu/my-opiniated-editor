@@ -7,13 +7,11 @@
 namespace {
 
 TEST(VersionTest, ExposesProjectName) {
-  EXPECT_EQ(moe::core::ProjectName(), std::string_view("my-opiniated-editor"));
+  EXPECT_EQ(moe::core::project_name(), std::string_view("my-opiniated-editor"));
 }
 
 TEST(VersionTest, ExposesCurrentPhase) {
-  EXPECT_EQ(moe::core::PhaseName(),
-            std::string_view("phase-0-build-and-test-foundation"));
+  EXPECT_EQ(moe::core::phase_name(), std::string_view("phase-0-build-and-test-foundation"));
 }
 
 }  // namespace
-

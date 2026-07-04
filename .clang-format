@@ -1,0 +1,6 @@
+BasedOnStyle: Google
+Standard: Latest
+ColumnLimit: 100
+DerivePointerAlignment: false
+PointerAlignment: Left
+QualifierAlignment: Right
