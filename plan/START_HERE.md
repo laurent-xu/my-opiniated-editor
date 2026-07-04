@@ -21,9 +21,10 @@ Phase 0: build and test foundation.
 Next implementation goals:
 
 1. Set up Bazel with a minimal C++ library and GoogleTest target.
-2. Add placeholder-but-real test targets for bridge, browser host, fixtures, and
-   integration tests.
-3. Add deterministic fake CLI fixtures for future PTY and agent tests.
+2. Add deterministic fake CLI fixtures for future process, PTY, and agent
+   tests.
+3. Add only test targets that exercise real code or reusable fixtures; do not
+   add placeholder-only bridge or browser targets before that code exists.
 
 ## First Self-Hosting Milestone
 
@@ -78,4 +79,3 @@ test or update the missing harness in the test plan.
 - Rich Nix UI/workflows.
 - General plugin system.
 - Browser-native editor architecture before the parent app needs it.
-

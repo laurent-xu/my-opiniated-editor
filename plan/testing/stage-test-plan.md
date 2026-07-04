@@ -11,10 +11,8 @@ Tests to add:
 
 - Bazel smoke target: `bazel test //...` works on a trivial C++ test.
 - C++ unit test binary using GoogleTest.
-- Bridge placeholder test target.
-- Browser placeholder test target or lint target.
-- Repo fixture for temp-workspace tests.
 - Fake CLI script fixture for future agent/process tests.
+- Process-boundary test proving a test can run the fake CLI and exchange input.
 
 Exit gate:
 
@@ -22,6 +20,9 @@ Exit gate:
 - Test targets are fast enough to run after small edits.
 - Future `/goal` sessions can add real tests without first inventing the build
   harness.
+- Phase 0 does not include placeholder-only bridge/browser targets.
+- Phase 0 does not include disposable Bazel workspace fixtures; add those when
+  testing editor-driven Bazel integration.
 
 ## Phase 1: Parent PTY Bridge Spike
 

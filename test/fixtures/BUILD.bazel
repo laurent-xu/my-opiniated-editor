@@ -1,0 +1,18 @@
+py_binary(
+    name = "fake_agent",
+    srcs = ["fake_agent.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "fake_agent_test",
+    srcs = ["fake_agent_test.py"],
+    data = [":fake_agent"],
+    tags = ["unit"],
+)
+
+py_test(
+    name = "python_runtime_test",
+    srcs = ["python_runtime_test.py"],
+    tags = ["unit"],
+)

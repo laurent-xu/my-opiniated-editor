@@ -18,6 +18,8 @@ subdirectories override or extend this file.
 
 - Start with [plan/START_HERE.md](plan/START_HERE.md).
 - Add or update tests for implementation work.
+- Use the repo-local `$run-bazel-tests` skill when running, selecting, or
+  triaging Bazel test commands.
 - Prefer Bazel targets over ad hoc scripts.
 - Use fake CLIs/processes for deterministic PTY and agent tests.
 - Keep docs and code ASCII unless a file already requires otherwise.

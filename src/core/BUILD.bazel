@@ -1,0 +1,17 @@
+cc_library(
+    name = "core",
+    srcs = ["version.cc"],
+    hdrs = ["version.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_test(
+    name = "core_test",
+    srcs = ["version_test.cc"],
+    deps = [
+        ":core",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+

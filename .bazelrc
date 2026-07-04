@@ -1,0 +1,10 @@
+startup --output_user_root=/tmp/my-opiniated-editor-bazel-cache
+
+build --cxxopt=-std=c++23
+build --color=yes
+build --noincompatible_use_python_toolchains
+build --python_path=/run/current-system/sw/bin/python3
+
+test --color=yes
+test --keep_going
+test --test_output=errors

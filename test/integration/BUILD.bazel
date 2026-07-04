@@ -1,0 +1,6 @@
+py_test(
+    name = "fake_agent_process_test",
+    srcs = ["fake_agent_process_test.py"],
+    data = ["//test/fixtures:fake_agent"],
+    tags = ["integration"],
+)

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Bazel Tests"
+  short_description: "Run this repo's Bazel test gates"
+  default_prompt: "Use $run-bazel-tests to choose and run the right Bazel test command for this repo."

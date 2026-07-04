@@ -11,14 +11,16 @@ Deliverables:
 
 - Bazel workspace/module setup.
 - Minimal C++ library and GoogleTest target.
-- Real placeholder targets for bridge, browser host, fixtures, and integration
-  tests.
 - Fake CLI fixture for future PTY/agent tests.
+- A process-boundary integration test using the fake agent.
 
 Exit criteria:
 
 - `bazel test //...` passes locally.
 - Future `/goal` sessions can add tests without first inventing the harness.
+- No placeholder-only targets are required for code that does not exist yet.
+- Fixture workspaces for Bazel integration are deferred until the editor starts
+  running Bazel against workspaces.
 
 ## Phase 1: Parent PTY Bridge Spike
 
@@ -160,4 +162,3 @@ Exit criteria:
 
 - Daily self-hosting survives browser reloads, child process exits, and parent
   app restarts.
-

@@ -10,8 +10,8 @@ being able to run:
 bazel test //...
 ```
 
-and have that command cover the first C++ unit tests plus placeholder targets
-for future bridge/browser/integration tests.
+and have that command cover this project's first C++ unit tests plus a small
+process-boundary test.
 
 ## Initial Repo Shape
 
@@ -25,10 +25,6 @@ src/
     BUILD.bazel
   core/
     BUILD.bazel
-bridge/
-  BUILD.bazel
-web/
-  BUILD.bazel
 test/
   fixtures/
     BUILD.bazel
@@ -37,7 +33,8 @@ test/
 ```
 
 Keep the first layout boring. It only needs to support small C++ libraries,
-tests, fixture scripts, and later bridge/browser targets.
+tests, fixture scripts, and integration tests. Add bridge/browser Bazel
+packages when there is bridge/browser code to build.
 
 ## Phase 0 Targets
 
@@ -48,14 +45,15 @@ Create these targets first:
 //src/core:core_test
 //src/parent:workspace_parent
 //src/parent:workspace_parent_test
-//bridge:bridge_placeholder_test
-//web:web_placeholder_test
 //test/fixtures:fake_agent
-//test/integration:pty_placeholder_test
+//test/fixtures:fake_agent_test
+//test/fixtures:python_runtime_test
+//test/integration:fake_agent_process_test
 ```
 
-The placeholder tests should be real tests that pass and can later be replaced
-or extended. Avoid empty targets that teach future agents nothing.
+Do not create placeholder-only tests for future bridge or browser work. A target
+should exercise current code, a reusable fixture, or a concrete contract that is
+already implemented.
 
 ## C++ Test Framework
 
@@ -98,7 +96,8 @@ Add these as soon as the corresponding code exists:
   IDs route correctly.
 - `vim` compatibility harness: run `vim` in a temp directory, write a file, and
   quit.
-- Bazel fixture harness: run Bazel against a tiny fixture workspace.
+- Bazel fixture harness: defer until the editor starts running Bazel against
+  workspaces, then add a tiny disposable workspace fixture.
 
 The `vim` test is a compatibility gate, not a long-term editing strategy. The
 built-in editor should get its own tests immediately after it exists.
