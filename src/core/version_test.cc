@@ -11,7 +11,7 @@ TEST(VersionTest, ExposesProjectName) {
 }
 
 TEST(VersionTest, ExposesCurrentPhase) {
-  EXPECT_EQ(moe::core::phase_name(), std::string_view("phase-0-build-and-test-foundation"));
+  EXPECT_EQ(moe::core::phase_name(), std::string_view("phase-1-parent-pty-spike"));
 }
 
 }  // namespace

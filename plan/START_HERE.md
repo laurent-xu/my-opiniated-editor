@@ -16,15 +16,25 @@ docs as references, not as required pre-reading.
 
 ## Current Phase
 
-Phase 0: build and test foundation.
+Phase 1: parent PTY bridge spike.
+
+Already done:
+
+- Bazel module setup with C++ GoogleTest targets.
+- Nix-provided Bazel Python toolchain and Bazel-owned Ruff formatter.
+- Deterministic fake CLI fixture for future process, PTY, and agent tests.
+- Process-boundary fake-agent integration test.
+- Parent app TTY command loop with a real PTY integration smoke test.
+- Safe `compile_commands.json` refresh wrapper:
+  `tools/bazel/refresh_compile_commands.sh`.
 
 Next implementation goals:
 
-1. Set up Bazel with a minimal C++ library and GoogleTest target.
-2. Add deterministic fake CLI fixtures for future process, PTY, and agent
-   tests.
-3. Add only test targets that exercise real code or reusable fixtures; do not
-   add placeholder-only bridge or browser targets before that code exists.
+1. Evaluate `ttyd` as the first thin browser bridge candidate.
+2. Attach a browser terminal to the single parent C++ app PTY.
+3. Keep the bridge limited to parent PTY bytes, resize, reconnect, auth, and
+   browser clipboard plumbing.
+4. Add bridge/client integration coverage only as concrete bridge code appears.
 
 ## First Self-Hosting Milestone
 
@@ -66,6 +76,12 @@ Default command:
 
 ```text
 bazel test //...
+```
+
+Manual compile database refresh:
+
+```text
+tools/bazel/refresh_compile_commands.sh
 ```
 
 For PTY, process, browser, file, git, or Bazel boundaries, add an integration

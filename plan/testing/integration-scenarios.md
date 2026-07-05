@@ -20,6 +20,14 @@ Assertions:
 - Parent process survives browser disconnect.
 - Reconnect attaches to the same parent process.
 
+Current automated coverage:
+
+- `//test/integration:workspace_parent_pty_test` starts the C++ parent under a
+  real PTY, verifies the initial screen, sends keyboard input, receives a
+  status response, and exits cleanly.
+- Browser bridge attach, disconnect, and reconnect are still pending bridge
+  implementation.
+
 ## Full-Screen Terminal Compatibility
 
 Scenario:

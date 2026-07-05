@@ -13,6 +13,8 @@ bazel test //...
 and have that command cover this project's first C++ unit tests plus a small
 process-boundary test.
 
+Status: complete. Phase 1 work now builds on this harness.
+
 ## Initial Repo Shape
 
 Proposed early layout:
@@ -49,6 +51,7 @@ Create these targets first:
 //test/fixtures:fake_agent_test
 //test/fixtures:python_runtime_test
 //test/integration:fake_agent_process_test
+//test/integration:workspace_parent_pty_test
 ```
 
 Do not create placeholder-only tests for future bridge or browser work. A target
@@ -115,6 +118,15 @@ test --color=yes
 
 Keep remote caching, sandbox tuning, and large performance settings out until
 there is a concrete need.
+
+Current NixOS tooling:
+
+- Bazel uses a Nix-provided Python toolchain instead of the ambient system
+  Python.
+- Ruff is exposed through `//tools/python:pyformat`.
+- Compile commands are refreshed through
+  `tools/bazel/refresh_compile_commands.sh`, not `bazel run`, because Hedron's
+  generated script calls Bazel internally.
 
 ## Agent Instructions
 

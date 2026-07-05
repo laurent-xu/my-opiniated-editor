@@ -26,8 +26,8 @@ The important distinction:
 Recommended first stack:
 
 - Parent workspace/editor app: C++23.
-- Bridge: Rust first, with Node as a throwaway spike option and C++ later if a
-  single-language system becomes worth it.
+- Bridge: evaluate the strongest maintained open-source fit first, starting
+  with `ttyd`; if building the bridge, use C++.
 - Browser UI: thin TypeScript host around xterm.js plus clipboard/auth/status
   controls.
 - Terminal surface: one primary xterm.js instance attached to the parent C++
@@ -40,7 +40,8 @@ Recommended first stack:
 - Web tooling: TypeScript language server plus project-local formatter/linter.
 - Build system: Bazel for this project, with enough integration that the editor
   can build and test itself.
-- Environment: NixOS is the current development environment, but not a core
+- Environment: NixOS is the current development environment. Bazel owns the
+  project Python/Ruff tooling through Nix, but rich Nix workflows are not an
   editor feature yet.
 
 ## Document Map

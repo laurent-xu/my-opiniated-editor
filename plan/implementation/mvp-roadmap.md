@@ -7,12 +7,16 @@ This is the short execution roadmap. Detailed test expectations live in
 
 Goal: make Bazel and tests available before implementation accelerates.
 
+Status: complete.
+
 Deliverables:
 
 - Bazel workspace/module setup.
 - Minimal C++ library and GoogleTest target.
 - Fake CLI fixture for future PTY/agent tests.
 - A process-boundary integration test using the fake agent.
+- Bazel-owned Python/Ruff tooling on NixOS.
+- Safe compile database refresh wrapper.
 
 Exit criteria:
 
@@ -25,6 +29,8 @@ Exit criteria:
 ## Phase 1: Parent PTY Bridge Spike
 
 Goal: attach a browser to one parent C++ workspace process.
+
+Status: in progress.
 
 Deliverables:
 
@@ -39,6 +45,13 @@ Exit criteria:
 - Browser attaches to the parent process.
 - Bridge exposes only one parent PTY.
 - Clipboard write request reaches the browser.
+
+Current progress:
+
+- `//src/parent:workspace_parent` now enters a small TTY command loop when run
+  under a terminal.
+- `//test/integration:workspace_parent_pty_test` starts the parent under a real
+  PTY, reads the initial screen, sends `status`, and exits with `quit`.
 
 ## Phase 2: Skeleton Workspace
 

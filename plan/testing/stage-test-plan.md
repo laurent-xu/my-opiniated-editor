@@ -7,6 +7,8 @@ the next phase depends on that behavior.
 
 Goal: make testing part of the project shape before implementation accelerates.
 
+Status: complete.
+
 Tests to add:
 
 - Bazel smoke target: `bazel test //...` works on a trivial C++ test.
@@ -28,6 +30,8 @@ Exit gate:
 
 Goal: prove the browser can attach to one parent workspace process.
 
+Status: in progress.
+
 Unit tests:
 
 - Sideband handshake accepts matching version.
@@ -47,6 +51,13 @@ Exit gate:
 
 - Parent PTY attach/reconnect is deterministic under test.
 - The bridge still owns only one parent PTY.
+
+Current coverage:
+
+- `//test/integration:workspace_parent_pty_test` spawns the parent app under a
+  real PTY, reads its initial output, sends `status`, and exits with `quit`.
+  Bridge forwarding, resize, reconnect, and clipboard tests are still pending
+  concrete bridge code.
 
 ## Phase 2: Skeleton Workspace
 

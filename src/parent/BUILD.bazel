@@ -9,6 +9,7 @@ cc_library(
 cc_binary(
     name = "workspace_parent",
     srcs = ["main.cc"],
+    visibility = ["//visibility:public"],
     deps = [":parent_lib"],
 )
 
@@ -21,4 +22,3 @@ cc_test(
     ],
     tags = ["unit"],
 )
-
