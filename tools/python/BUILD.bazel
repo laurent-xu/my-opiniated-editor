@@ -1,0 +1,5 @@
+sh_binary(
+    name = "pyformat",
+    srcs = ["pyformat.sh"],
+    data = ["@nixpkgs_ruff//:bin"],
+)

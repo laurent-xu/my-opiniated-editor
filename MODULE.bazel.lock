@@ -77,6 +77,8 @@
     "https://bcr.bazel.build/modules/rules_license/0.0.3/MODULE.bazel": "627e9ab0247f7d1e05736b59dbb1b6871373de5ad31c3011880b4133cafd4bd0",
     "https://bcr.bazel.build/modules/rules_license/0.0.7/MODULE.bazel": "088fbeb0b6a419005b89cf93fe62d9517c0a2b8bb56af3244af65ecfe37e7d5d",
     "https://bcr.bazel.build/modules/rules_license/0.0.7/source.json": "355cc5737a0f294e560d52b1b7a6492d4fff2caf0bef1a315df5a298fca2d34a",
+    "https://bcr.bazel.build/modules/rules_nixpkgs_core/0.13.0/MODULE.bazel": "b826d994220017d44c8a4e55435c2c2e6b4733eaaff69fff65232e0010afcb7b",
+    "https://bcr.bazel.build/modules/rules_nixpkgs_core/0.13.0/source.json": "c542b96a9d6ab189bd1a65da43e6c7b8be5f1099876ffba35cd9d2275f82740e",
     "https://bcr.bazel.build/modules/rules_pkg/0.7.0/MODULE.bazel": "df99f03fc7934a4737122518bb87e667e62d780b610910f0447665a7e2be62dc",
     "https://bcr.bazel.build/modules/rules_pkg/0.7.0/source.json": "c2557066e0c0342223ba592510ad3d812d4963b9024831f7f66fd0584dd8c66c",
     "https://bcr.bazel.build/modules/rules_proto/4.0.0/MODULE.bazel": "a7a7b6ce9bee418c1a760b3d84f83a299ad6952f9903c67f19e4edd964894e06",
@@ -101,6 +103,90 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//tools/bazel:nix_deps.bzl%nix_deps": {
+      "general": {
+        "bzlTransitiveDigest": "jeM0x9082BdgwEXhqVoU9zWlRCw/pIsLx2OaQaqPws4=",
+        "usagesDigest": "zA2MVuJkZg48QiIr3ZvbQlCF8e3m68cJ2YkUbTwyUQI=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "nixpkgs": {
+            "bzlFile": "@@rules_nixpkgs_core~//:nixpkgs.bzl",
+            "ruleClassName": "_nixpkgs_http_repository",
+            "attributes": {
+              "unmangled_name": "nixpkgs",
+              "url": "https://github.com/NixOS/nixpkgs/archive/refs/tags/24.05.tar.gz",
+              "strip_prefix": "nixpkgs-24.05",
+              "sha256": "911314b81780f26fdaf87e17174210bdbd40c86bac1795212f257cdc236a1e78"
+            }
+          },
+          "nixpkgs_python_toolchain_python3": {
+            "bzlFile": "@@rules_nixpkgs_core~//:nixpkgs.bzl",
+            "ruleClassName": "_nixpkgs_package",
+            "attributes": {
+              "unmangled_name": "nixpkgs_python_toolchain_python3",
+              "attribute_path": "",
+              "nix_file_deps": {},
+              "nix_file_content": "\nwith import <nixpkgs> { config = {}; overlays = []; };\nlet\n  addShebang = true;\n  interpreterPath = \"${python3}/bin/python\";\n  shebangLine = interpreter: writers.makeScriptWriter { inherit interpreter; } \"shebang\" \"\";\nin\nrunCommand \"bazel-nixpkgs-python-toolchain\"\n  { executable = false;\n    # Pointless to do this on a remote machine.\n    preferLocalBuild = true;\n    allowSubstitutes = false;\n  }\n  ''\n    n=$out/BUILD.bazel\n    mkdir -p \"$(dirname \"$n\")/bin\"\n    ln -s ${interpreterPath} $out/bin/python\n\n    cat >>$n <<EOF\n    py_runtime(\n        name = \"runtime\",\n        interpreter_path = \"${interpreterPath}\",\n        python_version = \"PY3\",\n        ${lib.optionalString addShebang ''\n          stub_shebang = \"$(cat ${shebangLine interpreterPath})\",\n        ''}\n        visibility = [\"//visibility:public\"],\n    )\n    exports_files([\"bin/python\"])\n    EOF\n  ''\n",
+              "repository": "@@_main~nix_deps~nixpkgs//:nixpkgs",
+              "repositories": {},
+              "build_file_content": "",
+              "nixopts": [],
+              "quiet": false,
+              "fail_not_supported": true
+            }
+          },
+          "nixpkgs_python_toolchain": {
+            "bzlFile": "@@rules_nixpkgs_python~//:python.bzl",
+            "ruleClassName": "_nixpkgs_python_toolchain",
+            "attributes": {
+              "python3_repo": "@nixpkgs_python_toolchain_python3//",
+              "exec_constraints": [],
+              "target_constraints": []
+            }
+          },
+          "nixpkgs_ruff": {
+            "bzlFile": "@@rules_nixpkgs_core~//:nixpkgs.bzl",
+            "ruleClassName": "_nixpkgs_package",
+            "attributes": {
+              "unmangled_name": "nixpkgs_ruff",
+              "attribute_path": "ruff",
+              "nix_file_deps": {},
+              "nix_file_content": "",
+              "repository": "@@_main~nix_deps~nixpkgs//:nixpkgs",
+              "repositories": {},
+              "build_file_content": "\npackage(default_visibility = [\"//visibility:public\"])\n\nfilegroup(\n    name = \"bin\",\n    srcs = glob([\"bin/*\"]),\n)\n\nsh_binary(\n    name = \"ruff\",\n    srcs = [\"bin/ruff\"],\n)\n",
+              "nixopts": [],
+              "quiet": false,
+              "fail_not_supported": true
+            }
+          }
+        },
+        "recordedRepoMappingEntries": [
+          [
+            "",
+            "rules_nixpkgs_core",
+            "rules_nixpkgs_core~"
+          ],
+          [
+            "",
+            "rules_nixpkgs_python",
+            "rules_nixpkgs_python~"
+          ],
+          [
+            "rules_nixpkgs_core~",
+            "bazel_skylib",
+            "bazel_skylib~"
+          ],
+          [
+            "rules_nixpkgs_python~",
+            "rules_nixpkgs_core",
+            "rules_nixpkgs_core~"
+          ]
+        ]
+      }
+    },
     "@@apple_support~//crosstool:setup.bzl%apple_cc_configure_extension": {
       "general": {
         "bzlTransitiveDigest": "ltCGFbl/LQQZXn/LEMXfKX7pGwyqNiOCHcmiQW0tmjM=",

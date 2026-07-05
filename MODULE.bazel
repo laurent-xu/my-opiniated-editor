@@ -5,9 +5,29 @@ module(
 
 bazel_dep(name = "googletest", version = "1.16.0")
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "rules_nixpkgs_core", version = "0.13.0")
+bazel_dep(name = "rules_nixpkgs_python", version = "0.13.0")
 
 git_override(
     module_name = "hedron_compile_commands",
     remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
     commit = "abb61a688167623088f8768cc9264798df6a9d10",
 )
+
+archive_override(
+    module_name = "rules_nixpkgs_python",
+    integrity = "sha256-MCcfe9OA5OIOTXEywySUbE/bwx6+C7tmOKD2GjfnQ5c=",
+    strip_prefix = "rules_nixpkgs-0.13.0/toolchains/python",
+    urls = ["https://github.com/tweag/rules_nixpkgs/releases/download/v0.13.0/rules_nixpkgs-0.13.0.tar.gz"],
+)
+
+nix_deps = use_extension("//tools/bazel:nix_deps.bzl", "nix_deps")
+use_repo(
+    nix_deps,
+    "nixpkgs",
+    "nixpkgs_python_toolchain",
+    "nixpkgs_python_toolchain_python3",
+    "nixpkgs_ruff",
+)
+register_toolchains("@nixpkgs_python_toolchain//:all")

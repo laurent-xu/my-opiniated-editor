@@ -4,7 +4,38 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-# The hook uses LLVM tools directly. On NixOS they come from clang-tools.
+# Only lint files that the hook knows how to check. Python formatting follows
+# the staged set, while C++ linting follows the full branch diff.
+mapfile -t python_files < <(
+  git diff --cached --name-only --diff-filter=ACMR -- '*.py'
+)
+
+status=0
+
+if ! cpp_base="$(git merge-base HEAD origin/main 2>/dev/null)"; then
+  echo "origin/main is required for C++ pre-commit checks. Fetch it first." >&2
+  exit 1
+fi
+
+mapfile -t cpp_files < <(
+  git diff --name-only --diff-filter=ACMR "$cpp_base" -- \
+    '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh'
+)
+
+if [[ "${#python_files[@]}" -gt 0 ]]; then
+  # Ruff is imported through Bazel/Nix, so the hook does not depend on system
+  # Python or a globally installed formatter.
+  echo "bazel --batch run //tools/python:pyformat -- --check ."
+  if ! bazel --batch run //tools/python:pyformat -- --check .; then
+    status=1
+  fi
+fi
+
+if [[ "${#cpp_files[@]}" -eq 0 ]]; then
+  exit "$status"
+fi
+
+# The C++ checks use LLVM tools directly. On NixOS they come from clang-tools.
 if ! command -v clang-tidy >/dev/null 2>&1; then
   cat >&2 <<'EOF'
 clang-tidy is required for this repo's pre-commit hook.
@@ -31,54 +62,21 @@ EOF
   exit 1
 fi
 
-# Only lint staged C++ files. Other staged files should not pay this cost.
-mapfile -t files < <(
-  git diff --cached --name-only --diff-filter=ACMR -- \
-    '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh'
-)
-
-if [[ "${#files[@]}" -eq 0 ]]; then
-  exit 0
-fi
-
 # clang-tidy reads Bazel's real compile flags, include paths, and external deps
 # from compile_commands.json. Refresh it before linting so we do not guess flags.
-bazel run //:refresh_compile_commands
+tools/bazel/refresh_compile_commands.sh
 
-status=0
-has_header=0
-tidy_candidates=()
-
-# Format every staged C++ header/source. clang-format enforces east const.
-for file in "${files[@]}"; do
+# Format every changed C++ header/source. clang-format enforces east const.
+for file in "${cpp_files[@]}"; do
   [[ -f "$file" ]] || continue
   echo "clang-format --dry-run $file"
   if ! clang-format --dry-run --Werror "$file"; then
     status=1
   fi
-
-  case "$file" in
-    *.h | *.hpp | *.hh)
-      has_header=1
-      ;;
-    *.cc | *.cpp | *.cxx)
-      tidy_candidates+=("$file")
-      ;;
-  esac
 done
 
-# Header-only changes still need clang-tidy coverage. Run the repo's source
-# files so changed headers are checked through real Bazel compile contexts.
-if [[ "$has_header" -eq 1 ]]; then
-  mapfile -t tidy_candidates < <(git ls-files -- 'src/*.cc' 'src/**/*.cc' 'src/*.cpp' 'src/**/*.cpp' 'src/*.cxx' 'src/**/*.cxx')
-fi
-
-if [[ "${#tidy_candidates[@]}" -gt 0 ]]; then
-  mapfile -t tidy_candidates < <(printf '%s\n' "${tidy_candidates[@]}" | sort -u)
-fi
-
 # Run clang-tidy through the compile database instead of passing manual flags.
-for file in "${tidy_candidates[@]}"; do
+for file in "${cpp_files[@]}"; do
   [[ -f "$file" ]] || continue
   echo "clang-tidy $file"
   if ! clang-tidy "$file" --quiet -p "$repo_root"; then

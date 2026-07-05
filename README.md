@@ -20,5 +20,6 @@ install -m 755 tools/git-hooks/pre-commit .git/hooks/pre-commit
 
 ```bash
 bazel --batch test //...
-bazel run //:refresh_compile_commands
+tools/bazel/refresh_compile_commands.sh
+bazel run //tools/python:pyformat -- --check .
 ```

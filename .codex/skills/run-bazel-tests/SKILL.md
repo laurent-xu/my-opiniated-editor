@@ -46,25 +46,25 @@ or bypassing Bazel.
 
 ## Repo Constraints
 
-The repo is used on NixOS. Before preserving or changing Bazel's Python
-configuration, verify the active system interpreter:
+The repo is used on NixOS. Bazel should not point at the ambient system Python
+with `build --python_path`. Python test targets use the Nix-provided Bazel
+toolchain registered in `MODULE.bazel`, and Python formatting uses the
+Nix-provided Ruff target:
 
 ```bash
-which python3
+bazel --batch run //tools/python:pyformat -- --check .
 ```
 
-`.bazelrc` should point `build --python_path` at that discovered interpreter,
-for example:
+Do not switch back to `rules_python`'s downloaded standalone CPython on NixOS;
+that generic Linux interpreter cannot run without the expected dynamic loader.
 
-```text
-startup --output_user_root=/tmp/my-opiniated-editor-bazel-cache
-build --noincompatible_use_python_toolchains
-build --python_path=<output from which python3>
+Refresh `compile_commands.json` with the repo wrapper, not `bazel run`; Hedron's
+generated script calls Bazel internally and can deadlock behind the outer
+`bazel run` client lock:
+
+```bash
+tools/bazel/refresh_compile_commands.sh
 ```
-
-Keep those settings unless replacing them with an explicit Nix-pinned Python
-toolchain. They avoid Bazel downloading a generic Linux Python that cannot run
-on NixOS because its dynamic loader path is not available.
 
 Prefer adding or updating Bazel test targets over ad hoc scripts. Keep default
 `bazel test //...` fast and free of credentials, real agent CLIs, browser
