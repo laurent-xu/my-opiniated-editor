@@ -1,7 +1,9 @@
 import os
 import shutil
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 
 def runfile_path(path: str) -> str:
@@ -46,6 +48,36 @@ class ServiceScriptsTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
         self.assertIn("MOE_BRIDGE_TOKEN is required", result.stderr)
+
+    def test_restart_builds_before_restart(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bin_dir = Path(temp_dir)
+            log_path = bin_dir / "commands.log"
+            for name in ["bazel", "systemctl"]:
+                script = bin_dir / name
+                script.write_text(
+                    "#!/usr/bin/env bash\n"
+                    f"printf '{name} %s\\n' \"$*\" >> {log_path}\n",
+                    encoding="utf-8",
+                )
+                script.chmod(0o755)
+
+            subprocess.run(
+                [self.bash, runfile_path("tools/bridge/restart_bridge.sh")],
+                env={
+                    **os.environ,
+                    "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                },
+                check=True,
+            )
+
+            self.assertEqual(
+                log_path.read_text(encoding="utf-8").splitlines(),
+                [
+                    "bazel --batch build //src/bridge:parent_ws_bridge //src/parent:workspace_parent",
+                    "systemctl --user restart my-opiniated-editor-bridge.service",
+                ],
+            )
 
 
 if __name__ == "__main__":
