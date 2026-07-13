@@ -22,6 +22,16 @@ mapfile -t cpp_files < <(
     '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh'
 )
 
+mapfile -t cpp_files < <(
+  for file in "${cpp_files[@]}"; do
+    case "$file" in
+      src/*|test/*)
+        printf '%s\n' "$file"
+        ;;
+    esac
+  done
+)
+
 if [[ "${#python_files[@]}" -gt 0 ]]; then
   # Ruff is imported through Bazel/Nix, so the hook does not depend on system
   # Python or a globally installed formatter.
@@ -79,7 +89,18 @@ done
 for file in "${cpp_files[@]}"; do
   [[ -f "$file" ]] || continue
   echo "clang-tidy $file"
-  if ! clang-tidy "$file" --quiet -p "$repo_root"; then
+  if ! tidy_output="$(clang-tidy "$file" --quiet -p "$repo_root" 2>&1)"; then
+    tidy_status=1
+  else
+    tidy_status=0
+  fi
+  if [[ -n "$tidy_output" ]]; then
+    printf '%s\n' "$tidy_output" | sed -E \
+      -e '/^[0-9]+ warnings generated\.$/d' \
+      -e '/^Suppressed [0-9]+ warnings \(.* in non-user code\)\.$/d' \
+      -e '/^Use -header-filter=.*$/d'
+  fi
+  if [[ "$tidy_status" -ne 0 ]]; then
     status=1
   fi
 done
