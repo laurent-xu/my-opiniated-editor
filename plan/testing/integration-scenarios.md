@@ -23,10 +23,30 @@ Assertions:
 Current automated coverage:
 
 - `//test/integration:workspace_parent_pty_test` starts the C++ parent under a
-  real PTY, verifies the initial screen, sends keyboard input, receives a
-  status response, and exits cleanly.
-- Browser bridge attach, disconnect, and reconnect are still pending bridge
-  implementation.
+  real PTY, sends keyboard input to the configured shell, observes shell output,
+  and exits cleanly.
+- `//src/bridge:parent_pty_session_test` verifies the owned C++ PTY session
+  keeps one parent PID alive while clients come and go in the future bridge.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies the owned C++ bridge
+  keeps the same parent PID across WebSocket reconnect.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies the bridge can serve
+  HTTP assets while a WebSocket is open, matching browser refresh behavior.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies two simultaneous
+  WebSocket clients can attach to one parent PTY and receive the same output.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies the bridge serves
+  the thin browser client assets.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies token-protected
+  HTTP/WebSocket attach and rejects non-loopback binds without a token or
+  explicit unsafe override.
+- Manual browser check on 2026-07-07 confirmed the network page loads, status
+  reaches connected, two tabs show the same parent content, and refresh works.
+- Clipboard is intentionally parked until HTTPS/reverse-proxy support exists.
+
+Deferred focused coverage:
+
+- Verify resize propagation against the shell-backed parent PTY.
+- Verify process identity with a dedicated PID check rather than temporary
+  parent-app commands.
 
 ## Full-Screen Terminal Compatibility
 
@@ -125,20 +145,13 @@ Assertions:
 - Launch context includes current file and available diagnostics.
 - Primary agent remains unchanged.
 
-## Clipboard From Server To Browser
+## Future Clipboard From Server To Browser
 
-Scenario:
+Status: parked until HTTPS/reverse-proxy support exists.
 
-1. Parent app requests clipboard write through sideband.
-2. Browser writes text to the client clipboard.
-3. Browser reports success or failure.
-
-Assertions:
-
-- Clipboard request has an ID and reason.
-- Permission denial is visible and non-fatal.
-- OSC 52 from parent PTY can use the same broker path.
-- The Linux server clipboard is not assumed to be the target.
+Do not add clipboard integration tests during Phase 1. Once the browser path
+runs in a secure context, add tests around the concrete protocol chosen at that
+time.
 
 ## Bazel Self-Build
 

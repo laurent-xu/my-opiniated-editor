@@ -2,14 +2,15 @@ cc_library(
     name = "parent_lib",
     srcs = ["workspace_parent.cc"],
     hdrs = ["workspace_parent.h"],
-    visibility = ["//visibility:public"],
-    deps = ["//src/core"],
 )
 
 cc_binary(
     name = "workspace_parent",
     srcs = ["main.cc"],
-    visibility = ["//visibility:public"],
+    visibility = [
+        "//src/bridge:__pkg__",
+        "//test/integration:__pkg__",
+    ],
     deps = [":parent_lib"],
 )
 

@@ -5,6 +5,8 @@ refresh_compile_commands(
     exclude_external_sources = True,
     exclude_headers = "all",
     targets = [
+        "//src/bridge:parent_pty_session_test",
+        "//src/bridge:parent_ws_bridge",
         "//src/core:core_test",
         "//src/parent:workspace_parent",
         "//src/parent:workspace_parent_test",

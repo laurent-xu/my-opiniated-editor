@@ -6,7 +6,6 @@ These references informed the first planning pass on 2026-07-04.
 
 - xterm.js: https://xtermjs.org/
 - MDN Clipboard `writeText`: https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-- MDN Clipboard API: https://developer.mozilla.org/en-US/docs/Web/API/Clipboard_API
 - MDN WebSocket API: https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API
 - MDN WebExtension permissions: https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/permissions
 
@@ -17,14 +16,7 @@ These references informed the first planning pass on 2026-07-04.
 
 ## PTY And Bridge Options
 
-- ttyd: https://github.com/tsl0922/ttyd
-- WeTTY: https://github.com/butlerx/wetty
-- GoTTY: https://github.com/yudai/gotty
-- node-pty: https://github.com/microsoft/node-pty
-- Rust `portable-pty`: https://docs.rs/portable-pty/latest/portable_pty/
-- Rust `tokio-tungstenite`: https://docs.rs/tokio-tungstenite/latest/tokio_tungstenite/
-- Boost.Asio: https://www.boost.org/doc/libs/1_88_0/doc/html/boost_asio.html
-- Boost.Beast: https://www.boost.org/doc/libs/1_88_0/libs/beast/doc/html/index.html
+- POSIX `forkpty`: https://man7.org/linux/man-pages/man3/forkpty.3.html
 
 ## Build, Language, And Environment
 

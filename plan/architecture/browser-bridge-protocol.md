@@ -4,6 +4,38 @@
 
 Use HTTPS plus WebSocket.
 
+Current Phase 1 bridge:
+
+- `//src/bridge:parent_pty_session_test` covers the owned C++ `forkpty`
+  foundation. The bridge keeps one `ParentPtySession` alive across browser
+  disconnect/reconnect and attaches clients to that session.
+- `//src/bridge:parent_ws_bridge_integration_test` proves the first owned
+  bridge server does that over WebSocket.
+- The bridge now treats applications and WebSocket connections as separate
+  axes. The current implementation has one parent PTY application served to
+  multiple simultaneous WebSocket clients. The broader architecture should allow
+  an N-to-N mapping: any application session can be served by any authorized
+  browser socket, and one browser socket can choose which application/session it
+  is observing or controlling.
+
+Current owned bridge endpoints:
+
+- `GET /`: thin browser client.
+- `GET /client.js`: xterm.js/WebSocket client code.
+- `GET /style.css`: minimal terminal layout.
+- `GET /health`: bridge health and current parent PID.
+- `WS /ws`: parent PTY bytes. Client input frames use command byte `0`; server
+  output frames use command byte `0`; resize frames use command byte `1` plus
+  JSON `{columns, rows}`.
+- When `--token` is configured, `/`, `/health`, and `/ws` require the token.
+  The browser client carries it from `/?token=<token>` to `/ws?token=<token>`.
+  Static `/client.js` and `/style.css` are not sensitive and remain fetchable
+  without the token.
+- Multiple clients can connect to `/ws` at the same time. A single PTY reader
+  broadcasts parent output to all clients; each client can send input or resize
+  frames back to the parent PTY. New clients receive the recent terminal
+  backlog so refresh/reconnect does not start from a blank terminal surface.
+
 Initial endpoints:
 
 - `GET /`: browser app assets.
@@ -11,10 +43,16 @@ Initial endpoints:
 - `WS /ws/control`: structured control and workspace events.
 - `WS /ws/pty/main`: raw terminal bytes for the parent workspace PTY.
 
-Do not expose a WebSocket per shell or agent pane in the first design. The
-bridge serves one parent C++ workspace app. Shells and agents are child PTYs
-inside that parent app, and the parent app decides how to tile, focus, resize,
-log, and supervise them.
+The current owned bridge uses `/ws` as a temporary single-socket endpoint. Split
+to `/ws/pty/main` plus `/ws/control` when browser-specific messages grow beyond
+resize and status reporting.
+
+Do not expose bridge-owned shell or agent pane topology in the first design.
+The bridge serves application sessions; today that is one parent C++ workspace
+app. Shells and agents are child PTYs inside that parent app, and the parent app
+decides how to tile, focus, resize, log, and supervise them. Later, the bridge
+can route browser sockets across multiple parent-owned application/session
+surfaces without making the browser own those processes.
 
 ## Control Messages
 
@@ -23,8 +61,8 @@ Use JSON for the sideband protocol. Keep every message typed.
 The control socket is a sideband. It is not the main command plane for the
 workspace UI. Most user commands are handled by the parent C++ app through its
 own keymap over the PTY. The sideband exists for browser-specific capabilities
-such as clipboard writes, permission/status reporting, reconnect metadata, and
-future optional browser-native inspector views.
+such as permission/status reporting, reconnect metadata, future clipboard over
+HTTPS, and future optional browser-native inspector views.
 
 Version the sideband once at connection time:
 
@@ -41,7 +79,7 @@ If the client and server sideband versions do not match, close the socket with
 a clear reload-required error. Do not add a version field to every message for
 the MVP.
 
-Client capabilities:
+Future client capabilities:
 
 ```json
 {
@@ -77,7 +115,7 @@ Server event:
 }
 ```
 
-Request/response:
+Future request/response:
 
 ```json
 {
@@ -109,49 +147,25 @@ Resize:
 }
 ```
 
-## Clipboard Protocol
+## Clipboard
 
-The Linux server cannot directly write the browser client's clipboard. Clipboard
-write is always a server request and browser action.
+Status: parked. Phase 1 does not expose a parent copy command, terminal
+clipboard broker, or browser Clipboard API call.
 
-Server to browser:
-
-```json
-{
-  "type": "clipboard.write.request",
-  "id": "clip_456",
-  "mime": "text/plain",
-  "text": "content to copy",
-  "reason": "copy.current_symbol"
-}
-```
-
-Browser to server:
-
-```json
-{
-  "type": "clipboard.write.result",
-  "id": "clip_456",
-  "ok": true
-}
-```
-
-Also support OSC 52 from the parent PTY stream:
-
-```text
-ESC ] 52 ; c ; <base64 text> BEL
-```
-
-The bridge should detect OSC 52 in parent PTY output, suppress or pass it
-according to policy, and send a `clipboard.write.request` to the browser.
-
-The parent app can also send explicit clipboard requests over the control
-sideband. Prefer the sideband for rich commands and keep OSC 52 for terminal
-compatibility.
+Revisit clipboard only after HTTPS or another secure browser context is part of
+the bridge path. When that happens, design the smallest protocol needed for the
+actual workflow rather than carrying a speculative clipboard protocol now.
 
 ## Authentication
 
 For localhost-only development, a random session token is enough.
+
+Current implementation:
+
+- Loopback binds may run without a token for local development.
+- Non-loopback binds, including `0.0.0.0`, require `--token <secret>` unless
+  `--allow-unauthenticated-network` is passed.
+- The token is a development guard, not the final remote-access security model.
 
 For remote access:
 
@@ -159,7 +173,8 @@ For remote access:
 - Require an authenticated browser session.
 - Bind WebSocket sessions to the authenticated HTTP session.
 - Add CSRF protection to state-changing HTTP endpoints.
-- Keep clipboard writes auditable because clipboard is a high-trust channel.
+- Keep future clipboard writes auditable because clipboard is a high-trust
+  channel.
 
 ## Compatibility Policy
 

@@ -73,8 +73,7 @@ Primary stack:
 - Browser app built with TypeScript and a small bundler.
 
 Do not let web tooling become the workspace architecture. The browser client is
-a thin terminal host and clipboard broker; the parent C++ workspace model
-remains primary.
+a thin terminal host; the parent C++ workspace model remains primary.
 
 ## Bazel Integration
 

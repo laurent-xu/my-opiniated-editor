@@ -34,24 +34,48 @@ Status: in progress.
 
 Deliverables:
 
-- Evaluate existing OSS bridge first, starting with `ttyd`.
-- If building the bridge, build it in C++.
-- Minimal C++ parent process drawing a basic terminal screen.
-- Clipboard path through OSC 52 or a small sideband.
+- Build the browser bridge in C++ around the parent-owned PTY session.
+- Minimal C++ parent process that serves a usable shell until the editor exists.
 - Parent PTY attach/reconnect integration test.
 
 Exit criteria:
 
 - Browser attaches to the parent process.
 - Bridge exposes only one parent PTY.
-- Clipboard write request reaches the browser.
 
 Current progress:
 
-- `//src/parent:workspace_parent` now enters a small TTY command loop when run
-  under a terminal.
+- `//src/parent:workspace_parent` now execs the user's configured login shell
+  in interactive mode.
 - `//test/integration:workspace_parent_pty_test` starts the parent under a real
-  PTY, reads the initial screen, sends `status`, and exits with `quit`.
+  PTY, sends a shell marker command, verifies shell output, and exits.
+- `//src/bridge:parent_pty_session_test` covers the C++ `forkpty` session
+  foundation: spawning the shell-backed parent, exchanging bytes, validating
+  PTY size errors, and keeping the same parent PID for the session lifetime.
+- `//src/bridge:parent_ws_bridge_integration_test` covers the owned C++
+  WebSocket bridge: `/health`, `/ws`, terminal input/output, reconnect to the
+  same parent PID, and multiple clients.
+- The owned bridge now supports multiple WebSocket clients attached to the same
+  parent PTY application. The bridge test verifies that an HTTP asset fetch can
+  complete while a WebSocket is open and that two WebSocket clients receive the
+  same parent output.
+- The owned bridge serves `/`, `/client.js`, and `/style.css`; the browser
+  client loads xterm.js, connects to `/ws`, and forwards keyboard input/resize.
+- The owned bridge can bind to a network interface, but non-loopback binds now
+  require `--token` unless an explicit unsafe override is passed.
+- Manual browser check on 2026-07-07 confirmed the network page loads, the
+  status bar reaches connected, two tabs show the same parent content, and
+  refresh works.
+- Clipboard support is intentionally parked until HTTPS/reverse-proxy support
+  exists.
+
+Still open:
+
+- Decide whether to vendor/package xterm.js instead of loading it from CDN.
+- Add dedicated PID and resize integration checks against the shell-backed
+  parent PTY.
+- Add HTTPS/reverse-proxy setup before reintroducing browser clipboard writes.
+- Add browser-level automation once the client grows beyond this static shell.
 
 ## Phase 2: Skeleton Workspace
 

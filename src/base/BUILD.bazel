@@ -1,0 +1,23 @@
+package_group(
+    name = "src_packages",
+    packages = ["//src/..."],
+)
+
+cc_library(
+    name = "file_descriptor",
+    hdrs = ["file_descriptor.h"],
+    visibility = [":src_packages"],
+)
+
+cc_library(
+    name = "owned_file_descriptor",
+    hdrs = ["owned_file_descriptor.h"],
+    visibility = [":src_packages"],
+    deps = [":file_descriptor"],
+)
+
+cc_library(
+    name = "process_id",
+    hdrs = ["process_id.h"],
+    visibility = [":src_packages"],
+)

@@ -1,36 +1,27 @@
 #include "src/parent/workspace_parent.h"
 
-#include <sstream>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 #include "gtest/gtest.h"
 
 namespace {
 
-TEST(WorkspaceParentTest, StartupBannerNamesProjectAndPhase) {
-  std::string const banner = moe::parent::startup_banner();
+TEST(WorkspaceParentTest, ConfiguredLoginShellIsAbsolutePath) {
+  std::filesystem::path const shell = moe::parent::configured_login_shell();
 
-  EXPECT_NE(banner.find("my-opiniated-editor"), std::string::npos);
-  EXPECT_NE(banner.find("phase-1-parent-pty-spike"), std::string::npos);
+  EXPECT_TRUE(shell.is_absolute()) << shell;
+  EXPECT_FALSE(shell.empty());
 }
 
-TEST(WorkspaceParentTest, StatusCommandReportsReadyParent) {
-  std::string const response = moe::parent::handle_command(" status\r");
+TEST(WorkspaceParentTest, InteractiveShellCommandRunsShellInteractively) {
+  std::vector<std::string> const command =
+      moe::parent::interactive_shell_command(std::filesystem::path("/bin/example-shell"));
 
-  EXPECT_NE(response.find("workspace-parent status=ready"), std::string::npos);
-  EXPECT_NE(response.find("phase=phase-1-parent-pty-spike"), std::string::npos);
-}
-
-TEST(WorkspaceParentTest, InteractiveLoopPromptsRespondsAndExits) {
-  std::istringstream input("status\nquit\n");
-  std::ostringstream output;
-
-  EXPECT_EQ(moe::parent::run_interactive(input, output), 0);
-
-  std::string const transcript = output.str();
-  EXPECT_NE(transcript.find("parent-ready"), std::string::npos);
-  EXPECT_NE(transcript.find("moe> workspace-parent status=ready"), std::string::npos);
-  EXPECT_NE(transcript.find("moe> goodbye"), std::string::npos);
+  ASSERT_EQ(command.size(), 2U);
+  EXPECT_EQ(command[0], "/bin/example-shell");
+  EXPECT_EQ(command[1], "-i");
 }
 
 }  // namespace

@@ -36,7 +36,6 @@ Unit tests:
 
 - Sideband handshake accepts matching version.
 - Sideband handshake rejects mismatched version with reload-required error.
-- Clipboard request JSON validates required fields.
 - Resize message validates rows/cols bounds.
 
 Integration tests:
@@ -55,9 +54,27 @@ Exit gate:
 Current coverage:
 
 - `//test/integration:workspace_parent_pty_test` spawns the parent app under a
-  real PTY, reads its initial output, sends `status`, and exits with `quit`.
-  Bridge forwarding, resize, reconnect, and clipboard tests are still pending
-  concrete bridge code.
+  real PTY, sends keyboard input to the configured shell, observes shell output,
+  and exits cleanly.
+- `//src/bridge:parent_pty_session_test` verifies the C++ bridge foundation can
+  spawn the parent once, exchange bytes, validate PTY size errors, and keep the
+  same parent PID for the session lifetime.
+- `//src/bridge:parent_ws_bridge_integration_test` starts the owned C++ bridge,
+  connects to `/health` and `/ws`, verifies terminal I/O, reconnects, observes
+  the same parent PID, and verifies multiple clients see the same output.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies browser-refresh
+  shape by fetching HTTP assets while one WebSocket remains open.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies two simultaneous
+  WebSocket clients attached to the same parent PTY receive the same output.
+- The same integration test verifies the owned bridge serves the thin browser
+  client assets and that the JS includes xterm.js setup and `/ws` connection.
+- The same integration test verifies token-protected HTTP/WebSocket attach and
+  rejects non-loopback binds without a token or explicit unsafe override.
+- Manual browser testing confirmed the network page loads, status reaches
+  connected, two tabs show the same parent content, and refresh works.
+- Clipboard is parked until HTTPS/reverse-proxy support exists.
+- Dedicated shell-backed PID and resize checks are deferred to their own focused
+  integration tests.
 
 ## Phase 2: Skeleton Workspace
 
@@ -95,7 +112,6 @@ Unit tests:
 - Agent status derivation and manual override.
 - Pane focus and split logic with child PTYs.
 - Key routing between parent UI and focused child PTY.
-- OSC 52 parsing and clipboard request generation.
 - Transcript capture buffering.
 - Agent finder ranking/filtering by status.
 
@@ -128,14 +144,12 @@ Unit tests:
 - Selection movement.
 - Search within buffer.
 - File finder ranking.
-- Path clipboard commands.
 - Dirty-file tracking.
 
 Integration tests:
 
 - Open a file, edit it, save it, and verify bytes on disk.
 - Open two files in split panes and switch focus without data loss.
-- Copy current path/line through the browser clipboard sideband.
 - Use built-in editor to modify a small source file, then run Bazel test.
 
 Exit gate:

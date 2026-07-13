@@ -21,6 +21,10 @@ subdirectories override or extend this file.
 - Use the repo-local `$run-bazel-tests` skill when running, selecting, or
   triaging Bazel test commands.
 - Prefer Bazel targets over ad hoc scripts.
+- Use the narrowest practical Bazel visibility. Prefer package-private targets;
+  make targets public only when there is a concrete cross-package API.
+- Model system libraries as named Bazel targets in `third_party/system` instead
+  of putting raw linker flags directly on product/library targets.
 - Use fake CLIs/processes for deterministic PTY and agent tests.
 - Keep docs and code ASCII unless a file already requires otherwise.
 - Preserve the parent-PTY-first architecture unless the user explicitly changes
@@ -33,6 +37,17 @@ subdirectories override or extend this file.
 - Keep state visible, inspectable, and easy to print.
 - Build tight feedback loops: run the narrow test, then the relevant broad test.
 - Own the important model; rent plumbing that is not core to productivity.
+
+## C++ Coding Rules
+
+- Prefer small strong types for process IDs, file descriptors, ports, sizes,
+  and other raw platform values when they cross function or class boundaries.
+- Put reusable low-level helper types in `src/base`; keep feature directories
+  for feature-specific types only.
+- Pass non-trivial inputs by `const&` unless the callee needs ownership or a
+  deliberate copy.
+- Keep raw OS values at syscall boundaries; convert to named types at repo
+  APIs.
 
 ## Minimal Implementation Gate
 

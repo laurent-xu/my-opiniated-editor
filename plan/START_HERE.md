@@ -9,8 +9,8 @@ docs as references, not as required pre-reading.
 - Serve it through one primary browser PTY.
 - Shells, agents, panes, editor state, git workspace state, plans, and
   diagnostics are owned by the parent app.
-- The browser bridge is plumbing: terminal rendering, WebSocket, clipboard,
-  auth, and reconnect.
+- The browser bridge is plumbing: terminal rendering, WebSocket, auth, and
+  reconnect. Clipboard is parked until HTTPS is in place.
 - Use Bazel early. `bazel test //...` should become the default confidence
   command.
 
@@ -24,17 +24,35 @@ Already done:
 - Nix-provided Bazel Python toolchain and Bazel-owned Ruff formatter.
 - Deterministic fake CLI fixture for future process, PTY, and agent tests.
 - Process-boundary fake-agent integration test.
-- Parent app TTY command loop with a real PTY integration smoke test.
+- Parent app currently execs the user's configured login shell so the browser
+  serves a usable shell while the real editor is still being built.
+- C++ `ParentPtySession` using `forkpty`, with tests for shell I/O, strong
+  parent process identity, and PTY size validation errors.
+- Minimal owned C++ WebSocket bridge with `/health` and `/ws`, tested for
+  reconnect to the same parent PID.
+- The owned bridge now separates browser socket lifetime from parent app
+  lifetime: one parent PTY can be served by multiple simultaneous WebSockets,
+  and browser reload can fetch assets while an older WebSocket is still open.
+- Owned bridge serves a thin browser client at `/` using xterm.js, `/ws`, and
+  resize frames.
+- Network binding for the owned bridge requires `--token` unless an explicit
+  unsafe override is passed.
+- Clipboard support was removed from Phase 1 after manual HTTP testing showed
+  the network path should be stabilized before adding browser clipboard writes.
+  Reintroduce clipboard only after HTTPS/reverse proxy support is available.
+- Manual network browser check on 2026-07-07: the browser loaded the parent
+  prompt, status showed connected, two tabs showed the same parent content, and
+  refresh worked against the same running bridge.
 - Safe `compile_commands.json` refresh wrapper:
   `tools/bazel/refresh_compile_commands.sh`.
 
 Next implementation goals:
 
-1. Evaluate `ttyd` as the first thin browser bridge candidate.
-2. Attach a browser terminal to the single parent C++ app PTY.
-3. Keep the bridge limited to parent PTY bytes, resize, reconnect, auth, and
-   browser clipboard plumbing.
-4. Add bridge/client integration coverage only as concrete bridge code appears.
+1. Decide whether to vendor/package xterm.js instead of loading it from CDN.
+2. Add dedicated PID and resize integration checks against the shell-backed
+   parent PTY.
+3. Add HTTPS/reverse-proxy setup before reintroducing clipboard.
+4. Add browser-level automation once the client grows beyond this static shell.
 
 ## First Self-Hosting Milestone
 
@@ -51,14 +69,17 @@ editor is usable.
 
 ## Bridge Policy
 
-- If an existing open-source bridge fits, use the strongest maintained option
-  rather than building bridge plumbing.
-- Current first candidate: `ttyd`, because it is purpose-built for terminal over
-  web, has broad adoption, and is native.
-- Evaluate WeTTY if `ttyd` does not fit the xterm.js/control-overlay path.
-- Avoid choosing GoTTY solely for star count; it appears much less maintained.
-- If we build the bridge ourselves, build it in C++ to stay aligned with the
-  parent app and Bazel.
+- Current owned bridge foundation:
+  `bazel test //src/bridge:parent_pty_session_test`.
+- Current owned bridge reconnect check:
+  `bazel test //src/bridge:parent_ws_bridge_integration_test`.
+- Current thin browser client check:
+  `bazel test //src/bridge:parent_ws_bridge_integration_test`.
+- Current network-bind guard check:
+  `bazel test //src/bridge:parent_ws_bridge_integration_test`.
+- Build the bridge in C++ around the parent-owned PTY session. Keep the browser
+  bridge thin and avoid adding terminal-server dependencies unless the owned
+  bridge becomes the wrong abstraction.
 
 ## Agent Workflow Policy
 

@@ -1,0 +1,99 @@
+cc_library(
+    name = "pty_size",
+    hdrs = ["pty_size.h"],
+)
+
+cc_library(
+    name = "socket_io",
+    srcs = ["socket_io.cc"],
+    hdrs = ["socket_io.h"],
+    deps = ["//src/base:file_descriptor"],
+)
+
+cc_library(
+    name = "http_protocol",
+    srcs = ["http_protocol.cc"],
+    hdrs = ["http_protocol.h"],
+    deps = [
+        ":socket_io",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+    ],
+)
+
+cc_library(
+    name = "browser_assets",
+    srcs = ["browser_assets.cc"],
+    hdrs = ["browser_assets.h"],
+)
+
+cc_library(
+    name = "websocket_protocol",
+    srcs = ["websocket_protocol.cc"],
+    hdrs = ["websocket_protocol.h"],
+    deps = [
+        ":http_protocol",
+        ":socket_io",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+    ],
+)
+
+cc_library(
+    name = "parent_pty_session",
+    srcs = ["parent_pty_session.cc"],
+    hdrs = ["parent_pty_session.h"],
+    deps = [
+        ":pty_size",
+        "//src/base:file_descriptor",
+        "//src/base:process_id",
+        "//third_party/system:libutil",
+    ],
+)
+
+cc_library(
+    name = "parent_ws_server",
+    srcs = ["parent_ws_server.cc"],
+    hdrs = ["parent_ws_server.h"],
+    deps = [
+        ":browser_assets",
+        ":http_protocol",
+        ":parent_pty_session",
+        ":pty_size",
+        ":socket_io",
+        ":websocket_protocol",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+    ],
+)
+
+cc_test(
+    name = "parent_pty_session_test",
+    srcs = ["parent_pty_session_test.cc"],
+    data = ["//src/parent:workspace_parent"],
+    deps = [
+        ":parent_pty_session",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_binary(
+    name = "parent_ws_bridge",
+    srcs = ["parent_ws_bridge.cc"],
+    deps = [":parent_ws_server"],
+)
+
+py_test(
+    name = "parent_ws_bridge_integration_test",
+    srcs = [
+        "parent_ws_bridge_integration_test.py",
+        "parent_ws_bridge_test_lib.py",
+    ],
+    data = [
+        ":parent_ws_bridge",
+        "//src/parent:workspace_parent",
+    ],
+    size = "medium",
+    tags = ["integration"],
+)

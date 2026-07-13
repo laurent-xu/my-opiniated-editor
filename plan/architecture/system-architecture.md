@@ -6,7 +6,6 @@
 Browser client
   thin TypeScript host
   one xterm.js terminal surface
-  clipboard broker
   optional status/control overlay
         |
         | HTTPS + WebSocket
@@ -16,7 +15,6 @@ Bridge server
   authenticates browser sessions
   exposes one primary PTY byte stream
   forwards resize/input/output
-  forwards clipboard requests
         |
         | parent PTY + optional control sideband
         v
@@ -45,7 +43,7 @@ C++ parent workspace/editor app
 
 Serve one parent C++ workspace/editor process through one externally bridged
 PTY. The parent app is the real workspace. The browser is the transport,
-terminal renderer, clipboard broker, and optional control/status host.
+terminal renderer, and optional control/status host.
 
 Reasoning:
 
@@ -84,10 +82,11 @@ The C++ parent workspace app owns:
 - Plan proposal versioning and plan diffing.
 - Persistence.
 
-The parent app may expose a typed control sideband to the bridge for clipboard,
-status, auth/session metadata, and future browser-native inspector views. The
-bridge should not contain business logic beyond connection handling, parent PTY
-forwarding, resize, and browser-specific clipboard behavior.
+The parent app may expose a typed control sideband to the bridge for status,
+auth/session metadata, future HTTPS clipboard support, and future
+browser-native inspector views. The bridge should not contain business logic
+beyond connection handling, parent PTY forwarding, resize, and browser-specific
+plumbing.
 
 ## Browser Client Responsibilities
 
@@ -97,7 +96,6 @@ The browser owns:
 - Keyboard event capture.
 - Passing keyboard input to the parent app.
 - Local transient UI state.
-- Clipboard writes through browser APIs.
 - Resize events.
 - Optional status/control overlay.
 

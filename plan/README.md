@@ -7,8 +7,8 @@ keyboard-first, AI-agent-native development workspace.
 
 Build an owned C++ parent workspace/editor process and serve that process
 through one primary browser PTY. The browser bridge should be thin: xterm.js for
-the terminal surface, WebSocket for bytes/control, and browser Clipboard API for
-client clipboard writes.
+the terminal surface and WebSocket for bytes/control. Browser clipboard support
+is parked until the network path runs under HTTPS.
 
 The C++ parent process owns tiling, editor behavior, shell panes, agent panes,
 LSP/build state, plan review, and command routing. Shells and coding-agent CLIs
@@ -21,15 +21,14 @@ The important distinction:
   editor state, agent sessions, plan feedback, LSP/build diagnostics, and
   self-hosting build integration.
 - Rent the plumbing: browser terminal rendering, WebSocket, one parent PTY
-  bridge, browser clipboard APIs, reverse proxy, and auth libraries.
+  bridge, reverse proxy, and auth libraries.
 
 Recommended first stack:
 
 - Parent workspace/editor app: C++23.
-- Bridge: evaluate the strongest maintained open-source fit first, starting
-  with `ttyd`; if building the bridge, use C++.
-- Browser UI: thin TypeScript host around xterm.js plus clipboard/auth/status
-  controls.
+- Bridge: build the persistent path in C++ around `ParentPtySession`.
+- Browser UI: thin xterm.js host served by the owned bridge, with TypeScript
+  still deferred until the browser side grows beyond the static shell.
 - Terminal surface: one primary xterm.js instance attached to the parent C++
   app's PTY.
 - Editor: owned C++ editor inside the parent app. CodeMirror 6 is deferred to a

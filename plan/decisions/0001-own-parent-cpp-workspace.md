@@ -14,9 +14,10 @@ routing, fuzzy finding, agent sessions, child PTYs, LSP/build state, diagnostics
 plan review, plan diffing, git workspace review, and feedback routing.
 
 Use browser-native UI only for the thin host layer at first: xterm.js terminal
-surface, clipboard broker, auth/session handling, reconnect status, and maybe a
-small control overlay. CodeMirror 6 can be revisited later as an optional view
-adapter, not as the first editor substrate.
+surface, auth/session handling, reconnect status, and maybe a small control
+overlay. Clipboard can be revisited after HTTPS support exists. CodeMirror 6 can
+be revisited later as an optional view adapter, not as the first editor
+substrate.
 
 ## Context
 
@@ -34,7 +35,8 @@ The workspace needs to combine:
 - Agent plan proposal diffing.
 - Section-level feedback.
 - Git workspace diff and latest-updated-file review.
-- Clipboard control from server commands to browser client.
+- Future clipboard control from server commands to browser client, after HTTPS
+  support exists.
 
 The desired ownership boundary is C++-first. A single parent PTY keeps the
 bridge simple and lets the C++ app be the true workspace. Shell and agent CLIs
@@ -53,7 +55,8 @@ Benefits:
 - Strongest ownership of the productivity surface in C++.
 - Simple browser bridge: one parent PTY plus a small control sideband.
 - Parent-owned tiling, fuzzy navigation, editor behavior, shells, and agents.
-- Easier browser clipboard integration.
+- A future browser clipboard path can be added without changing parent process
+  ownership.
 - No bridge-owned per-pane PTY/session topology.
 - Straight path to a terminal-native workflow that works from any browser.
 
