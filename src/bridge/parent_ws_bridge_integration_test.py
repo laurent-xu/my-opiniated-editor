@@ -19,7 +19,12 @@ from parent_ws_bridge_test_lib import (
 
 def assert_browser_assets(test_case: unittest.TestCase, port: int):
     html = fetch_text(port, "/")
-    test_case.assertIn("@xterm/xterm", html)
+    test_case.assertIn("@xterm/xterm@6.0.0/css/xterm.css", html)
+    test_case.assertIn("@xterm/xterm@6.0.0/lib/xterm.js", html)
+    test_case.assertIn("@xterm/addon-fit@0.11.0/lib/addon-fit.js", html)
+    test_case.assertNotIn("@xterm/xterm/css/xterm.css", html)
+    test_case.assertNotIn("@xterm/xterm/lib/xterm.js", html)
+    test_case.assertNotIn("@xterm/addon-fit/lib/addon-fit.js", html)
     test_case.assertIn("/client.js", html)
 
     client_js = fetch_text(port, "/client.js")
@@ -31,6 +36,11 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         client_js,
     )
     test_case.assertIn("new URLSearchParams(window.location.search)", client_js)
+    test_case.assertIn("terminal.attachCustomKeyEventHandler", client_js)
+    test_case.assertIn('event.key === "Tab"', client_js)
+    test_case.assertIn(
+        'sendCommand("0", event.shiftKey ? "\\x1b[Z" : "\\t")', client_js
+    )
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)
