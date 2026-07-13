@@ -1,0 +1,15 @@
+[Unit]
+Description=My Opiniated Editor parent PTY browser bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/my-opiniated-editor
+Environment=MOE_BRIDGE_ENV=%h/.config/my-opiniated-editor/bridge.env
+ExecStart=%h/my-opiniated-editor/tools/bridge/run_bridge.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

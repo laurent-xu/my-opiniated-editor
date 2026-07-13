@@ -23,3 +23,13 @@ bazel --batch test //...
 tools/bazel/refresh_compile_commands.sh
 bazel run //tools/python:pyformat -- --check .
 ```
+
+## Browser Bridge
+
+Run once from a shell:
+
+```bash
+tools/bridge/run_bridge.sh
+```
+
+For boot startup and manual restart, see [tools/bridge/README.md](tools/bridge/README.md).

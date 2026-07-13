@@ -1,0 +1,10 @@
+py_test(
+    name = "service_scripts_test",
+    srcs = ["service_scripts_test.py"],
+    data = [
+        "bridge.env.example",
+        "restart_bridge.sh",
+        "run_bridge.sh",
+    ],
+    tags = ["unit"],
+)
