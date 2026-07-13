@@ -1,7 +1,7 @@
 # Browser Bridge Service
 
-The bridge can run as a systemd user service. On NixOS, make `bazelisk` or
-`bazel` available outside `nix shell`, or set `MOE_BRIDGE_BAZEL` in the env file.
+The bridge can run as a systemd user service. The service expects `bazel` on the
+user service PATH.
 
 Create private config:
 
@@ -32,6 +32,7 @@ Restart manually:
 
 ```bash
 tools/bridge/restart_bridge.sh
+systemctl --user status my-opiniated-editor-bridge.service
 ```
 
 Connect from a browser:

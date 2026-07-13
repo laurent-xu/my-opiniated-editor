@@ -24,13 +24,13 @@ class ServiceScriptsTest(unittest.TestCase):
                     check=True,
                 )
 
-    def test_runner_rejects_network_bind_without_token_before_building(self):
+    def test_runner_requires_token_before_building(self):
         env = dict(os.environ)
-        env.pop("MOE_BRIDGE_ENV", None)
+        env.pop("MOE_BRIDGE_TOKEN", None)
         env.update(
             {
                 "MOE_BRIDGE_INTERFACE": "0.0.0.0",
-                "MOE_BRIDGE_BUILD": "0",
+                "MOE_BRIDGE_PORT": "7682",
             }
         )
 
