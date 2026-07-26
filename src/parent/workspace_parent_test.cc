@@ -24,4 +24,17 @@ TEST(WorkspaceParentTest, InteractiveShellCommandRunsShellInteractively) {
   EXPECT_EQ(command[1], "-i");
 }
 
+TEST(WorkspaceParentTest, TerminalTypeDefaultsToXtermWhenMissing) {
+  EXPECT_EQ(moe::parent::terminal_type_for_child(nullptr), "xterm-256color");
+  EXPECT_EQ(moe::parent::terminal_type_for_child(""), "xterm-256color");
+}
+
+TEST(WorkspaceParentTest, TerminalTypeDefaultsToXtermWhenDumb) {
+  EXPECT_EQ(moe::parent::terminal_type_for_child("dumb"), "xterm-256color");
+}
+
+TEST(WorkspaceParentTest, TerminalTypePreservesUsefulValue) {
+  EXPECT_EQ(moe::parent::terminal_type_for_child("xterm-kitty"), "xterm-kitty");
+}
+
 }  // namespace

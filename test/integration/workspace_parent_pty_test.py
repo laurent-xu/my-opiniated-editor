@@ -66,6 +66,34 @@ class WorkspaceParentPtyTest(unittest.TestCase):
                 process.wait(timeout=5)
             os.close(master_fd)
 
+    def test_parent_process_defaults_terminal_type_for_shell(self):
+        master_fd, slave_fd = pty.openpty()
+        env = dict(os.environ)
+        env.pop("TERM", None)
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=env,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, b"printf '%s\\n' \"$TERM\"\n")
+            terminal_type = read_until(master_fd, "xterm-256color")
+            self.assertIn("xterm-256color", terminal_type)
+
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
 
 if __name__ == "__main__":
     unittest.main()

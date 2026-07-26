@@ -116,10 +116,32 @@ std::string browser_client_js() {
     sendCommand("1", JSON.stringify({ columns: terminal.cols, rows: terminal.rows }));
   }
 
-  terminal.attachCustomKeyEventHandler((event) => {
-    if (event.type === "keydown" && event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+  function terminalShouldReceiveKey() {
+    const activeElement = document.activeElement;
+    return activeElement === document.body || activeElement === terminalElement || terminalElement.contains(activeElement);
+  }
+
+  function isTabKey(event) {
+    return event.key === "Tab" || event.code === "Tab" || event.keyCode === 9;
+  }
+
+  function handleTabKey(event) {
+    if (isTabKey(event) && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
       sendCommand("0", event.shiftKey ? "\x1b[Z" : "\t");
+      return true;
+    }
+    return false;
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (terminalShouldReceiveKey() && handleTabKey(event)) {
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type === "keydown" && handleTabKey(event)) {
       return false;
     }
     return true;

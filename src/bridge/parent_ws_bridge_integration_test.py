@@ -37,7 +37,12 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     )
     test_case.assertIn("new URLSearchParams(window.location.search)", client_js)
     test_case.assertIn("terminal.attachCustomKeyEventHandler", client_js)
+    test_case.assertIn('document.addEventListener("keydown"', client_js)
     test_case.assertIn('event.key === "Tab"', client_js)
+    test_case.assertIn('event.code === "Tab"', client_js)
+    test_case.assertIn("event.keyCode === 9", client_js)
+    test_case.assertIn("terminalShouldReceiveKey()", client_js)
+    test_case.assertIn("event.stopImmediatePropagation()", client_js)
     test_case.assertIn(
         'sendCommand("0", event.shiftKey ? "\\x1b[Z" : "\\t")', client_js
     )
