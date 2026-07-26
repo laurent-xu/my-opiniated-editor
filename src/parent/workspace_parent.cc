@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "src/base/file_descriptor.h"
-#include "src/parent/content_pty_session.h"
+#include "src/parent/tray_manager.h"
 
 namespace moe::parent {
 namespace {
@@ -121,7 +121,7 @@ void write_all(base::FileDescriptor const output, std::string_view bytes) {
   }
 }
 
-void forward_parent_input_to_child(ContentPtySession const& child) {
+void forward_parent_input_to_active_tray(TrayManager& trays) {
   std::array<char, 4096> buffer{};
   ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
   if (read_count <= 0) {
@@ -131,23 +131,23 @@ void forward_parent_input_to_child(ContentPtySession const& child) {
     throw std::runtime_error(std::string("read parent input failed: ") + std::strerror(errno));
   }
 
-  child.write(std::string_view(buffer.data(), static_cast<std::size_t>(read_count)));
+  trays.write_input(std::string_view(buffer.data(), static_cast<std::size_t>(read_count)));
 }
 
-void draw_child_output(ContentPtySession const& child) {
-  std::optional<std::string> const output = child.read_available();
+void draw_active_tray_output(TrayManager const& trays) {
+  std::optional<std::string> const output = trays.read_active_output();
   if (!output.has_value()) {
     return;
   }
   write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
 }
 
-void synchronize_child_size_if_changed(ContentPtySession const& child, TerminalSize& last_size) {
+void synchronize_active_tray_size_if_changed(TrayManager const& trays, TerminalSize& last_size) {
   TerminalSize const current_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
   if (same_size(current_size, last_size)) {
     return;
   }
-  child.resize(current_size);
+  trays.resize_active(current_size);
   last_size = current_size;
 }
 
@@ -189,20 +189,23 @@ int run_workspace_parent() {
 
   RawTerminalModeGuard const raw_terminal(PARENT_INPUT_DESCRIPTOR);
   TerminalSize last_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
-  std::unique_ptr<ContentPtySession> child =
-      ContentPtySession::start(interactive_shell_command(configured_login_shell()),
-                               std::filesystem::current_path(), last_size);
+  std::unique_ptr<TrayManager> trays = TrayManager::start(TrayConfig{
+      .command = interactive_shell_command(configured_login_shell()),
+      .working_directory = std::filesystem::current_path(),
+      .initial_size = last_size,
+  });
 
   while (stop_requested == 0) {
-    if (std::optional<int> const exit_code = child->try_wait_for_exit(); exit_code.has_value()) {
+    if (std::optional<int> const exit_code = trays->try_wait_for_active_exit();
+        exit_code.has_value()) {
       return *exit_code;
     }
 
-    synchronize_child_size_if_changed(*child, last_size);
+    synchronize_active_tray_size_if_changed(*trays, last_size);
 
     std::array<pollfd, 2> descriptors{
         readable_descriptor(PARENT_INPUT_DESCRIPTOR),
-        readable_descriptor(child->file_descriptor()),
+        readable_descriptor(trays->active_content_file_descriptor()),
     };
     int const result = poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()),
                             POLL_TIMEOUT_MILLISECONDS);
@@ -217,13 +220,13 @@ int run_workspace_parent() {
       continue;
     }
 
-    synchronize_child_size_if_changed(*child, last_size);
+    synchronize_active_tray_size_if_changed(*trays, last_size);
 
     if ((descriptors[0].revents & POLLIN) != 0) {
-      forward_parent_input_to_child(*child);
+      forward_parent_input_to_active_tray(*trays);
     }
     if ((descriptors[1].revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
-      draw_child_output(*child);
+      draw_active_tray_output(*trays);
     }
   }
 

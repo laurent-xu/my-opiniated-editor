@@ -2,10 +2,20 @@ cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
+        "tray.cc",
+        "tray_id.cc",
+        "tray_manager.cc",
+        "tray_number.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
         "content_pty_session.h",
+        "tray.h",
+        "tray_config.h",
+        "tray_id.h",
+        "tray_manager.h",
+        "tray_number.h",
+        "tray_snapshot.h",
         "workspace_parent.h",
     ],
     deps = [
@@ -34,4 +44,14 @@ cc_test(
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
+)
+
+cc_test(
+    name = "tray_manager_test",
+    srcs = ["tray_manager_test.cc"],
+    deps = [
+        ":parent_lib",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
 )
