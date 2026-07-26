@@ -1,7 +1,19 @@
 cc_library(
     name = "parent_lib",
-    srcs = ["workspace_parent.cc"],
-    hdrs = ["workspace_parent.h"],
+    srcs = [
+        "content_pty_session.cc",
+        "workspace_parent.cc",
+    ],
+    hdrs = [
+        "content_pty_session.h",
+        "workspace_parent.h",
+    ],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+        "//third_party/system:libutil",
+    ],
 )
 
 cc_binary(

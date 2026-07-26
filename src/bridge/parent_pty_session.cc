@@ -46,12 +46,12 @@ winsize to_winsize(PtySize const size) {
   return window_size;
 }
 
-pid_t wait_for_child(base::ProcessId const child_pid, int const options) noexcept {
+base::ProcessId wait_for_child(base::ProcessId const child_pid, int const options) noexcept {
   int status = 0;
-  pid_t result = -1;
+  base::ProcessId result;
   do {
-    result = waitpid(child_pid.value(), &status, options);
-  } while (result < 0 && errno == EINTR);
+    result = base::ProcessId(waitpid(child_pid.value(), &status, options));
+  } while (result.is_error() && errno == EINTR);
   return result;
 }
 
@@ -185,8 +185,8 @@ void ParentPtySession::reset() noexcept {
   }
 
   if (child_process_id.is_valid_parent_process()) {
-    pid_t const result = wait_for_child(child_process_id, WNOHANG);
-    if (result == 0) {
+    base::ProcessId const result = wait_for_child(child_process_id, WNOHANG);
+    if (result.is_child_process()) {
       ::kill(child_process_id.value(), SIGHUP);
       wait_for_child_exit(child_process_id);
     }

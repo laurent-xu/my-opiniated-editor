@@ -1,7 +1,11 @@
+import fcntl
 import os
 import pty
+import re
 import select
+import struct
 import subprocess
+import termios
 import time
 import unittest
 
@@ -36,8 +40,19 @@ def shell_marker_command(marker: str) -> bytes:
     return f"printf '{escaped}\\012'\n".encode()
 
 
+def shell_pid_marker_command() -> bytes:
+    return (
+        b"printf '\\137\\137moe_shell_pid_%s_parent_%s"
+        b'\\137\\137moe_pid_done\\137\\137\\012\' "$$" "$PPID"\n'
+    )
+
+
+def set_pty_size(fd: int, rows: int, cols: int):
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+
+
 class WorkspaceParentPtyTest(unittest.TestCase):
-    def test_parent_process_serves_configured_shell_through_pty(self):
+    def test_parent_process_renders_child_shell_pty(self):
         master_fd, slave_fd = pty.openpty()
         process = subprocess.Popen(
             [runfile_path("src/parent/workspace_parent")],
@@ -50,6 +65,18 @@ class WorkspaceParentPtyTest(unittest.TestCase):
         os.close(slave_fd)
 
         try:
+            os.write(master_fd, shell_pid_marker_command())
+            pid_output = read_until(master_fd, "__moe_pid_done__")
+            match = re.search(
+                r"__moe_shell_pid_(\d+)_parent_(\d+)__moe_pid_done__",
+                pid_output,
+            )
+            self.assertIsNotNone(match, pid_output)
+            shell_pid = int(match.group(1))
+            shell_parent_pid = int(match.group(2))
+            self.assertNotEqual(shell_pid, process.pid)
+            self.assertEqual(shell_parent_pid, process.pid)
+
             os.write(master_fd, shell_marker_command("__moe_shell_ready__"))
             ready = read_until(master_fd, "__moe_shell_ready__")
             self.assertIn("__moe_shell_ready__", ready)
@@ -57,6 +84,34 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             os.write(master_fd, b"pwd\n")
             pwd = read_until(master_fd, os.environ["TEST_TMPDIR"])
             self.assertIn(os.environ["TEST_TMPDIR"], pwd)
+
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_parent_pty_resize_reaches_child_shell_pty(self):
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+        )
+        os.close(slave_fd)
+
+        try:
+            set_pty_size(master_fd, 31, 103)
+            os.write(
+                master_fd, b"stty size\n" + shell_marker_command("__moe_resize_done__")
+            )
+            output = read_until(master_fd, "__moe_resize_done__")
+            self.assertIn("31 103", output)
 
             os.write(master_fd, b"exit\n")
             self.assertEqual(process.wait(timeout=5), 0)
