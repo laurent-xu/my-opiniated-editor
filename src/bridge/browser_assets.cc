@@ -5,6 +5,9 @@ namespace {
 
 constexpr char const* XTERM_VERSION = "6.0.0";
 constexpr char const* XTERM_ADDON_FIT_VERSION = "0.11.0";
+constexpr char const* TERMINAL_FONT_FAMILY =
+    "\"DejaVu Sans Mono\", \"Liberation Mono\", \"Noto Sans Mono\", "
+    "\"Cascadia Mono\", \"JetBrains Mono\", monospace";
 
 }  // namespace
 
@@ -38,7 +41,8 @@ std::string browser_html() {
 std::string browser_css() {
   return R"CSS(:root {
   color-scheme: dark;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Cascadia Mono",
+    "JetBrains Mono", monospace;
 }
 
 html,
@@ -73,7 +77,7 @@ body {
 }
 
 std::string browser_client_js() {
-  return R"JS((() => {
+  return std::string(R"JS((() => {
   const terminalElement = document.getElementById("terminal");
   const statusElement = document.getElementById("status");
   const token = new URLSearchParams(window.location.search).get("token") || "";
@@ -81,8 +85,10 @@ std::string browser_client_js() {
   const terminal = new Terminal({
     cursorBlink: true,
     convertEol: true,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    fontFamily: ')JS") +
+         TERMINAL_FONT_FAMILY + R"JS(',
     fontSize: 14,
+    lineHeight: 1.15,
     theme: {
       background: "#0b0d0e",
       foreground: "#d9e2df",

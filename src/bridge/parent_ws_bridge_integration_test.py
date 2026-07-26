@@ -32,6 +32,12 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertTrue(client_js.rstrip().endswith("})();"))
     test_case.assertIn("new Terminal", client_js)
     test_case.assertIn(
+        'fontFamily: \'"DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", '
+        '"Cascadia Mono", "JetBrains Mono", monospace\'',
+        client_js,
+    )
+    test_case.assertIn("lineHeight: 1.15", client_js)
+    test_case.assertIn(
         "new WebSocket(`${protocol}//${window.location.host}${websocketPath}`",
         client_js,
     )
@@ -49,6 +55,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)
+    test_case.assertIn('"DejaVu Sans Mono"', css)
 
 
 class ParentWsBridgeIntegrationTest(unittest.TestCase):
