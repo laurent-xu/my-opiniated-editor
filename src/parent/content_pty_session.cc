@@ -67,9 +67,9 @@ std::unique_ptr<ContentPtySession> ContentPtySession::start(
     throw std::invalid_argument("content pty command must not be empty");
   }
 
-  int master_fd = -1;
+  int raw_master_fd = -1;
   winsize window_size = to_winsize(size);
-  base::ProcessId const child_pid(forkpty(&master_fd, nullptr, nullptr, &window_size));
+  base::ProcessId const child_pid(forkpty(&raw_master_fd, nullptr, nullptr, &window_size));
   if (child_pid.is_error()) {
     throw errno_error("forkpty failed");
   }
@@ -91,7 +91,7 @@ std::unique_ptr<ContentPtySession> ContentPtySession::start(
   }
 
   return std::unique_ptr<ContentPtySession>(new ContentPtySession(
-      Handles{.master_fd = base::OwnedFileDescriptor(base::FileDescriptor(master_fd)),
+      Handles{.master_fd = base::OwnedFileDescriptor(base::FileDescriptor(raw_master_fd)),
               .child_pid = child_pid}));
 }
 

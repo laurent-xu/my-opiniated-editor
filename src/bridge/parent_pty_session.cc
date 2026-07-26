@@ -68,9 +68,9 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
     throw std::invalid_argument("pty command must not be empty");
   }
 
-  int master_fd = -1;
+  int raw_master_fd = -1;
   winsize window_size = to_winsize(size);
-  base::ProcessId const child_pid(forkpty(&master_fd, nullptr, nullptr, &window_size));
+  base::ProcessId const child_pid(forkpty(&raw_master_fd, nullptr, nullptr, &window_size));
   if (child_pid.is_error()) {
     throw errno_error("forkpty failed");
   }
@@ -92,20 +92,21 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
   }
 
   return std::unique_ptr<ParentPtySession>(new ParentPtySession(
-      Handles{.master_fd = base::FileDescriptor(master_fd), .child_pid = child_pid}));
+      Handles{.master_fd = base::OwnedFileDescriptor(base::FileDescriptor(raw_master_fd)),
+              .child_pid = child_pid}));
 }
 
-ParentPtySession::ParentPtySession(Handles const handles)
-    : master_file_descriptor(handles.master_fd), child_process_id(handles.child_pid) {}
+ParentPtySession::ParentPtySession(Handles handles)
+    : master_file_descriptor(std::move(handles.master_fd)), child_process_id(handles.child_pid) {}
 
 ParentPtySession::ParentPtySession(ParentPtySession&& other) noexcept
-    : master_file_descriptor(std::exchange(other.master_file_descriptor, base::FileDescriptor{})),
+    : master_file_descriptor(std::move(other.master_file_descriptor)),
       child_process_id(std::exchange(other.child_process_id, base::ProcessId{})) {}
 
 ParentPtySession& ParentPtySession::operator=(ParentPtySession&& other) noexcept {
   if (this != &other) {
     reset();
-    master_file_descriptor = std::exchange(other.master_file_descriptor, base::FileDescriptor{});
+    master_file_descriptor = std::move(other.master_file_descriptor);
     child_process_id = std::exchange(other.child_process_id, base::ProcessId{});
   }
   return *this;
@@ -115,11 +116,14 @@ ParentPtySession::~ParentPtySession() { reset(); }
 
 base::ProcessId ParentPtySession::child_pid() const { return child_process_id; }
 
-base::FileDescriptor ParentPtySession::file_descriptor() const { return master_file_descriptor; }
+base::FileDescriptor ParentPtySession::file_descriptor() const {
+  return master_file_descriptor.get();
+}
 
 void ParentPtySession::write(std::string_view bytes) const {
   while (!bytes.empty()) {
-    ssize_t const written = ::write(master_file_descriptor.value(), bytes.data(), bytes.size());
+    ssize_t const written =
+        ::write(master_file_descriptor.get().value(), bytes.data(), bytes.size());
     if (written < 0) {
       if (errno == EINTR) {
         continue;
@@ -139,7 +143,7 @@ std::string ParentPtySession::read_until(std::string_view needle,
   while (std::chrono::steady_clock::now() < deadline) {
     auto const remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
         deadline - std::chrono::steady_clock::now());
-    pollfd descriptor{.fd = master_file_descriptor.value(), .events = POLLIN, .revents = 0};
+    pollfd descriptor{.fd = master_file_descriptor.get().value(), .events = POLLIN, .revents = 0};
     int const result = poll(&descriptor, 1, static_cast<int>(remaining.count()));
     if (result == 0) {
       break;
@@ -152,7 +156,8 @@ std::string ParentPtySession::read_until(std::string_view needle,
     }
 
     std::array<char, 4096> buffer{};
-    ssize_t const read_count = ::read(master_file_descriptor.value(), buffer.data(), buffer.size());
+    ssize_t const read_count =
+        ::read(master_file_descriptor.get().value(), buffer.data(), buffer.size());
     if (read_count > 0) {
       output.append(buffer.data(), static_cast<std::size_t>(read_count));
       if (output.find(target) != std::string::npos) {
@@ -173,16 +178,13 @@ std::string ParentPtySession::read_until(std::string_view needle,
 
 void ParentPtySession::resize(PtySize const size) const {
   winsize window_size = to_winsize(size);
-  if (ioctl(master_file_descriptor.value(), TIOCSWINSZ, &window_size) != 0) {
+  if (ioctl(master_file_descriptor.get().value(), TIOCSWINSZ, &window_size) != 0) {
     throw errno_error("resize pty failed");
   }
 }
 
 void ParentPtySession::reset() noexcept {
-  if (master_file_descriptor.is_valid()) {
-    ::close(master_file_descriptor.value());
-    master_file_descriptor = base::FileDescriptor{};
-  }
+  master_file_descriptor.reset();
 
   if (child_process_id.is_valid_parent_process()) {
     base::ProcessId const result = wait_for_child(child_process_id, WNOHANG);

@@ -46,6 +46,7 @@ cc_library(
     deps = [
         ":pty_size",
         "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
         "//src/base:process_id",
         "//third_party/system:libutil",
     ],

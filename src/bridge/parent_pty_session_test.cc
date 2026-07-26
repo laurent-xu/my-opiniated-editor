@@ -52,6 +52,7 @@ void wait_for_shell_command(moe::bridge::ParentPtySession const& session,
 TEST(ParentPtySessionTest, StartsParentAndExchangesBytes) {
   std::unique_ptr<moe::bridge::ParentPtySession> session = start_parent();
   EXPECT_GT(session->child_pid().value(), 0);
+  EXPECT_TRUE(session->file_descriptor().is_valid());
 
   wait_for_shell_command(*session, "__moe_parent_pty_ready__");
 }

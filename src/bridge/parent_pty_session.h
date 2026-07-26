@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "src/base/file_descriptor.h"
+#include "src/base/owned_file_descriptor.h"
 #include "src/base/process_id.h"
 #include "src/bridge/pty_size.h"
 
@@ -34,7 +35,7 @@ class ParentPtySession {
 
  private:
   struct Handles {
-    base::FileDescriptor master_fd;
+    base::OwnedFileDescriptor master_fd;
     base::ProcessId child_pid;
   };
 
@@ -42,7 +43,7 @@ class ParentPtySession {
 
   void reset() noexcept;
 
-  base::FileDescriptor master_file_descriptor;
+  base::OwnedFileDescriptor master_file_descriptor;
   base::ProcessId child_process_id;
 };
 

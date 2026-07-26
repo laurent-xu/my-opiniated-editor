@@ -28,6 +28,8 @@ namespace {
 constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
+constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
+constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
 std::sig_atomic_t volatile stop_requested = 0;
 
@@ -102,6 +104,10 @@ bool same_size(TerminalSize const left, TerminalSize const right) {
   return left.rows == right.rows && left.cols == right.cols;
 }
 
+pollfd readable_descriptor(base::FileDescriptor const descriptor) {
+  return {.fd = descriptor.value(), .events = POLLIN, .revents = 0};
+}
+
 void write_all(base::FileDescriptor const output, std::string_view bytes) {
   while (!bytes.empty()) {
     ssize_t const written = ::write(output.value(), bytes.data(), bytes.size());
@@ -117,7 +123,7 @@ void write_all(base::FileDescriptor const output, std::string_view bytes) {
 
 void forward_parent_input_to_child(ContentPtySession const& child) {
   std::array<char, 4096> buffer{};
-  ssize_t const read_count = ::read(STDIN_FILENO, buffer.data(), buffer.size());
+  ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
   if (read_count <= 0) {
     if (read_count == 0 || errno == EINTR || errno == EIO) {
       return;
@@ -133,11 +139,11 @@ void draw_child_output(ContentPtySession const& child) {
   if (!output.has_value()) {
     return;
   }
-  write_all(base::FileDescriptor(STDOUT_FILENO), *output);
+  write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
 }
 
 void synchronize_child_size_if_changed(ContentPtySession const& child, TerminalSize& last_size) {
-  TerminalSize const current_size = terminal_size_from(base::FileDescriptor(STDOUT_FILENO));
+  TerminalSize const current_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
   if (same_size(current_size, last_size)) {
     return;
   }
@@ -181,8 +187,8 @@ int run_workspace_parent() {
     return 126;
   }
 
-  RawTerminalModeGuard const raw_terminal(base::FileDescriptor(STDIN_FILENO));
-  TerminalSize last_size = terminal_size_from(base::FileDescriptor(STDOUT_FILENO));
+  RawTerminalModeGuard const raw_terminal(PARENT_INPUT_DESCRIPTOR);
+  TerminalSize last_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
   std::unique_ptr<ContentPtySession> child =
       ContentPtySession::start(interactive_shell_command(configured_login_shell()),
                                std::filesystem::current_path(), last_size);
@@ -195,8 +201,8 @@ int run_workspace_parent() {
     synchronize_child_size_if_changed(*child, last_size);
 
     std::array<pollfd, 2> descriptors{
-        pollfd{.fd = STDIN_FILENO, .events = POLLIN, .revents = 0},
-        pollfd{.fd = child->file_descriptor().value(), .events = POLLIN, .revents = 0},
+        readable_descriptor(PARENT_INPUT_DESCRIPTOR),
+        readable_descriptor(child->file_descriptor()),
     };
     int const result = poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()),
                             POLL_TIMEOUT_MILLISECONDS);
