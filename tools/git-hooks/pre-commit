@@ -11,6 +11,7 @@ mapfile -t python_files < <(
 )
 
 status=0
+readonly CLANG_TIDY_PARALLELISM=10
 
 if ! cpp_base="$(git merge-base HEAD origin/main 2>/dev/null)"; then
   echo "origin/main is required for C++ pre-commit checks. Fetch it first." >&2
@@ -85,24 +86,93 @@ for file in "${cpp_files[@]}"; do
   fi
 done
 
+filter_clang_tidy_output() {
+  sed -E \
+    -e '/^[0-9]+ warnings generated\.$/d' \
+    -e '/^Suppressed [0-9]+ warnings \(.* in non-user code\)\.$/d' \
+    -e '/^Use -header-filter=.*$/d'
+}
+
+run_clang_tidy_file() {
+  local file="$1"
+  local output_file="$2"
+  local status_file="$3"
+  local tidy_output
+
+  if ! tidy_output="$(clang-tidy "$file" --quiet -p "$repo_root" 2>&1)"; then
+    printf '1\n' >"$status_file"
+  else
+    printf '0\n' >"$status_file"
+  fi
+
+  if [[ -n "$tidy_output" ]]; then
+    printf '%s\n' "$tidy_output" | filter_clang_tidy_output >"$output_file"
+  else
+    : >"$output_file"
+  fi
+}
+
+tidy_temp_dir="$(mktemp -d)"
+trap 'rm -rf "$tidy_temp_dir"' EXIT
+tidy_pids=()
+tidy_output_files=()
+tidy_status_files=()
+tidy_index=0
+
+finish_clang_tidy_batch() {
+  local pid
+  local output_file
+  local status_file
+  local status_value
+
+  for pid in "${tidy_pids[@]}"; do
+    if ! wait "$pid"; then
+      status=1
+    fi
+  done
+
+  for output_file in "${tidy_output_files[@]}"; do
+    if [[ -s "$output_file" ]]; then
+      cat "$output_file"
+    fi
+  done
+
+  for status_file in "${tidy_status_files[@]}"; do
+    if [[ ! -f "$status_file" ]]; then
+      status=1
+      continue
+    fi
+    status_value="$(<"$status_file")"
+    if [[ "$status_value" != "0" ]]; then
+      status=1
+    fi
+  done
+
+  tidy_pids=()
+  tidy_output_files=()
+  tidy_status_files=()
+}
+
 # Run clang-tidy through the compile database instead of passing manual flags.
 for file in "${cpp_files[@]}"; do
   [[ -f "$file" ]] || continue
   echo "clang-tidy $file"
-  if ! tidy_output="$(clang-tidy "$file" --quiet -p "$repo_root" 2>&1)"; then
-    tidy_status=1
-  else
-    tidy_status=0
-  fi
-  if [[ -n "$tidy_output" ]]; then
-    printf '%s\n' "$tidy_output" | sed -E \
-      -e '/^[0-9]+ warnings generated\.$/d' \
-      -e '/^Suppressed [0-9]+ warnings \(.* in non-user code\)\.$/d' \
-      -e '/^Use -header-filter=.*$/d'
-  fi
-  if [[ "$tidy_status" -ne 0 ]]; then
-    status=1
+
+  tidy_output_file="$tidy_temp_dir/$tidy_index.out"
+  tidy_status_file="$tidy_temp_dir/$tidy_index.status"
+  run_clang_tidy_file "$file" "$tidy_output_file" "$tidy_status_file" &
+  tidy_pids+=("$!")
+  tidy_output_files+=("$tidy_output_file")
+  tidy_status_files+=("$tidy_status_file")
+  tidy_index=$((tidy_index + 1))
+
+  if [[ "${#tidy_pids[@]}" -ge "$CLANG_TIDY_PARALLELISM" ]]; then
+    finish_clang_tidy_batch
   fi
 done
+
+if [[ "${#tidy_pids[@]}" -gt 0 ]]; then
+  finish_clang_tidy_batch
+fi
 
 exit "$status"
