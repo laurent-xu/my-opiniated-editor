@@ -1,19 +1,14 @@
 #include "src/parent/tray_number.h"
 
 namespace moe::parent {
-namespace {
-
-constexpr int ONLY_AVAILABLE_TRAY = 1;
-
-}  // namespace
 
 std::optional<TrayNumber> TrayNumber::from_int(int const value) {
-  if (value != ONLY_AVAILABLE_TRAY) {
+  if (value < MIN_VALUE || value > MAX_VALUE) {
     return std::nullopt;
   }
   return TrayNumber(value);
 }
 
-TrayNumber TrayNumber::one() { return TrayNumber(ONLY_AVAILABLE_TRAY); }
+TrayNumber TrayNumber::one() { return TrayNumber(MIN_VALUE); }
 
 }  // namespace moe::parent

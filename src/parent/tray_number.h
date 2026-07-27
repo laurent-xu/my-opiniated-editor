@@ -6,6 +6,9 @@ namespace moe::parent {
 
 class TrayNumber {
  public:
+  static constexpr int MIN_VALUE = 1;
+  static constexpr int MAX_VALUE = 9;
+
   [[nodiscard]] static std::optional<TrayNumber> from_int(int value);
   [[nodiscard]] static TrayNumber one();
 

@@ -9,6 +9,7 @@
 #include <array>
 #include <cerrno>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -28,10 +29,13 @@ namespace {
 constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
+constexpr unsigned char TRAY_COMMAND_PREFIX = 0x18;
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
 std::sig_atomic_t volatile stop_requested = 0;
+
+enum class ParentInputMode : std::uint8_t { NORMAL, TRAY_COMMAND };
 
 class RawTerminalModeGuard {
  public:
@@ -121,7 +125,57 @@ void write_all(base::FileDescriptor const output, std::string_view bytes) {
   }
 }
 
-void forward_parent_input_to_active_tray(TrayManager& trays) {
+void write_input_byte(TrayManager& trays, unsigned char const byte) {
+  char const value = static_cast<char>(byte);
+  trays.write_input(std::string_view(&value, 1));
+}
+
+bool is_anonymous_tray_command(unsigned char const byte) { return byte >= '1' && byte <= '9'; }
+
+void handle_tray_command_byte(TrayManager& trays, unsigned char const byte) {
+  if (is_anonymous_tray_command(byte)) {
+    std::optional<TrayNumber> const number = TrayNumber::from_int(static_cast<int>(byte - '0'));
+    if (number.has_value()) {
+      static_cast<void>(trays.switch_to(*number));
+      return;
+    }
+  }
+
+  write_input_byte(trays, TRAY_COMMAND_PREFIX);
+  write_input_byte(trays, byte);
+}
+
+void route_parent_input_to_active_tray(TrayManager& trays, std::string_view const bytes,
+                                       ParentInputMode& input_mode) {
+  std::string forwarded;
+  forwarded.reserve(bytes.size());
+
+  auto flush_forwarded = [&]() {
+    if (!forwarded.empty()) {
+      trays.write_input(forwarded);
+      forwarded.clear();
+    }
+  };
+
+  for (unsigned char const byte : bytes) {
+    if (input_mode == ParentInputMode::NORMAL) {
+      if (byte == TRAY_COMMAND_PREFIX) {
+        flush_forwarded();
+        input_mode = ParentInputMode::TRAY_COMMAND;
+        continue;
+      }
+      forwarded.push_back(static_cast<char>(byte));
+      continue;
+    }
+
+    handle_tray_command_byte(trays, byte);
+    input_mode = ParentInputMode::NORMAL;
+  }
+
+  flush_forwarded();
+}
+
+void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& input_mode) {
   std::array<char, 4096> buffer{};
   ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
   if (read_count <= 0) {
@@ -131,7 +185,8 @@ void forward_parent_input_to_active_tray(TrayManager& trays) {
     throw std::runtime_error(std::string("read parent input failed: ") + std::strerror(errno));
   }
 
-  trays.write_input(std::string_view(buffer.data(), static_cast<std::size_t>(read_count)));
+  route_parent_input_to_active_tray(
+      trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode);
 }
 
 void draw_active_tray_output(TrayManager const& trays) {
@@ -142,7 +197,7 @@ void draw_active_tray_output(TrayManager const& trays) {
   write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
 }
 
-void synchronize_active_tray_size_if_changed(TrayManager const& trays, TerminalSize& last_size) {
+void synchronize_active_tray_size_if_changed(TrayManager& trays, TerminalSize& last_size) {
   TerminalSize const current_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
   if (same_size(current_size, last_size)) {
     return;
@@ -189,6 +244,7 @@ int run_workspace_parent() {
 
   RawTerminalModeGuard const raw_terminal(PARENT_INPUT_DESCRIPTOR);
   TerminalSize last_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
+  ParentInputMode input_mode = ParentInputMode::NORMAL;
   std::unique_ptr<TrayManager> trays = TrayManager::start(TrayConfig{
       .command = interactive_shell_command(configured_login_shell()),
       .working_directory = std::filesystem::current_path(),
@@ -223,7 +279,7 @@ int run_workspace_parent() {
     synchronize_active_tray_size_if_changed(*trays, last_size);
 
     if ((descriptors[0].revents & POLLIN) != 0) {
-      forward_parent_input_to_active_tray(*trays);
+      forward_parent_input_to_active_tray(*trays, input_mode);
     }
     if ((descriptors[1].revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
       draw_active_tray_output(*trays);
