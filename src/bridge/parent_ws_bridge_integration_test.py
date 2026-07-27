@@ -18,6 +18,16 @@ from parent_ws_bridge_test_lib import (
 
 
 def assert_browser_assets(test_case: unittest.TestCase, port: int):
+    expected_font_stack = (
+        '"MesloLGS NF", "JetBrainsMono Nerd Font Mono", '
+        '"JetBrainsMonoNL Nerd Font Mono", "JetBrainsMono Nerd Font", '
+        '"FiraCode Nerd Font Mono", "Hack Nerd Font Mono", '
+        '"CaskaydiaCove Nerd Font Mono", "Symbols Nerd Font Mono", '
+        '"PowerlineSymbols", "DejaVu Sans Mono for Powerline", '
+        '"DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", '
+        '"Cascadia Mono", "JetBrains Mono", monospace'
+    )
+
     html = fetch_text(port, "/")
     test_case.assertIn("@xterm/xterm@6.0.0/css/xterm.css", html)
     test_case.assertIn("@xterm/xterm@6.0.0/lib/xterm.js", html)
@@ -31,11 +41,8 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertTrue(client_js.startswith("(() => {"), client_js[:32])
     test_case.assertTrue(client_js.rstrip().endswith("})();"))
     test_case.assertIn("new Terminal", client_js)
-    test_case.assertIn(
-        'fontFamily: \'"DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", '
-        '"Cascadia Mono", "JetBrains Mono", monospace\'',
-        client_js,
-    )
+    test_case.assertIn("customGlyphs: true", client_js)
+    test_case.assertIn(f"fontFamily: '{expected_font_stack}'", client_js)
     test_case.assertIn("lineHeight: 1.15", client_js)
     test_case.assertIn(
         "new WebSocket(`${protocol}//${window.location.host}${websocketPath}`",
@@ -77,7 +84,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)
-    test_case.assertIn('"DejaVu Sans Mono"', css)
+    test_case.assertIn(f"font-family: {expected_font_stack};", css)
 
 
 class ParentWsBridgeIntegrationTest(unittest.TestCase):

@@ -6,6 +6,11 @@ namespace {
 constexpr char const* XTERM_VERSION = "6.0.0";
 constexpr char const* XTERM_ADDON_FIT_VERSION = "0.11.0";
 constexpr char const* TERMINAL_FONT_FAMILY =
+    "\"MesloLGS NF\", \"JetBrainsMono Nerd Font Mono\", "
+    "\"JetBrainsMonoNL Nerd Font Mono\", \"JetBrainsMono Nerd Font\", "
+    "\"FiraCode Nerd Font Mono\", \"Hack Nerd Font Mono\", "
+    "\"CaskaydiaCove Nerd Font Mono\", \"Symbols Nerd Font Mono\", "
+    "\"PowerlineSymbols\", \"DejaVu Sans Mono for Powerline\", "
     "\"DejaVu Sans Mono\", \"Liberation Mono\", \"Noto Sans Mono\", "
     "\"Cascadia Mono\", \"JetBrains Mono\", monospace";
 
@@ -39,10 +44,10 @@ std::string browser_html() {
 }
 
 std::string browser_css() {
-  return R"CSS(:root {
+  return std::string(R"CSS(:root {
   color-scheme: dark;
-  font-family: "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", "Cascadia Mono",
-    "JetBrains Mono", monospace;
+  font-family: )CSS") +
+         TERMINAL_FONT_FAMILY + R"CSS(;
 }
 
 html,
@@ -85,6 +90,7 @@ std::string browser_client_js() {
   const terminal = new Terminal({
     cursorBlink: true,
     convertEol: true,
+    customGlyphs: true,
     fontFamily: ')JS") +
          TERMINAL_FONT_FAMILY + R"JS(',
     fontSize: 14,
