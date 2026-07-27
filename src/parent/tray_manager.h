@@ -22,7 +22,8 @@ class TrayManager {
   ~TrayManager();
 
   void write_input(std::string_view bytes);
-  [[nodiscard]] std::optional<std::string> read_active_output() const;
+  [[nodiscard]] std::optional<std::string> read_active_output();
+  [[nodiscard]] std::string_view active_replay_output() const;
   void resize_active(TerminalSize size);
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
   [[nodiscard]] std::optional<int> try_wait_for_active_exit() noexcept;

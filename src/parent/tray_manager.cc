@@ -24,9 +24,11 @@ TrayManager::~TrayManager() = default;
 
 void TrayManager::write_input(std::string_view const bytes) { active_tray().write_input(bytes); }
 
-std::optional<std::string> TrayManager::read_active_output() const {
-  return active_tray().read_output();
+std::optional<std::string> TrayManager::read_active_output() {
+  return mutable_active_tray().read_output();
 }
+
+std::string_view TrayManager::active_replay_output() const { return active_tray().replay_output(); }
 
 void TrayManager::resize_active(TerminalSize const size) {
   current_size = size;

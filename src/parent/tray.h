@@ -23,7 +23,8 @@ class Tray {
   ~Tray();
 
   void write_input(std::string_view bytes) const;
-  [[nodiscard]] std::optional<std::string> read_output() const;
+  [[nodiscard]] std::optional<std::string> read_output();
+  [[nodiscard]] std::string_view replay_output() const;
   void resize(TerminalSize size) const;
   [[nodiscard]] std::optional<int> try_wait_for_exit() noexcept;
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
@@ -37,6 +38,7 @@ class Tray {
   std::string tray_label;
   std::filesystem::path cwd;
   std::unique_ptr<ContentPtySession> content;
+  std::string output_replay_buffer;
 };
 
 }  // namespace moe::parent

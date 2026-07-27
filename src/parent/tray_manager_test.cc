@@ -11,6 +11,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -112,6 +113,8 @@ TEST(TrayManagerTest, RoutesInputAndOutputThroughActiveTray) {
   std::string const output = read_until(*manager, "__moe_tray_one_output__");
 
   EXPECT_NE(output.find("__moe_tray_one_output__"), std::string::npos);
+  EXPECT_NE(manager->active_replay_output().find("__moe_tray_one_output__"),
+            std::string_view::npos);
 }
 
 TEST(TrayManagerTest, SwitchingCreatesLazyAnonymousTrayAndPreservesActiveTray) {
@@ -151,6 +154,7 @@ TEST(TrayManagerTest, SwitchingBackPreservesShellState) {
   EXPECT_NE(tray_two_output.find("__moe_tray2_empty__"), std::string::npos);
 
   static_cast<void>(manager->switch_to(moe::parent::TrayNumber::one()));
+  EXPECT_NE(manager->active_replay_output().find("__moe_export_done__"), std::string_view::npos);
   manager->write_input("printf '__moe_tray1_%s__\\n' \"$MOE_TRAY_MARKER\"\n");
   std::string const tray_one_output = read_until(*manager, "__moe_tray1_tray_one__");
   EXPECT_NE(tray_one_output.find("__moe_tray1_tray_one__"), std::string::npos);

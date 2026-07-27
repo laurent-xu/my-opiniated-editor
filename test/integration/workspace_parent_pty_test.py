@@ -150,6 +150,10 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             self.assertIn("__moe_tray2_empty__", tray_two_output)
 
             os.write(master_fd, b"\x181")
+            replay_output = read_until(master_fd, "__moe_export_done__")
+            self.assertIn("\x1b[H\x1b[2J", replay_output)
+            self.assertIn("__moe_export_done__", replay_output)
+
             os.write(
                 master_fd,
                 b"printf '__moe_tray1_%s__\\n' \"$MOE_TRAY_MARKER\"\n",

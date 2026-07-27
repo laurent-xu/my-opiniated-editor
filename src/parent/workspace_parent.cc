@@ -30,6 +30,7 @@ constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
 constexpr unsigned char TRAY_COMMAND_PREFIX = 0x18;
+constexpr std::string_view REDRAW_TERMINAL_SEQUENCE = "\x1b[0m\x1b[H\x1b[2J\x1b[3J";
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
@@ -130,6 +131,11 @@ void write_input_byte(TrayManager& trays, unsigned char const byte) {
   trays.write_input(std::string_view(&value, 1));
 }
 
+void redraw_active_tray(TrayManager const& trays) {
+  write_all(PARENT_OUTPUT_DESCRIPTOR, REDRAW_TERMINAL_SEQUENCE);
+  write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_replay_output());
+}
+
 bool is_anonymous_tray_command(unsigned char const byte) { return byte >= '1' && byte <= '9'; }
 
 void handle_tray_command_byte(TrayManager& trays, unsigned char const byte) {
@@ -137,6 +143,7 @@ void handle_tray_command_byte(TrayManager& trays, unsigned char const byte) {
     std::optional<TrayNumber> const number = TrayNumber::from_int(static_cast<int>(byte - '0'));
     if (number.has_value()) {
       static_cast<void>(trays.switch_to(*number));
+      redraw_active_tray(trays);
       return;
     }
   }
@@ -189,7 +196,7 @@ void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& in
       trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode);
 }
 
-void draw_active_tray_output(TrayManager const& trays) {
+void draw_active_tray_output(TrayManager& trays) {
   std::optional<std::string> const output = trays.read_active_output();
   if (!output.has_value()) {
     return;

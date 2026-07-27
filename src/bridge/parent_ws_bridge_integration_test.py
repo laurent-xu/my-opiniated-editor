@@ -146,6 +146,10 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             self.assertIn("__moe_tray2_empty__", tray_two_output)
 
             client.send_tray_switch(1)
+            replay_output = client.read_terminal_output_until("__moe_export_done__")
+            self.assertIn("\x1b[H\x1b[2J", replay_output)
+            self.assertIn("__moe_export_done__", replay_output)
+
             client.send_terminal_input(
                 b"printf '__moe_tray1_%s__\\n' \"$MOE_TRAY_MARKER\"\n"
             )
