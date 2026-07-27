@@ -50,6 +50,15 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn(
         'sendCommand("2", JSON.stringify({ tray: trayNumber }))', client_js
     )
+    test_case.assertIn(
+        "function sendTraySwitch(trayNumber) {\n"
+        "    activeTrayNumber = trayNumber;\n"
+        '    statusNote = "";\n'
+        "    renderStatus();\n"
+        '    sendCommand("2", JSON.stringify({ tray: trayNumber }));\n'
+        "  }",
+        client_js,
+    )
     test_case.assertIn('event.key === "Escape"', client_js)
     test_case.assertIn('sendCommand("0", "\\x1b")', client_js)
     test_case.assertIn('event.key === "Shift"', client_js)

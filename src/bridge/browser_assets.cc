@@ -144,13 +144,13 @@ std::string browser_client_js() {
   function sendTraySwitch(trayNumber) {
     activeTrayNumber = trayNumber;
     statusNote = "";
-    setCommandMode(false);
+    renderStatus();
     sendCommand("2", JSON.stringify({ tray: trayNumber }));
   }
 
   function showTrayFindPlaceholder() {
     statusNote = "tray find not implemented";
-    setCommandMode(false);
+    renderStatus();
   }
 
   function fitAndSendSize() {
@@ -239,7 +239,7 @@ std::string browser_client_js() {
       return true;
     }
 
-    setCommandMode(false);
+    renderStatus();
     return true;
   }
 
