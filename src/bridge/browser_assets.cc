@@ -171,6 +171,14 @@ std::string browser_client_js() {
     return event.key === "Escape" || event.code === "Escape" || event.keyCode === 27;
   }
 
+  function isModifierOnlyKey(event) {
+    return event.key === "Shift" || event.key === "Control" || event.key === "Alt" ||
+      event.key === "Meta" || event.code === "ShiftLeft" || event.code === "ShiftRight" ||
+      event.code === "ControlLeft" || event.code === "ControlRight" ||
+      event.code === "AltLeft" || event.code === "AltRight" ||
+      event.code === "MetaLeft" || event.code === "MetaRight";
+  }
+
   function trayNumberFromShiftDigit(event) {
     if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
       return null;
@@ -213,6 +221,11 @@ std::string browser_client_js() {
 
     if (!commandMode) {
       return false;
+    }
+
+    if (isModifierOnlyKey(event)) {
+      event.preventDefault();
+      return true;
     }
 
     event.preventDefault();
