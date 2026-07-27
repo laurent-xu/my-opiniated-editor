@@ -15,6 +15,12 @@ constexpr std::string_view CLEAR_TERMINAL_AND_SCROLLBACK = "\x1b[0m\x1b[H\x1b[2J
 constexpr std::string_view CLEAR_VISIBLE_SCREEN = "\x1b[0m\x1b[H\x1b[2J";
 constexpr std::string_view DISABLE_AUTOWRAP = "\x1b[?7l";
 constexpr std::string_view ENABLE_AUTOWRAP = "\x1b[?7h";
+constexpr std::string_view ENTER_ALTERNATE_SCREEN = "\x1b[?1049h";
+constexpr std::string_view EXIT_ALTERNATE_SCREEN = "\x1b[?1049l";
+constexpr std::string_view ENABLE_REVERSE_SCREEN = "\x1b[?5h";
+constexpr std::string_view DISABLE_REVERSE_SCREEN = "\x1b[?5l";
+constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
+constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
 
 enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
@@ -319,10 +325,6 @@ int ignore_movecursor(VTermPos const /*pos*/, VTermPos const /*oldpos*/, int con
   return 1;
 }
 
-int ignore_termprop(VTermProp const /*prop*/, VTermValue* const /*value*/, void* const /*user*/) {
-  return 1;
-}
-
 int ignore_bell(void* const /*user*/) { return 1; }
 
 int ignore_resize(int const /*rows*/, int const /*cols*/, void* const /*user*/) { return 1; }
@@ -360,6 +362,9 @@ TerminalScreen::TerminalScreen(TerminalScreen&& other) noexcept
       screen(std::exchange(other.screen, nullptr)),
       state(std::exchange(other.state, nullptr)),
       pending_utf8_bytes(std::move(other.pending_utf8_bytes)),
+      alternate_screen_active(other.alternate_screen_active),
+      reverse_screen_active(other.reverse_screen_active),
+      cursor_visible(other.cursor_visible),
       scrollback_lines(std::move(other.scrollback_lines)) {
   if (screen != nullptr) {
     configure_screen_callbacks();
@@ -373,6 +378,9 @@ TerminalScreen& TerminalScreen::operator=(TerminalScreen&& other) noexcept {
     screen = std::exchange(other.screen, nullptr);
     state = std::exchange(other.state, nullptr);
     pending_utf8_bytes = std::move(other.pending_utf8_bytes);
+    alternate_screen_active = other.alternate_screen_active;
+    reverse_screen_active = other.reverse_screen_active;
+    cursor_visible = other.cursor_visible;
     scrollback_lines = std::move(other.scrollback_lines);
     if (screen != nullptr) {
       configure_screen_callbacks();
@@ -424,19 +432,23 @@ void TerminalScreen::resize(TerminalSize const size) {
 }
 
 std::string TerminalScreen::render_snapshot() const {
-  std::string output(CLEAR_TERMINAL_AND_SCROLLBACK);
+  std::string output;
+  output.append(alternate_screen_active ? ENTER_ALTERNATE_SCREEN : EXIT_ALTERNATE_SCREEN);
+  output.append(reverse_screen_active ? ENABLE_REVERSE_SCREEN : DISABLE_REVERSE_SCREEN);
+  output.append(cursor_visible ? SHOW_CURSOR : HIDE_CURSOR);
+  output.append(alternate_screen_active ? CLEAR_VISIBLE_SCREEN : CLEAR_TERMINAL_AND_SCROLLBACK);
   output.append(DISABLE_AUTOWRAP);
-  for (std::string const& line : scrollback_lines) {
-    output.append(line);
-    output.append("\r\n");
-  }
-  if (!scrollback_lines.empty()) {
+  if (!alternate_screen_active && !scrollback_lines.empty()) {
+    for (std::string const& line : scrollback_lines) {
+      output.append(line);
+      output.append("\r\n");
+    }
     for (int row = 0; row < screen_size.rows; ++row) {
       output.append("\r\n");
     }
+    output.append(CLEAR_VISIBLE_SCREEN);
   }
 
-  output.append(CLEAR_VISIBLE_SCREEN);
   for (int row = 0; row < screen_size.rows; ++row) {
     std::string const line = screen_row_snapshot_line(row);
     if (line.empty()) {
@@ -482,7 +494,7 @@ VTermScreenCallbacks const& TerminalScreen::screen_callbacks() {
       .damage = ignore_damage,
       .moverect = ignore_moverect,
       .movecursor = ignore_movecursor,
-      .settermprop = ignore_termprop,
+      .settermprop = settermprop_callback,
       .bell = ignore_bell,
       .resize = ignore_resize,
       .sb_pushline = push_scrollback_line_callback,
@@ -490,6 +502,24 @@ VTermScreenCallbacks const& TerminalScreen::screen_callbacks() {
       .sb_clear = clear_scrollback_callback,
   };
   return CALLBACKS;
+}
+
+int TerminalScreen::settermprop_callback(VTermProp const prop, VTermValue* const value,
+                                         void* const user) {
+  TerminalScreen& terminal_screen = *static_cast<TerminalScreen*>(user);
+  if (prop == VTERM_PROP_ALTSCREEN) {
+    terminal_screen.alternate_screen_active = value != nullptr && value->boolean != 0;
+    return 1;
+  }
+  if (prop == VTERM_PROP_REVERSE) {
+    terminal_screen.reverse_screen_active = value != nullptr && value->boolean != 0;
+    return 1;
+  }
+  if (prop == VTERM_PROP_CURSORVISIBLE) {
+    terminal_screen.cursor_visible = value == nullptr || value->boolean != 0;
+    return 1;
+  }
+  return 1;
 }
 
 int TerminalScreen::push_scrollback_line_callback(int const cols,

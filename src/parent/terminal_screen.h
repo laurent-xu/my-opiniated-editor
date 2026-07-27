@@ -37,6 +37,7 @@ class TerminalScreen {
   [[nodiscard]] std::string screen_row_snapshot_line(int row) const;
   [[nodiscard]] static std::string cursor_position_sequence(int row, int col);
   [[nodiscard]] static VTermScreenCallbacks const& screen_callbacks();
+  static int settermprop_callback(VTermProp prop, VTermValue* value, void* user);
   static int push_scrollback_line_callback(int cols, VTermScreenCell const* cells, void* user);
   static int clear_scrollback_callback(void* user);
 
@@ -45,6 +46,9 @@ class TerminalScreen {
   VTermScreen* screen = nullptr;
   VTermState* state = nullptr;
   std::string pending_utf8_bytes;
+  bool alternate_screen_active = false;
+  bool reverse_screen_active = false;
+  bool cursor_visible = true;
   std::deque<std::string> scrollback_lines;
 };
 
