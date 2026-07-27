@@ -30,7 +30,6 @@ constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
 constexpr unsigned char TRAY_COMMAND_PREFIX = 0x18;
-constexpr std::string_view REDRAW_TERMINAL_SEQUENCE = "\x1b[0m\x1b[H\x1b[2J\x1b[3J";
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
@@ -132,8 +131,7 @@ void write_input_byte(TrayManager& trays, unsigned char const byte) {
 }
 
 void redraw_active_tray(TrayManager const& trays) {
-  write_all(PARENT_OUTPUT_DESCRIPTOR, REDRAW_TERMINAL_SEQUENCE);
-  write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_replay_output());
+  write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_redraw_output());
 }
 
 bool is_anonymous_tray_command(unsigned char const byte) { return byte >= '1' && byte <= '9'; }
@@ -196,12 +194,14 @@ void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& in
       trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode);
 }
 
-void draw_active_tray_output(TrayManager& trays) {
-  std::optional<std::string> const output = trays.read_active_output();
+void draw_tray_output(TrayManager& trays, TrayOutputSource const& source) {
+  std::optional<std::string> const output = trays.read_output(source.tray_id);
   if (!output.has_value()) {
     return;
   }
-  write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
+  if (source.tray_id == trays.active_id()) {
+    write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
+  }
 }
 
 void synchronize_active_tray_size_if_changed(TrayManager& trays, TerminalSize& last_size) {
@@ -266,10 +266,14 @@ int run_workspace_parent() {
 
     synchronize_active_tray_size_if_changed(*trays, last_size);
 
-    std::array<pollfd, 2> descriptors{
-        readable_descriptor(PARENT_INPUT_DESCRIPTOR),
-        readable_descriptor(trays->active_content_file_descriptor()),
-    };
+    std::vector<TrayOutputSource> output_sources = trays->output_sources();
+    std::vector<pollfd> descriptors;
+    descriptors.reserve(output_sources.size() + 1);
+    descriptors.push_back(readable_descriptor(PARENT_INPUT_DESCRIPTOR));
+    for (TrayOutputSource const& source : output_sources) {
+      descriptors.push_back(readable_descriptor(source.file_descriptor));
+    }
+
     int const result = poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()),
                             POLL_TIMEOUT_MILLISECONDS);
     if (result < 0) {
@@ -288,8 +292,12 @@ int run_workspace_parent() {
     if ((descriptors[0].revents & POLLIN) != 0) {
       forward_parent_input_to_active_tray(*trays, input_mode);
     }
-    if ((descriptors[1].revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
-      draw_active_tray_output(*trays);
+
+    for (std::size_t index = 0; index < output_sources.size(); ++index) {
+      pollfd const& descriptor = descriptors[index + 1];
+      if ((descriptor.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+        draw_tray_output(*trays, output_sources[index]);
+      }
     }
   }
 

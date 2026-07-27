@@ -69,11 +69,15 @@ std::optional<std::string> TrayManager::read_active_output() {
   return mutable_active_tray().read_output();
 }
 
-std::string_view TrayManager::active_replay_output() const { return active_tray().replay_output(); }
+std::optional<std::string> TrayManager::read_output(TrayId const& id) {
+  return mutable_tray(id).read_output();
+}
+
+std::string TrayManager::active_redraw_output() const { return active_tray().redraw_output(); }
 
 void TrayManager::resize_active(TerminalSize const size) {
   current_size = size;
-  active_tray().resize(size);
+  mutable_active_tray().resize(size);
 }
 
 TraySnapshot TrayManager::switch_to(TrayNumber const number) {
@@ -99,6 +103,8 @@ base::FileDescriptor TrayManager::active_content_file_descriptor() const {
   return active_tray().file_descriptor();
 }
 
+TrayId TrayManager::active_id() const { return active_tray_id; }
+
 TraySnapshot TrayManager::active_snapshot() const { return active_tray().snapshot(); }
 
 std::vector<TraySnapshot> TrayManager::tray_snapshots() const {
@@ -114,27 +120,46 @@ std::vector<TraySnapshot> TrayManager::tray_snapshots() const {
   return snapshots;
 }
 
-Tray const& TrayManager::active_tray() const {
-  if (active_tray_id.kind() == TrayIdKind::WORKTREE) {
-    return worktree_tray(active_tray_id.worktree_root());
+std::vector<TrayOutputSource> TrayManager::output_sources() const {
+  std::vector<TrayOutputSource> sources;
+  for (std::unique_ptr<Tray> const& tray : anonymous_trays) {
+    if (tray != nullptr) {
+      sources.push_back(
+          TrayOutputSource{.tray_id = tray->id(), .file_descriptor = tray->file_descriptor()});
+    }
+  }
+  for (auto const& entry : worktree_trays) {
+    Tray const& tray = *entry.second;
+    sources.push_back(
+        TrayOutputSource{.tray_id = tray.id(), .file_descriptor = tray.file_descriptor()});
+  }
+  return sources;
+}
+
+Tray const& TrayManager::active_tray() const { return tray(active_tray_id); }
+
+Tray& TrayManager::mutable_active_tray() { return mutable_tray(active_tray_id); }
+
+Tray const& TrayManager::tray(TrayId const& id) const {
+  if (id.kind() == TrayIdKind::WORKTREE) {
+    return worktree_tray(id.worktree_root());
   }
 
-  std::unique_ptr<Tray> const& tray =
-      anonymous_trays.at(tray_index(active_tray_id.anonymous_number()));
+  std::unique_ptr<Tray> const& tray = anonymous_trays.at(tray_index(id.anonymous_number()));
   if (tray == nullptr) {
-    throw std::logic_error("active tray is missing");
+    throw std::logic_error("requested anonymous tray is missing");
   }
   return *tray;
 }
 
-Tray& TrayManager::mutable_active_tray() {
-  if (active_tray_id.kind() == TrayIdKind::WORKTREE) {
-    return ensure_worktree_tray(active_tray_id.worktree_root());
+Tray& TrayManager::mutable_tray(TrayId const& id) {
+  if (id.kind() == TrayIdKind::WORKTREE) {
+    return mutable_worktree_tray(id.worktree_root());
   }
 
-  std::unique_ptr<Tray>& tray = anonymous_trays.at(tray_index(active_tray_id.anonymous_number()));
+  std::unique_ptr<Tray>& tray = anonymous_trays.at(tray_index(id.anonymous_number()));
   if (tray == nullptr) {
-    throw std::logic_error("active tray is missing");
+    throw std::logic_error("requested anonymous tray is missing");
   }
   return *tray;
 }
@@ -169,7 +194,15 @@ Tray& TrayManager::ensure_worktree_tray(std::filesystem::path const& root) {
 Tray const& TrayManager::worktree_tray(std::filesystem::path const& root) const {
   auto const iterator = worktree_trays.find(root);
   if (iterator == worktree_trays.end()) {
-    throw std::logic_error("active worktree tray is missing");
+    throw std::logic_error("requested worktree tray is missing");
+  }
+  return *iterator->second;
+}
+
+Tray& TrayManager::mutable_worktree_tray(std::filesystem::path const& root) {
+  auto const iterator = worktree_trays.find(root);
+  if (iterator == worktree_trays.end()) {
+    throw std::logic_error("requested worktree tray is missing");
   }
   return *iterator->second;
 }

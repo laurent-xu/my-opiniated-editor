@@ -17,6 +17,29 @@ sh_binary(
 )
 """
 
+_LIBVTERM_NEOVIM_BUILD = """
+package(default_visibility = ["//visibility:public"])
+
+cc_import(
+    name = "vterm_import",
+    shared_library = ":libvterm_soname",
+)
+
+genrule(
+    name = "libvterm_soname",
+    srcs = ["lib/libvterm.so.0.0.0"],
+    outs = ["libvterm.so.0"],
+    cmd = "cp $(location lib/libvterm.so.0.0.0) $@",
+)
+
+cc_library(
+    name = "libvterm",
+    hdrs = glob(["include/**/*.h"]),
+    includes = ["include"],
+    deps = [":vterm_import"],
+)
+"""
+
 def _nix_deps_impl(_ctx):
     nixpkgs_http_repository(
         name = "nixpkgs",
@@ -37,6 +60,13 @@ def _nix_deps_impl(_ctx):
         attribute_path = "ruff",
         repository = "@nixpkgs",
         build_file_content = _RUFF_BUILD,
+    )
+
+    nixpkgs_package(
+        name = "nixpkgs_libvterm_neovim",
+        attribute_path = "libvterm-neovim",
+        repository = "@nixpkgs",
+        build_file_content = _LIBVTERM_NEOVIM_BUILD,
     )
 
 nix_deps = module_extension(implementation = _nix_deps_impl)

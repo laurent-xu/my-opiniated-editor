@@ -8,6 +8,7 @@ refresh_compile_commands(
         "//src/bridge:parent_pty_session_test",
         "//src/bridge:parent_ws_bridge",
         "//src/core:core_test",
+        "//src/parent:terminal_screen_test",
         "//src/parent:tray_manager_test",
         "//src/parent:workspace_parent",
         "//src/parent:workspace_parent_test",

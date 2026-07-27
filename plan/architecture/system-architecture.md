@@ -88,6 +88,22 @@ browser-native inspector views. The bridge should not contain business logic
 beyond connection handling, parent PTY forwarding, resize, and browser-specific
 plumbing.
 
+## Parent And Content PTYs
+
+The bridge serves one parent PTY. That PTY is the rendering surface for the C++
+workspace app.
+
+Shells, agent CLIs, and temporary terminal programs run in separate content
+PTYs owned by the parent app. A content PTY is only a byte stream; it does not
+retain a redrawable screen or scrollback by itself. For every content PTY, the
+parent app owns a terminal screen model that consumes the PTY output. When the
+active tray changes, the parent app redraws the selected model into the parent
+PTY.
+
+Do not reconstruct tray contents by replaying a raw byte backlog. Byte replay is
+lossy, can truncate history, and can replay obsolete terminal control sequences
+instead of the current screen state.
+
 ## Browser Client Responsibilities
 
 The browser owns:

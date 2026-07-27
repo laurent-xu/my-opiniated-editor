@@ -3,3 +3,9 @@ cc_library(
     visibility = ["//visibility:public"],
     linkopts = ["-lutil"],
 )
+
+cc_library(
+    name = "libvterm_neovim",
+    visibility = ["//visibility:public"],
+    deps = ["@nixpkgs_libvterm_neovim//:libvterm"],
+)

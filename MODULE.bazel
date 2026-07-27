@@ -26,6 +26,7 @@ nix_deps = use_extension("//tools/bazel:nix_deps.bzl", "nix_deps")
 use_repo(
     nix_deps,
     "nixpkgs",
+    "nixpkgs_libvterm_neovim",
     "nixpkgs_python_toolchain",
     "nixpkgs_python_toolchain_python3",
     "nixpkgs_ruff",

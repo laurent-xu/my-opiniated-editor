@@ -136,8 +136,7 @@ TEST(TrayManagerTest, RoutesInputAndOutputThroughActiveTray) {
   std::string const output = read_until(*manager, "__moe_tray_one_output__");
 
   EXPECT_NE(output.find("__moe_tray_one_output__"), std::string::npos);
-  EXPECT_NE(manager->active_replay_output().find("__moe_tray_one_output__"),
-            std::string_view::npos);
+  EXPECT_NE(manager->active_redraw_output().find("__moe_tray_one_output__"), std::string::npos);
 }
 
 TEST(TrayManagerTest, SwitchingCreatesLazyAnonymousTrayAndPreservesActiveTray) {
@@ -177,10 +176,22 @@ TEST(TrayManagerTest, SwitchingBackPreservesShellState) {
   EXPECT_NE(tray_two_output.find("__moe_tray2_empty__"), std::string::npos);
 
   static_cast<void>(manager->switch_to(moe::parent::TrayNumber::one()));
-  EXPECT_NE(manager->active_replay_output().find("__moe_export_done__"), std::string_view::npos);
+  EXPECT_NE(manager->active_redraw_output().find("__moe_export_done__"), std::string::npos);
   manager->write_input("printf '__moe_tray1_%s__\\n' \"$MOE_TRAY_MARKER\"\n");
   std::string const tray_one_output = read_until(*manager, "__moe_tray1_tray_one__");
   EXPECT_NE(tray_one_output.find("__moe_tray1_tray_one__"), std::string::npos);
+}
+
+TEST(TrayManagerTest, ListsOutputSourcesForCreatedTrays) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+
+  std::vector<moe::parent::TrayOutputSource> const sources = manager->output_sources();
+  ASSERT_EQ(sources.size(), 2);
+  EXPECT_EQ(sources[0].tray_id.key(), "anonymous:1");
+  EXPECT_TRUE(sources[0].file_descriptor.is_valid());
+  EXPECT_EQ(sources[1].tray_id.key(), "anonymous:2");
+  EXPECT_TRUE(sources[1].file_descriptor.is_valid());
 }
 
 TEST(TrayManagerTest, ResizeAppliesToActiveTray) {

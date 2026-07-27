@@ -4,32 +4,21 @@
 #include <utility>
 
 namespace moe::parent {
-namespace {
-
-constexpr std::size_t MAX_REPLAY_BUFFER_BYTES = static_cast<std::size_t>(256U) * 1024U;
-
-void append_to_replay_buffer(std::string& replay_buffer, std::string_view const output) {
-  replay_buffer.append(output);
-  if (replay_buffer.size() > MAX_REPLAY_BUFFER_BYTES) {
-    replay_buffer.erase(0, replay_buffer.size() - MAX_REPLAY_BUFFER_BYTES);
-  }
-}
-
-}  // namespace
 
 std::unique_ptr<Tray> Tray::start(TrayId id, TrayConfig const& config) {
   std::unique_ptr<ContentPtySession> content =
       ContentPtySession::start(config.command, config.working_directory, config.initial_size);
   return std::unique_ptr<Tray>(
-      new Tray(std::move(id), config.working_directory, std::move(content)));
+      new Tray(std::move(id), config.working_directory, std::move(content), config.initial_size));
 }
 
 Tray::Tray(TrayId id, std::filesystem::path working_directory,
-           std::unique_ptr<ContentPtySession> content_pty)
+           std::unique_ptr<ContentPtySession> content_pty, TerminalSize const size)
     : tray_id(std::move(id)),
       tray_label(tray_id.label()),
       cwd(std::move(working_directory)),
-      content(std::move(content_pty)) {
+      content(std::move(content_pty)),
+      terminal_screen(size) {
   if (content == nullptr) {
     throw std::invalid_argument("tray requires a content pty");
   }
@@ -42,18 +31,23 @@ void Tray::write_input(std::string_view const bytes) const { content->write(byte
 std::optional<std::string> Tray::read_output() {
   std::optional<std::string> output = content->read_available();
   if (output.has_value()) {
-    append_to_replay_buffer(output_replay_buffer, *output);
+    terminal_screen.ingest(*output);
   }
   return output;
 }
 
-std::string_view Tray::replay_output() const { return output_replay_buffer; }
+std::string Tray::redraw_output() const { return terminal_screen.render_snapshot(); }
 
-void Tray::resize(TerminalSize const size) const { content->resize(size); }
+void Tray::resize(TerminalSize const size) {
+  content->resize(size);
+  terminal_screen.resize(size);
+}
 
 std::optional<int> Tray::try_wait_for_exit() noexcept { return content->try_wait_for_exit(); }
 
 base::FileDescriptor Tray::file_descriptor() const { return content->file_descriptor(); }
+
+TrayId const& Tray::id() const { return tray_id; }
 
 TraySnapshot Tray::snapshot() const {
   return TraySnapshot{.id = tray_id,

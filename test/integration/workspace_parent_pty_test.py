@@ -47,6 +47,19 @@ def shell_pid_marker_command() -> bytes:
     )
 
 
+def numbered_line_script(line_count: int, done_marker: str) -> bytes:
+    return (
+        (
+            "i=1; while [ $i -le {line_count} ]; do "
+            "printf '__moe_line_%02d__\\n' \"$i\"; "
+            "i=$((i + 1)); "
+            "done; printf '{done_marker}\\n'\n"
+        )
+        .format(line_count=line_count, done_marker=done_marker)
+        .encode()
+    )
+
+
 def set_pty_size(fd: int, rows: int, cols: int):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
@@ -150,9 +163,9 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             self.assertIn("__moe_tray2_empty__", tray_two_output)
 
             os.write(master_fd, b"\x181")
-            replay_output = read_until(master_fd, "__moe_export_done__")
-            self.assertIn("\x1b[H\x1b[2J", replay_output)
-            self.assertIn("__moe_export_done__", replay_output)
+            redraw_output = read_until(master_fd, "__moe_export_done__")
+            self.assertIn("\x1b[H\x1b[2J", redraw_output)
+            self.assertIn("__moe_export_done__", redraw_output)
 
             os.write(
                 master_fd,
@@ -160,6 +173,40 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             )
             tray_one_output = read_until(master_fd, "__moe_tray1_tray_one__")
             self.assertIn("__moe_tray1_tray_one__", tray_one_output)
+
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_parent_command_redraws_tray_scrollback_on_switch(self):
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, numbered_line_script(40, "__moe_lines_done__"))
+            read_until(master_fd, "__moe_lines_done__")
+
+            os.write(master_fd, b"\x182")
+            os.write(master_fd, shell_marker_command("__moe_tray2_ready__"))
+            read_until(master_fd, "__moe_tray2_ready__")
+
+            os.write(master_fd, b"\x181")
+            redraw_output = read_until(master_fd, "__moe_line_40__")
+            self.assertIn("\x1b[H\x1b[2J", redraw_output)
+            self.assertIn("__moe_line_01__", redraw_output)
+            self.assertIn("__moe_line_40__", redraw_output)
 
             os.write(master_fd, b"exit\n")
             self.assertEqual(process.wait(timeout=5), 0)

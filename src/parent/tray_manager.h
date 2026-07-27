@@ -11,6 +11,7 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/parent/tray.h"
+#include "src/parent/tray_output_source.h"
 
 namespace moe::parent {
 
@@ -24,23 +25,29 @@ class TrayManager {
 
   void write_input(std::string_view bytes);
   [[nodiscard]] std::optional<std::string> read_active_output();
-  [[nodiscard]] std::string_view active_replay_output() const;
+  [[nodiscard]] std::optional<std::string> read_output(TrayId const& id);
+  [[nodiscard]] std::string active_redraw_output() const;
   void resize_active(TerminalSize size);
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
   [[nodiscard]] TraySnapshot switch_to_worktree(std::filesystem::path const& path);
   [[nodiscard]] std::optional<int> try_wait_for_active_exit() noexcept;
   [[nodiscard]] base::FileDescriptor active_content_file_descriptor() const;
+  [[nodiscard]] TrayId active_id() const;
   [[nodiscard]] TraySnapshot active_snapshot() const;
   [[nodiscard]] std::vector<TraySnapshot> tray_snapshots() const;
+  [[nodiscard]] std::vector<TrayOutputSource> output_sources() const;
 
  private:
   explicit TrayManager(TrayConfig config);
 
   [[nodiscard]] Tray const& active_tray() const;
   [[nodiscard]] Tray& mutable_active_tray();
+  [[nodiscard]] Tray const& tray(TrayId const& id) const;
+  [[nodiscard]] Tray& mutable_tray(TrayId const& id);
   [[nodiscard]] Tray& ensure_tray(TrayNumber number);
   [[nodiscard]] Tray& ensure_worktree_tray(std::filesystem::path const& root);
   [[nodiscard]] Tray const& worktree_tray(std::filesystem::path const& root) const;
+  [[nodiscard]] Tray& mutable_worktree_tray(std::filesystem::path const& root);
   [[nodiscard]] static std::size_t tray_index(TrayNumber number);
 
   TrayConfig config;
