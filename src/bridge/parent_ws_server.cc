@@ -39,6 +39,9 @@ using base::OwnedFileDescriptor;
 constexpr int DEFAULT_ROWS = 24;
 constexpr int DEFAULT_COLS = 80;
 constexpr int POLL_TIMEOUT_MILLISECONDS = 250;
+constexpr char TRAY_COMMAND_PREFIX = '\x18';
+constexpr int MIN_ANONYMOUS_TRAY = 1;
+constexpr int MAX_ANONYMOUS_TRAY = 9;
 
 std::sig_atomic_t volatile keep_running = 1;
 
@@ -85,6 +88,19 @@ PtySize parse_resize_payload(std::string_view const payload) {
   return {.rows = *rows, .cols = *columns};
 }
 
+int parse_tray_switch_payload(std::string_view const payload) {
+  std::optional<int> const tray = parse_json_int(payload, JsonKey{.value = "tray"});
+  if (!tray.has_value() || *tray < MIN_ANONYMOUS_TRAY || *tray > MAX_ANONYMOUS_TRAY) {
+    throw std::runtime_error("tray switch payload requires tray 1 through 9");
+  }
+  return *tray;
+}
+
+void switch_parent_tray(ParentPtySession const& session, int const tray_number) {
+  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, static_cast<char>('0' + tray_number)};
+  session.write(std::string_view(command.data(), command.size()));
+}
+
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
   if (payload.empty()) {
     return;
@@ -98,6 +114,10 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
   }
   if (command == '1') {
     session.resize(parse_resize_payload(data));
+    return;
+  }
+  if (command == '2') {
+    switch_parent_tray(session, parse_tray_switch_payload(data));
   }
 }
 

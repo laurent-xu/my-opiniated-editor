@@ -104,9 +104,33 @@ std::string browser_client_js() {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${window.location.host}${websocketPath}`, "workspace-pty");
   socket.binaryType = "arraybuffer";
+  let connectionState = "connecting";
+  let activeTrayNumber = 1;
+  let commandMode = false;
+  let statusNote = "";
 
-  function setStatus(text) {
-    statusElement.textContent = text;
+  function renderStatus() {
+    const parts = [connectionState, `tray ${activeTrayNumber}`];
+    if (commandMode) {
+      parts.push("command");
+    }
+    if (statusNote) {
+      parts.push(statusNote);
+    }
+    statusElement.textContent = parts.join(" | ");
+  }
+
+  function setConnectionState(text) {
+    connectionState = text;
+    renderStatus();
+  }
+
+  function setCommandMode(enabled) {
+    commandMode = enabled;
+    if (enabled) {
+      statusNote = "";
+    }
+    renderStatus();
   }
 
   function sendCommand(command, payload) {
@@ -115,6 +139,18 @@ std::string browser_client_js() {
     }
     const body = encoder.encode(`${command}${payload}`);
     socket.send(body);
+  }
+
+  function sendTraySwitch(trayNumber) {
+    activeTrayNumber = trayNumber;
+    statusNote = "";
+    setCommandMode(false);
+    sendCommand("2", JSON.stringify({ tray: trayNumber }));
+  }
+
+  function showTrayFindPlaceholder() {
+    statusNote = "tray find not implemented";
+    setCommandMode(false);
   }
 
   function fitAndSendSize() {
@@ -131,6 +167,29 @@ std::string browser_client_js() {
     return event.key === "Tab" || event.code === "Tab" || event.keyCode === 9;
   }
 
+  function isEscapeKey(event) {
+    return event.key === "Escape" || event.code === "Escape" || event.keyCode === 27;
+  }
+
+  function trayNumberFromShiftDigit(event) {
+    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+      return null;
+    }
+    const codeMatch = /^Digit([1-9])$/.exec(event.code || "");
+    if (codeMatch) {
+      return Number(codeMatch[1]);
+    }
+    if (/^[1-9]$/.test(event.key || "")) {
+      return Number(event.key);
+    }
+    return null;
+  }
+
+  function isShiftTKey(event) {
+    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
+      (event.code === "KeyT" || event.key === "T");
+  }
+
   function handleTabKey(event) {
     if (isTabKey(event) && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
@@ -140,14 +199,49 @@ std::string browser_client_js() {
     return false;
   }
 
+  function handleCommandModeKey(event) {
+    if (isEscapeKey(event)) {
+      event.preventDefault();
+      if (commandMode) {
+        sendCommand("0", "\x1b");
+        setCommandMode(false);
+      } else {
+        setCommandMode(true);
+      }
+      return true;
+    }
+
+    if (!commandMode) {
+      return false;
+    }
+
+    event.preventDefault();
+    const trayNumber = trayNumberFromShiftDigit(event);
+    if (trayNumber !== null) {
+      sendTraySwitch(trayNumber);
+      return true;
+    }
+    if (isShiftTKey(event)) {
+      showTrayFindPlaceholder();
+      return true;
+    }
+
+    setCommandMode(false);
+    return true;
+  }
+
+  function handleTerminalKey(event) {
+    return handleCommandModeKey(event) || handleTabKey(event);
+  }
+
   document.addEventListener("keydown", (event) => {
-    if (terminalShouldReceiveKey() && handleTabKey(event)) {
+    if (terminalShouldReceiveKey() && handleTerminalKey(event)) {
       event.stopImmediatePropagation();
     }
   }, true);
 
   terminal.attachCustomKeyEventHandler((event) => {
-    if (event.type === "keydown" && handleTabKey(event)) {
+    if (event.type === "keydown" && handleTerminalKey(event)) {
       return false;
     }
     return true;
@@ -158,7 +252,7 @@ std::string browser_client_js() {
   });
 
   socket.addEventListener("open", () => {
-    setStatus("connected");
+    setConnectionState("connected");
     fitAndSendSize();
     terminal.focus();
   });
@@ -176,12 +270,14 @@ std::string browser_client_js() {
   });
 
   socket.addEventListener("close", () => {
-    setStatus("disconnected");
+    setConnectionState("disconnected");
   });
 
   window.addEventListener("resize", () => {
     fitAndSendSize();
   });
+
+  renderStatus();
 })();
 )JS";
 }

@@ -44,6 +44,17 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("new URLSearchParams(window.location.search)", client_js)
     test_case.assertIn("terminal.attachCustomKeyEventHandler", client_js)
     test_case.assertIn('document.addEventListener("keydown"', client_js)
+    test_case.assertIn("let activeTrayNumber = 1", client_js)
+    test_case.assertIn("let commandMode = false", client_js)
+    test_case.assertIn('parts.push("command")', client_js)
+    test_case.assertIn(
+        'sendCommand("2", JSON.stringify({ tray: trayNumber }))', client_js
+    )
+    test_case.assertIn('event.key === "Escape"', client_js)
+    test_case.assertIn('sendCommand("0", "\\x1b")', client_js)
+    test_case.assertIn('/^Digit([1-9])$/.exec(event.code || "")', client_js)
+    test_case.assertIn('event.code === "KeyT" || event.key === "T"', client_js)
+    test_case.assertIn('statusNote = "tray find not implemented"', client_js)
     test_case.assertIn('event.key === "Tab"', client_js)
     test_case.assertIn('event.code === "Tab"', client_js)
     test_case.assertIn("event.keyCode === 9", client_js)
@@ -102,6 +113,38 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
                 second_client.close()
             if third_client is not None:
                 third_client.close()
+            stop_bridge(process)
+
+    def test_tray_switch_control_message_changes_active_parent_tray(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.send_terminal_input(b"export MOE_TRAY_MARKER=tray_one\n")
+            client.send_shell_marker("__moe_export_done__")
+            client.read_terminal_output_until("__moe_export_done__")
+
+            client.send_tray_switch(2)
+            client.send_terminal_input(
+                b"printf '__moe_tray2_%s__\\n' \"${MOE_TRAY_MARKER:-empty}\"\n"
+            )
+            tray_two_output = client.read_terminal_output_until("__moe_tray2_empty__")
+            self.assertIn("__moe_tray2_empty__", tray_two_output)
+
+            client.send_tray_switch(1)
+            client.send_terminal_input(
+                b"printf '__moe_tray1_%s__\\n' \"$MOE_TRAY_MARKER\"\n"
+            )
+            tray_one_output = client.read_terminal_output_until(
+                "__moe_tray1_tray_one__"
+            )
+            self.assertIn("__moe_tray1_tray_one__", tray_one_output)
+        finally:
+            if client is not None:
+                client.close()
             stop_bridge(process)
 
     def test_token_protects_http_and_websocket_endpoints(self):

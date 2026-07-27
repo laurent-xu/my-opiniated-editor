@@ -69,6 +69,10 @@ class WebSocketClient:
     def send_terminal_input(self, payload: bytes):
         self.send_binary(b"0" + payload)
 
+    def send_tray_switch(self, tray_number: int):
+        payload = json.dumps({"tray": tray_number}, separators=(",", ":")).encode()
+        self.send_binary(b"2" + payload)
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 
