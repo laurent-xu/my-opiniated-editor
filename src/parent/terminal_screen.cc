@@ -13,6 +13,7 @@ namespace {
 constexpr std::size_t MAX_SCROLLBACK_LINES = 10000;
 constexpr std::string_view CLEAR_TERMINAL_AND_SCROLLBACK = "\x1b[0m\x1b[H\x1b[2J\x1b[3J";
 constexpr std::string_view CLEAR_VISIBLE_SCREEN = "\x1b[0m\x1b[H\x1b[2J";
+constexpr std::string_view ERASE_TO_END_OF_LINE = "\x1b[K";
 constexpr std::string_view DISABLE_AUTOWRAP = "\x1b[?7l";
 constexpr std::string_view ENABLE_AUTOWRAP = "\x1b[?7h";
 constexpr std::string_view ENTER_ALTERNATE_SCREEN = "\x1b[?1049h";
@@ -55,6 +56,16 @@ struct CellStyle {
   }
 
   [[nodiscard]] bool is_default() const { return *this == CellStyle{}; }
+};
+
+struct CellRange {
+  int first_col = 0;
+  int last_col = 0;
+};
+
+struct SnapshotLineBounds {
+  int last_rendered = -1;
+  int last_text = -1;
 };
 
 void validate_size(TerminalSize const size) {
@@ -288,15 +299,59 @@ int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells)
   return last_rendered;
 }
 
+int last_text_cell_index(int const cols, VTermScreenCell const* const cells) {
+  int last_text = -1;
+  for (int col = 0; col < cols; ++col) {
+    if (cells[col].width != 0 && cell_has_text(cells[col])) {
+      last_text = col;
+    }
+  }
+  return last_text;
+}
+
+bool blank_cells_have_same_style(CellRange const range, VTermScreenCell const* const cells,
+                                 CellStyle const& style) {
+  for (int col = range.first_col; col <= range.last_col; ++col) {
+    VTermScreenCell const& cell = cells[col];
+    if (cell.width == 0 || cell_has_text(cell) || !(cell_style_from(cell) == style)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool should_erase_to_end_of_line(int const cols, VTermScreenCell const* const cells,
+                                 SnapshotLineBounds const bounds) {
+  if (bounds.last_rendered != cols - 1) {
+    return false;
+  }
+
+  int const first_trailing_blank = bounds.last_text + 1;
+  if (first_trailing_blank > bounds.last_rendered) {
+    return false;
+  }
+
+  CellStyle const trailing_style = cell_style_from(cells[first_trailing_blank]);
+  return !trailing_style.is_default() &&
+         blank_cells_have_same_style(
+             CellRange{.first_col = first_trailing_blank, .last_col = bounds.last_rendered}, cells,
+             trailing_style);
+}
+
 std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells) {
   int const last_rendered = last_rendered_cell_index(cols, cells);
   if (last_rendered < 0) {
     return "";
   }
 
+  int const last_text = last_text_cell_index(cols, cells);
+  bool const erase_to_end_of_line = should_erase_to_end_of_line(
+      cols, cells, SnapshotLineBounds{.last_rendered = last_rendered, .last_text = last_text});
+  int const last_cell_to_write = erase_to_end_of_line ? last_text : last_rendered;
+
   std::string line;
   CellStyle current_style;
-  for (int col = 0; col <= last_rendered; ++col) {
+  for (int col = 0; col <= last_cell_to_write; ++col) {
     VTermScreenCell const& cell = cells[col];
     if (cell.width == 0) {
       continue;
@@ -307,6 +362,14 @@ std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const 
       current_style = next_style;
     }
     append_cell_text(line, cell);
+  }
+  if (erase_to_end_of_line) {
+    CellStyle const erase_style = cell_style_from(cells[last_text + 1]);
+    if (!(erase_style == current_style)) {
+      line.append(sgr_sequence(erase_style));
+      current_style = erase_style;
+    }
+    line.append(ERASE_TO_END_OF_LINE);
   }
   if (!current_style.is_default()) {
     line.append(sgr_sequence(CellStyle{}));

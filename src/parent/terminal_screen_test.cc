@@ -85,6 +85,25 @@ TEST(TerminalScreenTest, RedrawKeepsTrailingColoredBackgroundCells) {
   EXPECT_NE(redraw.find("48;5;42m     \x1b[0m"), std::string::npos);
 }
 
+TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseToEndOfLine) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+
+  screen.ingest("\x1b[48;5;242m>\x1b[K\x1b[0m");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;242m>\x1b[K\x1b[0m"), std::string::npos);
+}
+
+TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseWholeLine) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+
+  screen.ingest("plain\x1b[48;5;242m\x1b[2K>\x1b[0m");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;242m     >\x1b[K\x1b[0m"), std::string::npos);
+  EXPECT_EQ(redraw.find("plain"), std::string::npos);
+}
+
 TEST(TerminalScreenTest, RedrawPreservesAlternateScreenMode) {
   moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
 
