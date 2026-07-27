@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,6 +27,7 @@ class TrayManager {
   [[nodiscard]] std::string_view active_replay_output() const;
   void resize_active(TerminalSize size);
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
+  [[nodiscard]] TraySnapshot switch_to_worktree(std::filesystem::path const& path);
   [[nodiscard]] std::optional<int> try_wait_for_active_exit() noexcept;
   [[nodiscard]] base::FileDescriptor active_content_file_descriptor() const;
   [[nodiscard]] TraySnapshot active_snapshot() const;
@@ -37,12 +39,15 @@ class TrayManager {
   [[nodiscard]] Tray const& active_tray() const;
   [[nodiscard]] Tray& mutable_active_tray();
   [[nodiscard]] Tray& ensure_tray(TrayNumber number);
+  [[nodiscard]] Tray& ensure_worktree_tray(std::filesystem::path const& root);
+  [[nodiscard]] Tray const& worktree_tray(std::filesystem::path const& root) const;
   [[nodiscard]] static std::size_t tray_index(TrayNumber number);
 
   TrayConfig config;
   TerminalSize current_size;
-  TrayNumber active_tray_number;
+  TrayId active_tray_id;
   std::array<std::unique_ptr<Tray>, TrayNumber::MAX_VALUE> anonymous_trays;
+  std::map<std::filesystem::path, std::unique_ptr<Tray>> worktree_trays;
 };
 
 }  // namespace moe::parent

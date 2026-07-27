@@ -1,28 +1,35 @@
 #pragma once
 
+#include <cstdint>
+#include <filesystem>
 #include <string>
+#include <variant>
 
 #include "src/parent/tray_number.h"
 
 namespace moe::parent {
 
+enum class TrayIdKind : std::uint8_t { ANONYMOUS, WORKTREE };
+
 class TrayId {
  public:
   [[nodiscard]] static TrayId anonymous(TrayNumber number);
+  [[nodiscard]] static TrayId worktree(std::filesystem::path root);
 
-  [[nodiscard]] TrayNumber anonymous_number() const { return number; }
+  [[nodiscard]] TrayIdKind kind() const;
+  [[nodiscard]] TrayNumber anonymous_number() const;
+  [[nodiscard]] std::filesystem::path const& worktree_root() const;
   [[nodiscard]] std::string key() const;
   [[nodiscard]] std::string label() const;
 
-  [[nodiscard]] bool operator==(TrayId const& other) const {
-    return number.value() == other.number.value();
-  }
+  [[nodiscard]] bool operator==(TrayId const& other) const { return value == other.value; }
   [[nodiscard]] bool operator!=(TrayId const& other) const { return !(*this == other); }
 
  private:
   explicit TrayId(TrayNumber number);
+  explicit TrayId(std::filesystem::path root);
 
-  TrayNumber number;
+  std::variant<TrayNumber, std::filesystem::path> value;
 };
 
 }  // namespace moe::parent

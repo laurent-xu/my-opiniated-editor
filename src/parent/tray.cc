@@ -20,12 +20,13 @@ void append_to_replay_buffer(std::string& replay_buffer, std::string_view const 
 std::unique_ptr<Tray> Tray::start(TrayId id, TrayConfig const& config) {
   std::unique_ptr<ContentPtySession> content =
       ContentPtySession::start(config.command, config.working_directory, config.initial_size);
-  return std::unique_ptr<Tray>(new Tray(id, config.working_directory, std::move(content)));
+  return std::unique_ptr<Tray>(
+      new Tray(std::move(id), config.working_directory, std::move(content)));
 }
 
 Tray::Tray(TrayId id, std::filesystem::path working_directory,
            std::unique_ptr<ContentPtySession> content_pty)
-    : tray_id(id),
+    : tray_id(std::move(id)),
       tray_label(tray_id.label()),
       cwd(std::move(working_directory)),
       content(std::move(content_pty)) {

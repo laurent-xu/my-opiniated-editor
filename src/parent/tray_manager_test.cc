@@ -37,6 +37,12 @@ std::unique_ptr<moe::parent::TrayManager> start_manager() {
   });
 }
 
+std::filesystem::path create_fake_worktree(std::string const& name) {
+  std::filesystem::path const root = required_env_path("TEST_TMPDIR") / name;
+  std::filesystem::create_directories(root / ".git");
+  return std::filesystem::weakly_canonical(root);
+}
+
 moe::parent::TrayNumber required_tray_number(int const value) {
   std::optional<moe::parent::TrayNumber> const number = moe::parent::TrayNumber::from_int(value);
   if (number.has_value()) {
@@ -87,6 +93,23 @@ TEST(TrayNumberTest, AllowsAnonymousTraysOneThroughNine) {
   EXPECT_EQ(tray_nine.value(), 9);
   EXPECT_FALSE(moe::parent::TrayNumber::from_int(0).has_value());
   EXPECT_FALSE(moe::parent::TrayNumber::from_int(10).has_value());
+}
+
+TEST(TrayIdTest, SupportsAnonymousAndWorktreeIdentities) {
+  moe::parent::TrayId const anonymous =
+      moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one());
+  std::filesystem::path const root = create_fake_worktree("tray-id-worktree");
+  moe::parent::TrayId const worktree = moe::parent::TrayId::worktree(root);
+
+  EXPECT_EQ(anonymous.kind(), moe::parent::TrayIdKind::ANONYMOUS);
+  EXPECT_EQ(anonymous.key(), "anonymous:1");
+  EXPECT_EQ(anonymous.label(), "tray 1");
+  EXPECT_EQ(anonymous.anonymous_number().value(), 1);
+
+  EXPECT_EQ(worktree.kind(), moe::parent::TrayIdKind::WORKTREE);
+  EXPECT_EQ(worktree.worktree_root(), root);
+  EXPECT_EQ(worktree.key(), "worktree:" + root.string());
+  EXPECT_EQ(worktree.label(), "worktree tray-id-worktree");
 }
 
 TEST(TrayManagerTest, StartsWithAnonymousTrayOne) {
@@ -182,6 +205,47 @@ TEST(TrayManagerTest, LazyTrayStartsAtLatestActiveSize) {
 
   std::string const output = read_until(*manager, "__moe_lazy_resize_done__");
   EXPECT_NE(output.find("33 111"), std::string::npos);
+}
+
+TEST(TrayManagerTest, WorktreeTrayStartsShellInWorktreeRoot) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  std::filesystem::path const root = create_fake_worktree("cwd-worktree");
+
+  moe::parent::TraySnapshot const snapshot = manager->switch_to_worktree(root);
+  EXPECT_EQ(snapshot.id.kind(), moe::parent::TrayIdKind::WORKTREE);
+  EXPECT_EQ(snapshot.id.worktree_root(), root);
+  EXPECT_EQ(snapshot.id.key(), "worktree:" + root.string());
+  EXPECT_EQ(snapshot.label, "worktree cwd-worktree");
+  EXPECT_EQ(snapshot.working_directory, root);
+
+  manager->write_input("pwd\n");
+  manager->write_input(shell_marker_command("__moe_worktree_pwd_done__"));
+
+  std::string const output = read_until(*manager, "__moe_worktree_pwd_done__");
+  EXPECT_NE(output.find(root.string()), std::string::npos);
+}
+
+TEST(TrayManagerTest, SwitchingToExistingWorktreeJumpsToStableTray) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  std::filesystem::path const root = create_fake_worktree("stable-worktree");
+  std::filesystem::path const nested = root / "nested";
+  std::filesystem::create_directories(nested);
+
+  moe::parent::TraySnapshot const first = manager->switch_to_worktree(nested);
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+  moe::parent::TraySnapshot const second = manager->switch_to_worktree(root);
+
+  EXPECT_EQ(second.id, first.id);
+  EXPECT_EQ(second.child_pid.value(), first.child_pid.value());
+  EXPECT_EQ(manager->active_snapshot().id, first.id);
+}
+
+TEST(TrayManagerTest, RejectsPathOutsideWorktree) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  std::filesystem::path const path = required_env_path("TEST_TMPDIR") / "not-a-worktree";
+  std::filesystem::create_directories(path);
+
+  EXPECT_THROW(static_cast<void>(manager->switch_to_worktree(path)), std::invalid_argument);
 }
 
 }  // namespace

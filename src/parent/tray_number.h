@@ -13,6 +13,10 @@ class TrayNumber {
   [[nodiscard]] static TrayNumber one();
 
   [[nodiscard]] int value() const { return raw_value; }
+  [[nodiscard]] bool operator==(TrayNumber const& other) const {
+    return raw_value == other.raw_value;
+  }
+  [[nodiscard]] bool operator!=(TrayNumber const& other) const { return !(*this == other); }
 
  private:
   explicit constexpr TrayNumber(int value) : raw_value(value) {}
