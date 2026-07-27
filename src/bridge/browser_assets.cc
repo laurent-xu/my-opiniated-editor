@@ -317,13 +317,17 @@ std::string browser_client_js() {
       return;
     }
     const command = String.fromCharCode(bytes[0]);
-    const payload = decoder.decode(bytes.slice(1));
     if (command === "0") {
+      const payload = decoder.decode(bytes.slice(1), { stream: true });
       terminal.write(payload);
     }
   });
 
   socket.addEventListener("close", () => {
+    const pendingPayload = decoder.decode();
+    if (pendingPayload) {
+      terminal.write(pendingPayload);
+    }
     setConnectionState("disconnected");
   });
 

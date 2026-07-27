@@ -57,6 +57,11 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         client_js,
     )
     test_case.assertIn("new URLSearchParams(window.location.search)", client_js)
+    test_case.assertIn(
+        "const payload = decoder.decode(bytes.slice(1), { stream: true })",
+        client_js,
+    )
+    test_case.assertIn("const pendingPayload = decoder.decode()", client_js)
     test_case.assertIn("terminal.attachCustomKeyEventHandler", client_js)
     test_case.assertIn('document.addEventListener("keydown"', client_js)
     test_case.assertIn("let activeTrayNumber = 1", client_js)
