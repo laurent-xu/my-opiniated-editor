@@ -44,6 +44,7 @@ class TerminalScreen {
   std::unique_ptr<VTerm, VTermDeleter> terminal;
   VTermScreen* screen = nullptr;
   VTermState* state = nullptr;
+  std::string pending_utf8_bytes;
   std::deque<std::string> scrollback_lines;
 };
 
