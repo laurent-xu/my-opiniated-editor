@@ -19,13 +19,14 @@ from parent_ws_bridge_test_lib import (
 
 def assert_browser_assets(test_case: unittest.TestCase, port: int):
     expected_font_stack = (
-        '"MesloLGS NF", "JetBrainsMono Nerd Font Mono", '
-        '"JetBrainsMonoNL Nerd Font Mono", "JetBrainsMono Nerd Font", '
-        '"FiraCode Nerd Font Mono", "Hack Nerd Font Mono", '
-        '"CaskaydiaCove Nerd Font Mono", "Symbols Nerd Font Mono", '
-        '"PowerlineSymbols", "DejaVu Sans Mono for Powerline", '
-        '"DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono", '
-        '"Cascadia Mono", "JetBrains Mono", monospace'
+        '"Moe Terminal Nerd Font", "MesloLGS NF", '
+        '"JetBrainsMono Nerd Font Mono", "JetBrainsMonoNL Nerd Font Mono", '
+        '"JetBrainsMono Nerd Font", "FiraCode Nerd Font Mono", '
+        '"Hack Nerd Font Mono", "CaskaydiaCove Nerd Font Mono", '
+        '"Symbols Nerd Font Mono", "PowerlineSymbols", '
+        '"DejaVu Sans Mono for Powerline", "DejaVu Sans Mono", '
+        '"Liberation Mono", "Noto Sans Mono", "Cascadia Mono", '
+        '"JetBrains Mono", monospace'
     )
 
     html = fetch_text(port, "/")
@@ -38,8 +39,15 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("/client.js", html)
 
     client_js = fetch_text(port, "/client.js")
-    test_case.assertTrue(client_js.startswith("(() => {"), client_js[:32])
+    test_case.assertTrue(client_js.startswith("(async () => {"), client_js[:32])
     test_case.assertTrue(client_js.rstrip().endswith("})();"))
+    test_case.assertIn("async function awaitTerminalFont()", client_js)
+    test_case.assertIn(
+        'document.fonts.load(\'14px "Moe Terminal Nerd Font"\', "\\ue0b0")',
+        client_js,
+    )
+    test_case.assertIn("await document.fonts.ready", client_js)
+    test_case.assertIn("await awaitTerminalFont()", client_js)
     test_case.assertIn("new Terminal", client_js)
     test_case.assertIn("customGlyphs: true", client_js)
     test_case.assertIn(f"fontFamily: '{expected_font_stack}'", client_js)
@@ -84,6 +92,11 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)
+    test_case.assertIn('@font-face {\n  font-family: "Moe Terminal Nerd Font"', css)
+    test_case.assertIn('local("JetBrainsMonoNFM-Regular")', css)
+    test_case.assertIn('local("JetBrainsMono NFM Regular")', css)
+    test_case.assertIn('local("JetBrainsMonoNFM-Bold")', css)
+    test_case.assertIn('local("JetBrainsMono NFM Bold")', css)
     test_case.assertIn(f"font-family: {expected_font_stack};", css)
 
 
