@@ -34,7 +34,7 @@ class TerminalScreen {
   void configure_screen_callbacks();
   void push_scrollback_line(int cols, void const* cells);
   void clear_scrollback();
-  [[nodiscard]] std::string screen_row_text(int row) const;
+  [[nodiscard]] std::string screen_row_snapshot_line(int row) const;
   [[nodiscard]] static std::string cursor_position_sequence(int row, int col);
   [[nodiscard]] static VTermScreenCallbacks const& screen_callbacks();
   static int push_scrollback_line_callback(int cols, VTermScreenCell const* cells, void* user);

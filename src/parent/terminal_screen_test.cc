@@ -58,4 +58,31 @@ TEST(TerminalScreenTest, RedrawPreservesUtf8SplitAcrossInputChunks) {
   EXPECT_EQ(redraw.find("\xEF\xBF\xBD"), std::string::npos);
 }
 
+TEST(TerminalScreenTest, RedrawDoesNotEmitReplacementGlyphForInvalidUtf8) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+
+  screen.ingest(std::string("\xED\xA0\x80", 3));
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_EQ(redraw.find("\xEF\xBF\xBD"), std::string::npos);
+}
+
+TEST(TerminalScreenTest, RedrawPreservesIndexedBackgroundColor) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+
+  screen.ingest("\x1b[48;5;42mcolored\x1b[0m");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;42mcolored"), std::string::npos);
+}
+
+TEST(TerminalScreenTest, RedrawKeepsTrailingColoredBackgroundCells) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 5});
+
+  screen.ingest("\x1b[48;5;42m     \x1b[0m");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;42m     \x1b[0m"), std::string::npos);
+}
+
 }  // namespace

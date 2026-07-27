@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace moe::parent {
 namespace {
@@ -15,6 +16,40 @@ constexpr std::string_view CLEAR_VISIBLE_SCREEN = "\x1b[0m\x1b[H\x1b[2J";
 constexpr std::string_view DISABLE_AUTOWRAP = "\x1b[?7l";
 constexpr std::string_view ENABLE_AUTOWRAP = "\x1b[?7h";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
+
+enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
+
+struct TerminalColor {
+  TerminalColorKind kind = TerminalColorKind::DEFAULT;
+  int index = 0;
+  int red = 0;
+  int green = 0;
+  int blue = 0;
+
+  [[nodiscard]] bool operator==(TerminalColor const& other) const {
+    return kind == other.kind && index == other.index && red == other.red && green == other.green &&
+           blue == other.blue;
+  }
+};
+
+struct CellStyle {
+  bool bold = false;
+  bool italic = false;
+  bool blink = false;
+  bool reverse = false;
+  bool strike = false;
+  int underline = VTERM_UNDERLINE_OFF;
+  TerminalColor foreground;
+  TerminalColor background;
+
+  [[nodiscard]] bool operator==(CellStyle const& other) const {
+    return bold == other.bold && italic == other.italic && blink == other.blink &&
+           reverse == other.reverse && strike == other.strike && underline == other.underline &&
+           foreground == other.foreground && background == other.background;
+  }
+
+  [[nodiscard]] bool is_default() const { return *this == CellStyle{}; }
+};
 
 void validate_size(TerminalSize const size) {
   if (size.rows <= 0 || size.cols <= 0) {
@@ -33,13 +68,13 @@ int checked_cols(TerminalSize const size) {
 }
 
 void append_utf8(std::string& output, std::uint32_t const codepoint) {
-  if (codepoint == 0) {
+  if (codepoint == 0 || codepoint == UNICODE_REPLACEMENT_CHARACTER) {
     return;
   }
-  std::uint32_t value = codepoint;
-  if ((value >= 0xD800U && value <= 0xDFFFU) || value > 0x10FFFFU) {
-    value = UNICODE_REPLACEMENT_CHARACTER;
+  if ((codepoint >= 0xD800U && codepoint <= 0xDFFFU) || codepoint > 0x10FFFFU) {
+    return;
   }
+  std::uint32_t const value = codepoint;
   if (value <= 0x7F) {
     output.push_back(static_cast<char>(value));
     return;
@@ -59,6 +94,108 @@ void append_utf8(std::string& output, std::uint32_t const codepoint) {
   output.push_back(static_cast<char>(0x80U | ((value >> 12U) & 0x3FU)));
   output.push_back(static_cast<char>(0x80U | ((value >> 6U) & 0x3FU)));
   output.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
+}
+
+TerminalColor terminal_color_from(VTermColor const& color, bool const foreground) {
+  if ((foreground && VTERM_COLOR_IS_DEFAULT_FG(&color)) ||
+      (!foreground && VTERM_COLOR_IS_DEFAULT_BG(&color))) {
+    return TerminalColor{};
+  }
+  if (VTERM_COLOR_IS_INDEXED(&color)) {
+    return TerminalColor{.kind = TerminalColorKind::INDEXED, .index = color.indexed.idx};
+  }
+  return TerminalColor{.kind = TerminalColorKind::RGB,
+                       .red = color.rgb.red,
+                       .green = color.rgb.green,
+                       .blue = color.rgb.blue};
+}
+
+CellStyle cell_style_from(VTermScreenCell const& cell) {
+  return CellStyle{
+      .bold = cell.attrs.bold != 0,
+      .italic = cell.attrs.italic != 0,
+      .blink = cell.attrs.blink != 0,
+      .reverse = cell.attrs.reverse != 0,
+      .strike = cell.attrs.strike != 0,
+      .underline = static_cast<int>(cell.attrs.underline),
+      .foreground = terminal_color_from(cell.fg, true),
+      .background = terminal_color_from(cell.bg, false),
+  };
+}
+
+void append_color_sgr(std::vector<std::string>& parameters, TerminalColor const& color,
+                      bool const foreground) {
+  if (color.kind == TerminalColorKind::DEFAULT) {
+    parameters.emplace_back(foreground ? "39" : "49");
+    return;
+  }
+  std::string const prefix = foreground ? "38" : "48";
+  if (color.kind == TerminalColorKind::INDEXED) {
+    parameters.emplace_back(prefix);
+    parameters.emplace_back("5");
+    parameters.emplace_back(std::to_string(color.index));
+    return;
+  }
+  parameters.emplace_back(prefix);
+  parameters.emplace_back("2");
+  parameters.emplace_back(std::to_string(color.red));
+  parameters.emplace_back(std::to_string(color.green));
+  parameters.emplace_back(std::to_string(color.blue));
+}
+
+std::string sgr_sequence(CellStyle const& style) {
+  if (style.is_default()) {
+    return "\x1b[0m";
+  }
+
+  std::vector<std::string> parameters;
+  parameters.emplace_back("0");
+  if (style.bold) {
+    parameters.emplace_back("1");
+  }
+  if (style.italic) {
+    parameters.emplace_back("3");
+  }
+  if (style.underline != VTERM_UNDERLINE_OFF) {
+    parameters.emplace_back(style.underline == VTERM_UNDERLINE_DOUBLE ? "21" : "4");
+  }
+  if (style.blink) {
+    parameters.emplace_back("5");
+  }
+  if (style.reverse) {
+    parameters.emplace_back("7");
+  }
+  if (style.strike) {
+    parameters.emplace_back("9");
+  }
+  append_color_sgr(parameters, style.foreground, true);
+  append_color_sgr(parameters, style.background, false);
+
+  std::string sequence = "\x1b[";
+  for (std::size_t index = 0; index < parameters.size(); ++index) {
+    if (index > 0) {
+      sequence.push_back(';');
+    }
+    sequence.append(parameters[index]);
+  }
+  sequence.push_back('m');
+  return sequence;
+}
+
+bool cell_has_text(VTermScreenCell const& cell) { return cell.chars[0] != 0; }
+
+bool cell_should_be_rendered(VTermScreenCell const& cell) {
+  return cell.width != 0 && (cell_has_text(cell) || !cell_style_from(cell).is_default());
+}
+
+void append_cell_text(std::string& line, VTermScreenCell const& cell) {
+  if (!cell_has_text(cell)) {
+    line.push_back(' ');
+    return;
+  }
+  for (std::uint32_t const character : cell.chars) {
+    append_utf8(line, character);
+  }
 }
 
 bool is_utf8_continuation(unsigned char const byte) { return byte >= 0x80U && byte <= 0xBFU; }
@@ -135,24 +272,38 @@ std::size_t complete_utf8_prefix_size(std::string_view const bytes) {
   return bytes.size();
 }
 
-std::string cells_to_text(int const cols, VTermScreenCell const* const cells) {
-  std::string line;
+int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells) {
+  int last_rendered = -1;
   for (int col = 0; col < cols; ++col) {
+    if (cell_should_be_rendered(cells[col])) {
+      last_rendered = col;
+    }
+  }
+  return last_rendered;
+}
+
+std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells) {
+  int const last_rendered = last_rendered_cell_index(cols, cells);
+  if (last_rendered < 0) {
+    return "";
+  }
+
+  std::string line;
+  CellStyle current_style;
+  for (int col = 0; col <= last_rendered; ++col) {
     VTermScreenCell const& cell = cells[col];
     if (cell.width == 0) {
       continue;
     }
-    if (cell.chars[0] == 0) {
-      line.push_back(' ');
-      continue;
+    CellStyle const next_style = cell_style_from(cell);
+    if (!(next_style == current_style)) {
+      line.append(sgr_sequence(next_style));
+      current_style = next_style;
     }
-    for (std::uint32_t const character : cell.chars) {
-      append_utf8(line, character);
-    }
+    append_cell_text(line, cell);
   }
-
-  while (!line.empty() && line.back() == ' ') {
-    line.pop_back();
+  if (!current_style.is_default()) {
+    line.append(sgr_sequence(CellStyle{}));
   }
   return line;
 }
@@ -287,7 +438,7 @@ std::string TerminalScreen::render_snapshot() const {
 
   output.append(CLEAR_VISIBLE_SCREEN);
   for (int row = 0; row < screen_size.rows; ++row) {
-    std::string const line = screen_row_text(row);
+    std::string const line = screen_row_snapshot_line(row);
     if (line.empty()) {
       continue;
     }
@@ -304,7 +455,8 @@ std::string TerminalScreen::render_snapshot() const {
 }
 
 void TerminalScreen::push_scrollback_line(int const cols, void const* const cells) {
-  scrollback_lines.push_back(cells_to_text(cols, static_cast<VTermScreenCell const*>(cells)));
+  scrollback_lines.push_back(
+      cells_to_snapshot_line(cols, static_cast<VTermScreenCell const*>(cells)));
   while (scrollback_lines.size() > MAX_SCROLLBACK_LINES) {
     scrollback_lines.pop_front();
   }
@@ -312,29 +464,13 @@ void TerminalScreen::push_scrollback_line(int const cols, void const* const cell
 
 void TerminalScreen::clear_scrollback() { scrollback_lines.clear(); }
 
-std::string TerminalScreen::screen_row_text(int const row) const {
-  std::string line;
+std::string TerminalScreen::screen_row_snapshot_line(int const row) const {
+  std::vector<VTermScreenCell> cells(static_cast<std::size_t>(screen_size.cols));
   for (int col = 0; col < screen_size.cols; ++col) {
-    VTermScreenCell cell{};
-    if (vterm_screen_get_cell(screen, VTermPos{.row = row, .col = col}, &cell) == 0) {
-      continue;
-    }
-    if (cell.width == 0) {
-      continue;
-    }
-    if (cell.chars[0] == 0) {
-      line.push_back(' ');
-      continue;
-    }
-    for (std::uint32_t const character : cell.chars) {
-      append_utf8(line, character);
-    }
+    static_cast<void>(vterm_screen_get_cell(screen, VTermPos{.row = row, .col = col},
+                                            &cells[static_cast<std::size_t>(col)]));
   }
-
-  while (!line.empty() && line.back() == ' ') {
-    line.pop_back();
-  }
-  return line;
+  return cells_to_snapshot_line(screen_size.cols, cells.data());
 }
 
 std::string TerminalScreen::cursor_position_sequence(int const row, int const col) {
