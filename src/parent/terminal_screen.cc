@@ -274,11 +274,19 @@ std::optional<CellStyle> row_fill_style_at(RowFillStyles const* const row_fill_s
 CellStyle effective_cell_style(VTermScreenCell const& cell,
                                std::optional<CellStyle> const fill_style) {
   CellStyle const cell_style = cell_style_from(cell);
-  if (cell.width == 0 || cell_has_text(cell) || !cell_style.is_default() ||
-      !fill_style.has_value()) {
+  if (!fill_style.has_value()) {
     return cell_style;
   }
-  return *fill_style;
+  if (cell.width == 0 || (!cell_has_text(cell) && cell_style.is_default())) {
+    return *fill_style;
+  }
+  if (fill_style->background.is_default() || !cell_style.background.is_default()) {
+    return cell_style;
+  }
+
+  CellStyle merged_style = cell_style;
+  merged_style.background = fill_style->background;
+  return merged_style;
 }
 
 bool cell_should_be_rendered(VTermScreenCell const& cell, CellStyle const& style) {
