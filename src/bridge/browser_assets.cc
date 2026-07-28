@@ -5,6 +5,7 @@ namespace {
 
 constexpr char const* XTERM_VERSION = "6.0.0";
 constexpr char const* XTERM_ADDON_FIT_VERSION = "0.11.0";
+constexpr char const* XTERM_ADDON_CANVAS_VERSION = "0.7.0";
 constexpr char const* TERMINAL_PRIMARY_FONT_FAMILY = "\"JetBrainsMono Nerd Font Mono\"";
 constexpr char const* TERMINAL_FONT_FAMILY =
     "\"JetBrainsMono Nerd Font Mono\", \"JetBrainsMono NFM\", "
@@ -38,6 +39,8 @@ std::string browser_html() {
          R"HTML(/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@)HTML" +
          XTERM_ADDON_FIT_VERSION + R"HTML(/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-canvas@)HTML" +
+         XTERM_ADDON_CANVAS_VERSION + R"HTML(/lib/addon-canvas.js"></script>
     <script src="/client.js"></script>
   </body>
 </html>
@@ -107,7 +110,7 @@ std::string browser_client_js() {
   const terminal = new Terminal({
     cursorBlink: true,
     convertEol: true,
-    customGlyphs: false,
+    customGlyphs: true,
     fontFamily: ')JS" +
          TERMINAL_FONT_FAMILY + R"JS(',
     fontSize: 14,
@@ -118,7 +121,9 @@ std::string browser_client_js() {
       cursor: "#f5d06f"
     }
   });
+  const canvasAddon = new CanvasAddon.CanvasAddon();
   const fitAddon = new FitAddon.FitAddon();
+  terminal.loadAddon(canvasAddon);
   terminal.loadAddon(fitAddon);
   terminal.open(terminalElement);
 
