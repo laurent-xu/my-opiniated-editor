@@ -1,7 +1,9 @@
 #include "src/parent/terminal_screen.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -26,6 +28,8 @@ constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
 constexpr std::size_t MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES = 128;
+constexpr std::string_view CONTROL_SEQUENCE_LOG_PATH =
+    "/tmp/my-opiniated-editor-control-sequences.log";
 
 enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
 
@@ -90,6 +94,23 @@ struct ControlSequenceIntroducerParseResult {
   ControlSequenceIntroducerParseStatus status =
       ControlSequenceIntroducerParseStatus::NOT_CONTROL_SEQUENCE_INTRODUCER;
   ControlSequenceIntroducerSequence sequence;
+};
+
+struct ControlSequenceLogState {
+  VTermPos cursor{};
+  CellStyle style;
+};
+
+struct ControlSequenceLogEntry {
+  ControlSequenceIntroducerSequence sequence;
+  std::string_view bytes;
+  ControlSequenceLogState before;
+  ControlSequenceLogState after;
+};
+
+struct RectMove {
+  VTermRect dest;
+  VTermRect src;
 };
 
 void validate_size(TerminalSize const size) {
@@ -446,6 +467,142 @@ bool is_erase_sequence(ControlSequenceIntroducerSequence const sequence) {
   return sequence.mode >= 0 && (sequence.command == 'K' || sequence.command == 'J');
 }
 
+void append_debug_log_line(std::string const& line) {
+  std::ofstream log_file(std::string(CONTROL_SEQUENCE_LOG_PATH), std::ios::app);
+  log_file << line << '\n';
+}
+
+std::string escaped_control_sequence(std::string_view const bytes) {
+  constexpr std::array<char, 16> HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7',
+                                               '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+  std::string output;
+  for (char const byte : bytes) {
+    auto const value = static_cast<unsigned char>(byte);
+    if (value == 0x1BU) {
+      output.append("\\x1b");
+      continue;
+    }
+    if (value == '\\') {
+      output.append("\\\\");
+      continue;
+    }
+    if (value >= 0x20U && value <= 0x7EU) {
+      output.push_back(static_cast<char>(value));
+      continue;
+    }
+
+    output.append("\\x");
+    output.push_back(HEX_DIGITS[value >> 4U]);
+    output.push_back(HEX_DIGITS[value & 0x0FU]);
+  }
+  return output;
+}
+
+std::string command_name(char const command) {
+  switch (command) {
+    case 'A':
+      return "cursor-up";
+    case 'B':
+      return "cursor-down";
+    case 'C':
+      return "cursor-forward";
+    case 'D':
+      return "cursor-back";
+    case 'G':
+      return "cursor-horizontal-absolute";
+    case 'H':
+    case 'f':
+      return "cursor-position";
+    case 'J':
+      return "erase-screen";
+    case 'K':
+      return "erase-line";
+    case 'X':
+      return "erase-characters";
+    case 'h':
+      return "set-mode";
+    case 'l':
+      return "reset-mode";
+    case 'm':
+      return "set-graphics-rendition";
+    default:
+      return "other";
+  }
+}
+
+std::string color_label(TerminalColor const& color) {
+  if (color.kind == TerminalColorKind::DEFAULT) {
+    return "default";
+  }
+  if (color.kind == TerminalColorKind::INDEXED) {
+    return "indexed:" + std::to_string(color.index);
+  }
+  return "rgb:" + std::to_string(color.red) + "," + std::to_string(color.green) + "," +
+         std::to_string(color.blue);
+}
+
+std::string style_label(CellStyle const& style) {
+  std::string output =
+      "fg=" + color_label(style.foreground) + " bg=" + color_label(style.background);
+  if (style.bold) {
+    output.append(" bold");
+  }
+  if (style.italic) {
+    output.append(" italic");
+  }
+  if (style.underline != VTERM_UNDERLINE_OFF) {
+    output.append(" underline=" + std::to_string(style.underline));
+  }
+  if (style.blink) {
+    output.append(" blink");
+  }
+  if (style.reverse) {
+    output.append(" reverse");
+  }
+  if (style.strike) {
+    output.append(" strike");
+  }
+  return output;
+}
+
+std::string cursor_label(VTermPos const pos) {
+  return "row=" + std::to_string(pos.row + 1) + " col=" + std::to_string(pos.col + 1);
+}
+
+std::string rect_label(VTermRect const rect) {
+  return "start_row=" + std::to_string(rect.start_row + 1) +
+         " end_row_exclusive=" + std::to_string(rect.end_row + 1) +
+         " start_col=" + std::to_string(rect.start_col + 1) +
+         " end_col_exclusive=" + std::to_string(rect.end_col + 1);
+}
+
+std::string bool_label(bool const value) { return value ? "true" : "false"; }
+
+void log_control_sequence(ControlSequenceLogEntry const& entry) {
+  append_debug_log_line(
+      "moe-terminal-control-sequence command=" + command_name(entry.sequence.command) + " final=" +
+      std::string(1, entry.sequence.command) + " mode=" + std::to_string(entry.sequence.mode) +
+      " bytes=\"" + escaped_control_sequence(entry.bytes) + "\" before_cursor=\"" +
+      cursor_label(entry.before.cursor) + "\" after_cursor=\"" + cursor_label(entry.after.cursor) +
+      "\" before_style=\"" + style_label(entry.before.style) + "\" after_style=\"" +
+      style_label(entry.after.style) + "\"");
+}
+
+void log_erase_fill(char const command, int const mode, VTermPos const cursor,
+                    TerminalSize const size, CellStyle const& style) {
+  append_debug_log_line(
+      "moe-terminal-erase-fill command=" + command_name(command) +
+      " final=" + std::string(1, command) + " mode=" + std::to_string(mode) + " cursor=\"" +
+      cursor_label(cursor) + "\" screen_rows=" + std::to_string(size.rows) +
+      " screen_cols=" + std::to_string(size.cols) + " style=\"" + style_label(style) + "\"");
+}
+
+void log_rect_move(RectMove const& move) {
+  append_debug_log_line("moe-terminal-rect-move dest=\"" + rect_label(move.dest) + "\" src=\"" +
+                        rect_label(move.src) + "\"");
+}
+
 int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells,
                              RowFillStyles const* const row_fill_styles) {
   int last_rendered = -1;
@@ -500,6 +657,73 @@ bool should_erase_to_end_of_line(int const cols, VTermScreenCell const* const ce
          blank_cells_have_same_style(
              CellRange{.first_col = first_trailing_blank, .last_col = bounds.last_rendered}, cells,
              row_fill_styles, trailing_style);
+}
+
+void append_row_fill_range(std::string& output, CellRange const range, CellStyle const& style) {
+  if (!output.empty()) {
+    output.append("; ");
+  }
+  output.append("cols=");
+  output.append(std::to_string(range.first_col + 1));
+  output.push_back('-');
+  output.append(std::to_string(range.last_col + 1));
+  output.append(" style=\"");
+  output.append(style_label(style));
+  output.push_back('"');
+}
+
+std::string row_fill_summary(RowFillStyles const* const row_fill_styles) {
+  if (row_fill_styles == nullptr) {
+    return "";
+  }
+
+  std::string output;
+  int range_start = -1;
+  std::optional<CellStyle> range_style;
+  for (int col = 0; col < static_cast<int>(row_fill_styles->size()); ++col) {
+    std::optional<CellStyle> const& style = (*row_fill_styles)[static_cast<std::size_t>(col)];
+    if (!style.has_value()) {
+      if (range_style.has_value()) {
+        append_row_fill_range(output, CellRange{.first_col = range_start, .last_col = col - 1},
+                              *range_style);
+        range_style.reset();
+        range_start = -1;
+      }
+      continue;
+    }
+    if (!range_style.has_value()) {
+      range_style = style;
+      range_start = col;
+      continue;
+    }
+    if (!(*style == *range_style)) {
+      append_row_fill_range(output, CellRange{.first_col = range_start, .last_col = col - 1},
+                            *range_style);
+      range_style = style;
+      range_start = col;
+    }
+  }
+  if (range_style.has_value()) {
+    append_row_fill_range(output,
+                          CellRange{.first_col = range_start,
+                                    .last_col = static_cast<int>(row_fill_styles->size()) - 1},
+                          *range_style);
+  }
+  return output;
+}
+
+void log_snapshot_row(int const row, RowFillStyles const* const row_fill_styles,
+                      std::string_view const line) {
+  std::string const fills = row_fill_summary(row_fill_styles);
+  if (fills.empty()) {
+    return;
+  }
+
+  append_debug_log_line("moe-terminal-snapshot-row row=" + std::to_string(row + 1) +
+                        " line_empty=" + bool_label(line.empty()) + " line_bytes=" +
+                        std::to_string(line.size()) + " has_erase_to_end_of_line=" +
+                        bool_label(line.find(ERASE_TO_END_OF_LINE) != std::string_view::npos) +
+                        " fills=\"" + fills + "\"");
 }
 
 std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells,
@@ -565,11 +789,6 @@ int clamp_to_screen(int const value, int const upper_bound) {
   return std::clamp(value, 0, std::max(0, upper_bound - 1));
 }
 
-struct RectMove {
-  VTermRect dest;
-  VTermRect src;
-};
-
 }  // namespace
 
 struct TerminalScreen::LineFillTracker {
@@ -618,6 +837,7 @@ struct TerminalScreen::LineFillTracker {
   }
 
   void move_rect(RectMove const& move) {
+    log_rect_move(move);
     std::vector<RowFillStyles> const old_row_styles = row_styles;
     VTermRect const dest = move.dest;
     VTermRect const src = move.src;
@@ -809,16 +1029,23 @@ void TerminalScreen::ingest_complete_input(std::string_view const bytes) {
     }
 
     ControlSequenceIntroducerSequence const sequence = parse_result.sequence;
-    if (!is_erase_sequence(sequence)) {
-      scan_start = sequence.end;
-      continue;
-    }
-
     feed_input_to_vterm(input.substr(segment_start, sequence.start - segment_start));
     VTermPos cursor{};
     vterm_state_get_cursorpos(state, &cursor);
+    CellStyle const before_style = current_style_from_state(state);
     feed_input_to_vterm(input.substr(sequence.start, sequence.end - sequence.start));
-    record_erase_for_snapshot(sequence.command, cursor, sequence.mode);
+    VTermPos after_cursor{};
+    vterm_state_get_cursorpos(state, &after_cursor);
+    CellStyle const after_style = current_style_from_state(state);
+    log_control_sequence(ControlSequenceLogEntry{
+        .sequence = sequence,
+        .bytes = input.substr(sequence.start, sequence.end - sequence.start),
+        .before = ControlSequenceLogState{.cursor = cursor, .style = before_style},
+        .after = ControlSequenceLogState{.cursor = after_cursor, .style = after_style},
+    });
+    if (is_erase_sequence(sequence)) {
+      record_erase_for_snapshot(sequence.command, cursor, sequence.mode);
+    }
     segment_start = sequence.end;
     scan_start = sequence.end;
   }
@@ -843,6 +1070,7 @@ void TerminalScreen::feed_input_to_vterm(std::string_view const bytes) {
 void TerminalScreen::record_erase_for_snapshot(char const command, VTermPos const cursor,
                                                int const mode) {
   CellStyle const style = current_style_from_state(state);
+  log_erase_fill(command, mode, cursor, screen_size, style);
   int const row = clamp_to_screen(cursor.row, screen_size.rows);
   int const col = clamp_to_screen(cursor.col, screen_size.cols);
 
@@ -922,7 +1150,10 @@ std::string TerminalScreen::screen_row_snapshot_line(int const row) const {
     static_cast<void>(vterm_screen_get_cell(screen, VTermPos{.row = row, .col = col},
                                             &cells[static_cast<std::size_t>(col)]));
   }
-  return cells_to_snapshot_line(screen_size.cols, cells.data(), line_fill_tracker->row(row));
+  RowFillStyles const* const row_fill_styles = line_fill_tracker->row(row);
+  std::string line = cells_to_snapshot_line(screen_size.cols, cells.data(), row_fill_styles);
+  log_snapshot_row(row, row_fill_styles, line);
+  return line;
 }
 
 std::string TerminalScreen::cursor_position_sequence(int const row, int const col) {
