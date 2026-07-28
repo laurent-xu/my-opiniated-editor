@@ -85,7 +85,8 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         client_js,
     )
     test_case.assertIn('event.key === "Escape"', client_js)
-    test_case.assertIn('sendCommand("0", "\\x1b")', client_js)
+    test_case.assertIn("setCommandMode(!commandMode)", client_js)
+    test_case.assertNotIn('sendCommand("0", "\\x1b")', client_js)
     test_case.assertIn('event.key === "Shift"', client_js)
     test_case.assertIn("isModifierOnlyKey(event)", client_js)
     test_case.assertIn('/^Digit([1-9])$/.exec(event.code || "")', client_js)

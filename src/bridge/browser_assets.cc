@@ -242,12 +242,7 @@ std::string browser_client_js() {
   function handleCommandModeKey(event) {
     if (isEscapeKey(event)) {
       event.preventDefault();
-      if (commandMode) {
-        sendCommand("0", "\x1b");
-        setCommandMode(false);
-      } else {
-        setCommandMode(true);
-      }
+      setCommandMode(!commandMode);
       return true;
     }
 
