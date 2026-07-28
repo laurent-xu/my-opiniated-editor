@@ -32,11 +32,12 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("@xterm/xterm@6.0.0/css/xterm.css", html)
     test_case.assertIn("@xterm/xterm@6.0.0/lib/xterm.js", html)
     test_case.assertIn("@xterm/addon-fit@0.11.0/lib/addon-fit.js", html)
-    test_case.assertIn("@xterm/addon-canvas@0.7.0/lib/addon-canvas.js", html)
+    test_case.assertIn("@xterm/addon-webgl@0.19.0/lib/addon-webgl.js", html)
     test_case.assertNotIn("@xterm/xterm/css/xterm.css", html)
     test_case.assertNotIn("@xterm/xterm/lib/xterm.js", html)
     test_case.assertNotIn("@xterm/addon-fit/lib/addon-fit.js", html)
-    test_case.assertNotIn("@xterm/addon-canvas/lib/addon-canvas.js", html)
+    test_case.assertNotIn("@xterm/addon-canvas", html)
+    test_case.assertNotIn("@xterm/addon-webgl/lib/addon-webgl.js", html)
     test_case.assertIn("/client.js", html)
 
     client_js = fetch_text(port, "/client.js")
@@ -53,8 +54,9 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("customGlyphs: true", client_js)
     test_case.assertIn(f"fontFamily: '{expected_font_stack}'", client_js)
     test_case.assertIn("lineHeight: 1.15", client_js)
-    test_case.assertIn("new CanvasAddon.CanvasAddon()", client_js)
-    test_case.assertIn("terminal.loadAddon(canvasAddon)", client_js)
+    test_case.assertIn("new WebglAddon.WebglAddon()", client_js)
+    test_case.assertIn("terminal.loadAddon(webglAddon)", client_js)
+    test_case.assertIn("console.warn(\"WebGL terminal renderer unavailable\"", client_js)
     test_case.assertIn(
         "new WebSocket(`${protocol}//${window.location.host}${websocketPath}`",
         client_js,
