@@ -149,6 +149,17 @@ TEST(TerminalScreenTest, DefaultEraseClearsRememberedBackgroundFill) {
   EXPECT_EQ(redraw.find("48;5;242m\x1b[K"), std::string::npos);
 }
 
+TEST(TerminalScreenTest, RedrawMovesRememberedEraseBackgroundWhenScrollRegionScrolls) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 4, .cols = 8});
+
+  screen.ingest("\x1b[3;1H\x1b[48;5;242mx\x1b[K\x1b[0m");
+  screen.ingest("\x1b[2;4r\x1b[4;1H\n\x1b[r");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("\x1b[2;1H\x1b[0;39;48;5;242mx\x1b[K\x1b[0m"), std::string::npos);
+  EXPECT_EQ(redraw.find("\x1b[3;1H\x1b[48;5;242m"), std::string::npos);
+}
+
 TEST(TerminalScreenTest, RedrawPreservesAlternateScreenMode) {
   moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
 

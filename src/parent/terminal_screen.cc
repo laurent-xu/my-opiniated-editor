@@ -547,10 +547,6 @@ std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const 
 
 int ignore_damage(VTermRect const /*rect*/, void* const /*user*/) { return 1; }
 
-int ignore_moverect(VTermRect const /*dest*/, VTermRect const /*src*/, void* const /*user*/) {
-  return 1;
-}
-
 int ignore_movecursor(VTermPos const /*pos*/, VTermPos const /*oldpos*/, int const /*visible*/,
                       void* const /*user*/) {
   return 1;
@@ -568,6 +564,11 @@ int pop_scrollback_line(int const /*cols*/, VTermScreenCell* const /*cells*/,
 int clamp_to_screen(int const value, int const upper_bound) {
   return std::clamp(value, 0, std::max(0, upper_bound - 1));
 }
+
+struct RectMove {
+  VTermRect dest;
+  VTermRect src;
+};
 
 }  // namespace
 
@@ -616,11 +617,68 @@ struct TerminalScreen::LineFillTracker {
     }
   }
 
+  void move_rect(RectMove const& move) {
+    std::vector<RowFillStyles> const old_row_styles = row_styles;
+    VTermRect const dest = move.dest;
+    VTermRect const src = move.src;
+    int const height = std::min(dest.end_row - dest.start_row, src.end_row - src.start_row);
+    int const width = std::min(dest.end_col - dest.start_col, src.end_col - src.start_col);
+    if (height <= 0 || width <= 0) {
+      return;
+    }
+
+    for (int row_offset = 0; row_offset < height; ++row_offset) {
+      int const dest_row = dest.start_row + row_offset;
+      int const src_row = src.start_row + row_offset;
+      if (dest_row < 0 || dest_row >= size.rows) {
+        continue;
+      }
+
+      RowFillStyles& dest_row_styles = row_styles[static_cast<std::size_t>(dest_row)];
+      for (int col_offset = 0; col_offset < width; ++col_offset) {
+        int const dest_col = dest.start_col + col_offset;
+        int const src_col = src.start_col + col_offset;
+        if (dest_col < 0 || dest_col >= size.cols) {
+          continue;
+        }
+
+        std::optional<CellStyle>& dest_style = dest_row_styles[static_cast<std::size_t>(dest_col)];
+        if (src_row < 0 || src_row >= size.rows || src_col < 0 || src_col >= size.cols) {
+          dest_style.reset();
+          continue;
+        }
+        dest_style =
+            old_row_styles[static_cast<std::size_t>(src_row)][static_cast<std::size_t>(src_col)];
+      }
+    }
+
+    clear_source_cells_outside_dest(move);
+  }
+
   [[nodiscard]] RowFillStyles const* row(int const row) const {
     if (row < 0 || row >= size.rows) {
       return nullptr;
     }
     return &row_styles[static_cast<std::size_t>(row)];
+  }
+
+  void clear_source_cells_outside_dest(RectMove const& move) {
+    VTermRect const dest = move.dest;
+    VTermRect const src = move.src;
+    for (int row = src.start_row; row < src.end_row; ++row) {
+      if (row < 0 || row >= size.rows) {
+        continue;
+      }
+
+      RowFillStyles& row_style = row_styles[static_cast<std::size_t>(row)];
+      for (int col = src.start_col; col < src.end_col; ++col) {
+        if (col < 0 || col >= size.cols ||
+            vterm_rect_contains(dest, VTermPos{.row = row, .col = col}) != 0) {
+          continue;
+        }
+        row_style[static_cast<std::size_t>(col)].reset();
+      }
+    }
   }
 
   TerminalSize size{};
@@ -874,7 +932,7 @@ std::string TerminalScreen::cursor_position_sequence(int const row, int const co
 VTermScreenCallbacks const& TerminalScreen::screen_callbacks() {
   static VTermScreenCallbacks const CALLBACKS{
       .damage = ignore_damage,
-      .moverect = ignore_moverect,
+      .moverect = move_rect_callback,
       .movecursor = ignore_movecursor,
       .settermprop = settermprop_callback,
       .bell = ignore_bell,
@@ -884,6 +942,13 @@ VTermScreenCallbacks const& TerminalScreen::screen_callbacks() {
       .sb_clear = clear_scrollback_callback,
   };
   return CALLBACKS;
+}
+
+int TerminalScreen::move_rect_callback(VTermRect const dest, VTermRect const src,
+                                       void* const user) {
+  static_cast<TerminalScreen*>(user)->line_fill_tracker->move_rect(
+      RectMove{.dest = dest, .src = src});
+  return 1;
 }
 
 int TerminalScreen::settermprop_callback(VTermProp const prop, VTermValue* const value,
