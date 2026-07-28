@@ -115,6 +115,16 @@ TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseBeforePromptText) {
   EXPECT_NE(redraw.find("48;5;242m    >\x1b[K\x1b[0m"), std::string::npos);
 }
 
+TEST(TerminalScreenTest, RedrawKeepsEraseBackgroundAfterSameSizeResize) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+
+  screen.ingest("\x1b[2;1H\x1b[48;5;235m>\x1b[K\x1b[0m");
+  screen.resize(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;235m>\x1b[K\x1b[0m"), std::string::npos);
+}
+
 TEST(TerminalScreenTest, RedrawInheritsEraseBackgroundUnderPromptText) {
   moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 12});
 
