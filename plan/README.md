@@ -56,6 +56,7 @@ Recommended first stack:
 - [Language and Build Tooling](architecture/language-build-tooling.md)
 - [Project Build Runtime](architecture/project-build-runtime.md)
 - [MVP Roadmap](implementation/mvp-roadmap.md)
+- [Worktree Tray Plan](implementation/worktree-tray-plan.md)
 - [Bazel Setup Plan](implementation/bazel-setup-plan.md)
 - [Risks and Open Questions](implementation/risks-and-open-questions.md)
 - [Testing Plan](testing/README.md)

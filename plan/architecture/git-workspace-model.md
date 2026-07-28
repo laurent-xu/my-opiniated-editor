@@ -6,6 +6,34 @@ The editor should treat a git workspace or worktree as a first-class object.
 This is required for parallel agents, diff review, updated-file views, and
 self-hosting work.
 
+## Repository And Worktree Registry
+
+The C++ parent owns a global per-user registry of repositories and worktrees
+tracked by the editor. Persist it as protobuf at:
+
+```text
+$XDG_STATE_HOME/my-opiniated-editor/worktrees.pb
+```
+
+When `XDG_STATE_HOME` is unset, use
+`$HOME/.local/state/my-opiniated-editor/worktrees.pb`.
+
+The registry stores canonical absolute repository-root and worktree paths.
+Mutable metadata such as branch names, HEAD, remotes, and availability comes
+from Git when needed.
+
+The registry starts empty. Startup must not automatically register the
+repository containing the editor's initial working directory. Repository
+registration is an explicit user action in the worktree management overlay.
+
+Registry writes replace the complete protobuf atomically. Write and `fsync` a
+temporary file in the destination directory, rename it over the registry, then
+`fsync` the directory. A failed update must leave the previous registry intact,
+and invalid registry data must not be silently overwritten.
+
+See [Worktree Tray Plan](../implementation/worktree-tray-plan.md) for the
+milestone order and interaction details.
+
 ## Workspace Metadata
 
 Each workspace should track:
