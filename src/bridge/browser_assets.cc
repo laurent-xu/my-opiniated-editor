@@ -5,11 +5,11 @@ namespace {
 
 constexpr char const* XTERM_VERSION = "6.0.0";
 constexpr char const* XTERM_ADDON_FIT_VERSION = "0.11.0";
-constexpr char const* TERMINAL_LOCAL_FONT_FAMILY = "\"Moe Terminal Nerd Font\"";
+constexpr char const* TERMINAL_PRIMARY_FONT_FAMILY = "\"JetBrainsMono Nerd Font Mono\"";
 constexpr char const* TERMINAL_FONT_FAMILY =
-    "\"Moe Terminal Nerd Font\", \"MesloLGS NF\", \"JetBrainsMono Nerd Font Mono\", "
-    "\"JetBrainsMonoNL Nerd Font Mono\", \"JetBrainsMono Nerd Font\", "
-    "\"FiraCode Nerd Font Mono\", \"Hack Nerd Font Mono\", "
+    "\"JetBrainsMono Nerd Font Mono\", \"JetBrainsMono NFM\", "
+    "\"JetBrainsMonoNL Nerd Font Mono\", \"JetBrainsMonoNL NFM\", "
+    "\"MesloLGS NF\", \"FiraCode Nerd Font Mono\", \"Hack Nerd Font Mono\", "
     "\"CaskaydiaCove Nerd Font Mono\", \"Symbols Nerd Font Mono\", "
     "\"PowerlineSymbols\", \"DejaVu Sans Mono for Powerline\", "
     "\"DejaVu Sans Mono\", \"Liberation Mono\", \"Noto Sans Mono\", "
@@ -45,25 +45,7 @@ std::string browser_html() {
 }
 
 std::string browser_css() {
-  return std::string(R"CSS(@font-face {
-  font-family: "Moe Terminal Nerd Font";
-  font-style: normal;
-  font-weight: 400;
-  src: local("JetBrainsMonoNFM-Regular"), local("JetBrainsMono NFM Regular"),
-    local("JetBrainsMono Nerd Font Mono"), local("JetBrainsMonoNLNF-Regular"),
-    local("JetBrainsMonoNL NF Regular"), local("JetBrainsMonoNL Nerd Font");
-}
-
-@font-face {
-  font-family: "Moe Terminal Nerd Font";
-  font-style: normal;
-  font-weight: 700;
-  src: local("JetBrainsMonoNFM-Bold"), local("JetBrainsMono NFM Bold"),
-    local("JetBrainsMono Nerd Font Mono"), local("JetBrainsMonoNLNF-Bold"),
-    local("JetBrainsMonoNL NF Bold"), local("JetBrainsMonoNL Nerd Font");
-}
-
-:root {
+  return std::string(R"CSS(:root {
   color-scheme: dark;
   font-family: )CSS") +
          TERMINAL_FONT_FAMILY + R"CSS(;
@@ -113,7 +95,7 @@ std::string browser_client_js() {
     }
     try {
       await document.fonts.load('14px )JS") +
-         TERMINAL_LOCAL_FONT_FAMILY + R"JS(', "\ue0b0");
+         TERMINAL_PRIMARY_FONT_FAMILY + R"JS(', "\ue0b0");
       await document.fonts.ready;
     } catch (error) {
       return;
@@ -125,7 +107,7 @@ std::string browser_client_js() {
   const terminal = new Terminal({
     cursorBlink: true,
     convertEol: true,
-    customGlyphs: true,
+    customGlyphs: false,
     fontFamily: ')JS" +
          TERMINAL_FONT_FAMILY + R"JS(',
     fontSize: 14,
