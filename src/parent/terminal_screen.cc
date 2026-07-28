@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -23,6 +25,7 @@ constexpr std::string_view DISABLE_REVERSE_SCREEN = "\x1b[?5l";
 constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
+constexpr std::size_t MAX_PENDING_CSI_BYTES = 128;
 
 enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
 
@@ -37,6 +40,8 @@ struct TerminalColor {
     return kind == other.kind && index == other.index && red == other.red && green == other.green &&
            blue == other.blue;
   }
+
+  [[nodiscard]] bool is_default() const { return kind == TerminalColorKind::DEFAULT; }
 };
 
 struct CellStyle {
@@ -66,6 +71,20 @@ struct CellRange {
 struct SnapshotLineBounds {
   int last_rendered = -1;
   int last_text = -1;
+};
+
+struct CsiSequence {
+  std::size_t start = 0;
+  std::size_t end = 0;
+  char command = '\0';
+  int mode = -1;
+};
+
+enum class CsiParseStatus : std::uint8_t { NOT_CSI, INCOMPLETE, COMPLETE };
+
+struct CsiParseResult {
+  CsiParseStatus status = CsiParseStatus::NOT_CSI;
+  CsiSequence sequence;
 };
 
 void validate_size(TerminalSize const size) {
@@ -140,6 +159,41 @@ CellStyle cell_style_from(VTermScreenCell const& cell) {
   };
 }
 
+bool penattr_bool(VTermState const* const state, VTermAttr const attr) {
+  VTermValue value{};
+  return vterm_state_get_penattr(state, attr, &value) != 0 && value.boolean != 0;
+}
+
+int penattr_number(VTermState const* const state, VTermAttr const attr, int const fallback) {
+  VTermValue value{};
+  if (vterm_state_get_penattr(state, attr, &value) == 0) {
+    return fallback;
+  }
+  return value.number;
+}
+
+TerminalColor penattr_color(VTermState const* const state, VTermAttr const attr,
+                            bool const foreground) {
+  VTermValue value{};
+  if (vterm_state_get_penattr(state, attr, &value) == 0) {
+    return TerminalColor{};
+  }
+  return terminal_color_from(value.color, foreground);
+}
+
+CellStyle current_style_from_state(VTermState const* const state) {
+  return CellStyle{
+      .bold = penattr_bool(state, VTERM_ATTR_BOLD),
+      .italic = penattr_bool(state, VTERM_ATTR_ITALIC),
+      .blink = penattr_bool(state, VTERM_ATTR_BLINK),
+      .reverse = penattr_bool(state, VTERM_ATTR_REVERSE),
+      .strike = penattr_bool(state, VTERM_ATTR_STRIKE),
+      .underline = penattr_number(state, VTERM_ATTR_UNDERLINE, VTERM_UNDERLINE_OFF),
+      .foreground = penattr_color(state, VTERM_ATTR_FOREGROUND, true),
+      .background = penattr_color(state, VTERM_ATTR_BACKGROUND, false),
+  };
+}
+
 void append_color_sgr(std::vector<std::string>& parameters, TerminalColor const& color,
                       bool const foreground) {
   if (color.kind == TerminalColorKind::DEFAULT) {
@@ -201,8 +255,29 @@ std::string sgr_sequence(CellStyle const& style) {
 
 bool cell_has_text(VTermScreenCell const& cell) { return cell.chars[0] != 0; }
 
-bool cell_should_be_rendered(VTermScreenCell const& cell) {
-  return cell.width != 0 && (cell_has_text(cell) || !cell_style_from(cell).is_default());
+using RowFillStyles = std::vector<std::optional<CellStyle>>;
+
+std::optional<CellStyle> row_fill_style_at(RowFillStyles const* const row_fill_styles,
+                                           int const col) {
+  if (row_fill_styles == nullptr || col < 0 ||
+      static_cast<std::size_t>(col) >= row_fill_styles->size()) {
+    return std::nullopt;
+  }
+  return (*row_fill_styles)[static_cast<std::size_t>(col)];
+}
+
+CellStyle effective_cell_style(VTermScreenCell const& cell,
+                               std::optional<CellStyle> const fill_style) {
+  CellStyle const cell_style = cell_style_from(cell);
+  if (cell.width == 0 || cell_has_text(cell) || !cell_style.is_default() ||
+      !fill_style.has_value()) {
+    return cell_style;
+  }
+  return *fill_style;
+}
+
+bool cell_should_be_rendered(VTermScreenCell const& cell, CellStyle const& style) {
+  return cell.width != 0 && (cell_has_text(cell) || !style.is_default());
 }
 
 void append_cell_text(std::string& line, VTermScreenCell const& cell) {
@@ -289,10 +364,72 @@ std::size_t complete_utf8_prefix_size(std::string_view const bytes) {
   return bytes.size();
 }
 
-int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells) {
+bool is_csi_final_byte(unsigned char const byte) { return byte >= 0x40U && byte <= 0x7EU; }
+
+bool is_ascii_digit(char const character) { return character >= '0' && character <= '9'; }
+
+std::optional<int> first_csi_parameter(std::string_view const parameter_bytes) {
+  int value = 0;
+  bool has_digit = false;
+  for (char const character : parameter_bytes) {
+    if (is_ascii_digit(character)) {
+      has_digit = true;
+      value = (value * 10) + (character - '0');
+      continue;
+    }
+    if (character == ';' || character == ':') {
+      break;
+    }
+    if (character == '\0') {
+      break;
+    }
+    return std::nullopt;
+  }
+  return has_digit ? std::optional<int>(value) : std::optional<int>(0);
+}
+
+CsiParseResult parse_csi_sequence(std::string_view const bytes, std::size_t const start) {
+  if (start + 1 >= bytes.size()) {
+    return CsiParseResult{.status = CsiParseStatus::INCOMPLETE};
+  }
+  if (bytes[start] != '\x1b' || bytes[start + 1] != '[') {
+    return CsiParseResult{.status = CsiParseStatus::NOT_CSI};
+  }
+
+  for (std::size_t index = start + 2; index < bytes.size(); ++index) {
+    if (!is_csi_final_byte(static_cast<unsigned char>(bytes[index]))) {
+      continue;
+    }
+
+    std::string_view const parameter_bytes = bytes.substr(start + 2, index - (start + 2));
+    std::optional<int> const mode = first_csi_parameter(parameter_bytes);
+    if (!mode.has_value()) {
+      return CsiParseResult{
+          .status = CsiParseStatus::COMPLETE,
+          .sequence = CsiSequence{.start = start, .end = index + 1, .command = bytes[index]},
+      };
+    }
+    return CsiParseResult{
+        .status = CsiParseStatus::COMPLETE,
+        .sequence =
+            CsiSequence{.start = start, .end = index + 1, .command = bytes[index], .mode = *mode},
+    };
+  }
+
+  return CsiParseResult{.status = CsiParseStatus::INCOMPLETE};
+}
+
+bool is_erase_sequence(CsiSequence const sequence) {
+  return sequence.mode >= 0 && (sequence.command == 'K' || sequence.command == 'J');
+}
+
+int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells,
+                             RowFillStyles const* const row_fill_styles) {
   int last_rendered = -1;
   for (int col = 0; col < cols; ++col) {
-    if (cell_should_be_rendered(cells[col])) {
+    if (cell_should_be_rendered(
+            cells[col],
+            effective_cell_style(cells[col], row_fill_style_at(row_fill_styles, col)))) {
       last_rendered = col;
     }
   }
@@ -310,10 +447,12 @@ int last_text_cell_index(int const cols, VTermScreenCell const* const cells) {
 }
 
 bool blank_cells_have_same_style(CellRange const range, VTermScreenCell const* const cells,
+                                 RowFillStyles const* const row_fill_styles,
                                  CellStyle const& style) {
   for (int col = range.first_col; col <= range.last_col; ++col) {
     VTermScreenCell const& cell = cells[col];
-    if (cell.width == 0 || cell_has_text(cell) || !(cell_style_from(cell) == style)) {
+    if (cell.width == 0 || cell_has_text(cell) ||
+        !(effective_cell_style(cell, row_fill_style_at(row_fill_styles, col)) == style)) {
       return false;
     }
   }
@@ -321,6 +460,7 @@ bool blank_cells_have_same_style(CellRange const range, VTermScreenCell const* c
 }
 
 bool should_erase_to_end_of_line(int const cols, VTermScreenCell const* const cells,
+                                 RowFillStyles const* const row_fill_styles,
                                  SnapshotLineBounds const bounds) {
   if (bounds.last_rendered != cols - 1) {
     return false;
@@ -331,22 +471,25 @@ bool should_erase_to_end_of_line(int const cols, VTermScreenCell const* const ce
     return false;
   }
 
-  CellStyle const trailing_style = cell_style_from(cells[first_trailing_blank]);
+  CellStyle const trailing_style = effective_cell_style(
+      cells[first_trailing_blank], row_fill_style_at(row_fill_styles, first_trailing_blank));
   return !trailing_style.is_default() &&
          blank_cells_have_same_style(
              CellRange{.first_col = first_trailing_blank, .last_col = bounds.last_rendered}, cells,
-             trailing_style);
+             row_fill_styles, trailing_style);
 }
 
-std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells) {
-  int const last_rendered = last_rendered_cell_index(cols, cells);
+std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells,
+                                   RowFillStyles const* const row_fill_styles = nullptr) {
+  int const last_rendered = last_rendered_cell_index(cols, cells, row_fill_styles);
   if (last_rendered < 0) {
     return "";
   }
 
   int const last_text = last_text_cell_index(cols, cells);
   bool const erase_to_end_of_line = should_erase_to_end_of_line(
-      cols, cells, SnapshotLineBounds{.last_rendered = last_rendered, .last_text = last_text});
+      cols, cells, row_fill_styles,
+      SnapshotLineBounds{.last_rendered = last_rendered, .last_text = last_text});
   int const last_cell_to_write = erase_to_end_of_line ? last_text : last_rendered;
 
   std::string line;
@@ -356,7 +499,8 @@ std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const 
     if (cell.width == 0) {
       continue;
     }
-    CellStyle const next_style = cell_style_from(cell);
+    CellStyle const next_style =
+        effective_cell_style(cell, row_fill_style_at(row_fill_styles, col));
     if (!(next_style == current_style)) {
       line.append(sgr_sequence(next_style));
       current_style = next_style;
@@ -364,7 +508,8 @@ std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const 
     append_cell_text(line, cell);
   }
   if (erase_to_end_of_line) {
-    CellStyle const erase_style = cell_style_from(cells[last_text + 1]);
+    CellStyle const erase_style = effective_cell_style(
+        cells[last_text + 1], row_fill_style_at(row_fill_styles, last_text + 1));
     if (!(erase_style == current_style)) {
       line.append(sgr_sequence(erase_style));
       current_style = erase_style;
@@ -403,8 +548,66 @@ int clamp_to_screen(int const value, int const upper_bound) {
 
 }  // namespace
 
+struct TerminalScreen::LineFillTracker {
+  explicit LineFillTracker(TerminalSize const initial_size) { resize(initial_size); }
+
+  void resize(TerminalSize const next_size) {
+    size = next_size;
+    row_styles.assign(static_cast<std::size_t>(size.rows),
+                      RowFillStyles(static_cast<std::size_t>(size.cols)));
+  }
+
+  void clear_all() {
+    for (RowFillStyles& row : row_styles) {
+      std::ranges::fill(row, std::nullopt);
+    }
+  }
+
+  void record_range(int const row, int const start_col, int const end_col, CellStyle const& style) {
+    if (row < 0 || row >= size.rows || end_col < 0 || start_col >= size.cols) {
+      return;
+    }
+
+    int const clamped_start = clamp_to_screen(start_col, size.cols);
+    int const clamped_end = clamp_to_screen(end_col, size.cols);
+    RowFillStyles& row_style = row_styles[static_cast<std::size_t>(row)];
+    for (int col = clamped_start; col <= clamped_end; ++col) {
+      std::optional<CellStyle>& cell_style = row_style[static_cast<std::size_t>(col)];
+      if (style.is_default()) {
+        cell_style.reset();
+      } else {
+        cell_style = style;
+      }
+    }
+  }
+
+  void record_rows(int const start_row, int const end_row, CellStyle const& style) {
+    if (end_row < 0 || start_row >= size.rows) {
+      return;
+    }
+
+    int const clamped_start = clamp_to_screen(start_row, size.rows);
+    int const clamped_end = clamp_to_screen(end_row, size.rows);
+    for (int row = clamped_start; row <= clamped_end; ++row) {
+      record_range(row, 0, size.cols - 1, style);
+    }
+  }
+
+  [[nodiscard]] RowFillStyles const* row(int const row) const {
+    if (row < 0 || row >= size.rows) {
+      return nullptr;
+    }
+    return &row_styles[static_cast<std::size_t>(row)];
+  }
+
+  TerminalSize size{};
+  std::vector<RowFillStyles> row_styles;
+};
+
 TerminalScreen::TerminalScreen(TerminalSize const size)
-    : screen_size(size), terminal(vterm_new(checked_rows(size), checked_cols(size))) {
+    : screen_size(size),
+      terminal(vterm_new(checked_rows(size), checked_cols(size))),
+      line_fill_tracker(std::make_unique<LineFillTracker>(size)) {
   if (terminal == nullptr) {
     throw std::runtime_error("failed to create terminal screen");
   }
@@ -428,7 +631,8 @@ TerminalScreen::TerminalScreen(TerminalScreen&& other) noexcept
       alternate_screen_active(other.alternate_screen_active),
       reverse_screen_active(other.reverse_screen_active),
       cursor_visible(other.cursor_visible),
-      scrollback_lines(std::move(other.scrollback_lines)) {
+      scrollback_lines(std::move(other.scrollback_lines)),
+      line_fill_tracker(std::move(other.line_fill_tracker)) {
   if (screen != nullptr) {
     configure_screen_callbacks();
   }
@@ -445,6 +649,7 @@ TerminalScreen& TerminalScreen::operator=(TerminalScreen&& other) noexcept {
     reverse_screen_active = other.reverse_screen_active;
     cursor_visible = other.cursor_visible;
     scrollback_lines = std::move(other.scrollback_lines);
+    line_fill_tracker = std::move(other.line_fill_tracker);
     if (screen != nullptr) {
       configure_screen_callbacks();
     }
@@ -477,21 +682,111 @@ void TerminalScreen::ingest(std::string_view const bytes) {
 
   std::size_t const complete_size = complete_utf8_prefix_size(input);
   if (complete_size > 0) {
-    std::string const complete_input(input.substr(0, complete_size));
-    static_cast<void>(
-        vterm_input_write(terminal.get(), complete_input.c_str(), complete_input.size()));
+    ingest_complete_input(input.substr(0, complete_size));
   }
   if (complete_size < input.size()) {
     pending_utf8_bytes.assign(input.substr(complete_size));
   }
-  vterm_screen_flush_damage(screen);
 }
 
 void TerminalScreen::resize(TerminalSize const size) {
   validate_size(size);
   screen_size = size;
   vterm_set_size(terminal.get(), size.rows, size.cols);
+  line_fill_tracker->resize(size);
   vterm_screen_flush_damage(screen);
+}
+
+void TerminalScreen::ingest_complete_input(std::string_view const bytes) {
+  std::string combined_bytes;
+  std::string_view input = bytes;
+  if (!pending_snapshot_control_bytes.empty()) {
+    combined_bytes = pending_snapshot_control_bytes;
+    combined_bytes.append(bytes);
+    pending_snapshot_control_bytes.clear();
+    input = combined_bytes;
+  }
+
+  std::size_t segment_start = 0;
+  std::size_t scan_start = 0;
+  while (scan_start < input.size()) {
+    std::size_t const escape_start = input.find("\x1b[", scan_start);
+    if (escape_start == std::string_view::npos) {
+      break;
+    }
+
+    CsiParseResult const parse_result = parse_csi_sequence(input, escape_start);
+    if (parse_result.status == CsiParseStatus::INCOMPLETE) {
+      if (input.size() - escape_start > MAX_PENDING_CSI_BYTES) {
+        scan_start = escape_start + 1;
+        continue;
+      }
+      feed_input_to_vterm(input.substr(segment_start, escape_start - segment_start));
+      pending_snapshot_control_bytes.assign(input.substr(escape_start));
+      return;
+    }
+
+    CsiSequence const sequence = parse_result.sequence;
+    if (!is_erase_sequence(sequence)) {
+      scan_start = sequence.end;
+      continue;
+    }
+
+    feed_input_to_vterm(input.substr(segment_start, sequence.start - segment_start));
+    VTermPos cursor{};
+    vterm_state_get_cursorpos(state, &cursor);
+    feed_input_to_vterm(input.substr(sequence.start, sequence.end - sequence.start));
+    record_erase_for_snapshot(sequence.command, cursor, sequence.mode);
+    segment_start = sequence.end;
+    scan_start = sequence.end;
+  }
+
+  if (segment_start < input.size() && input.back() == '\x1b') {
+    feed_input_to_vterm(input.substr(segment_start, input.size() - segment_start - 1));
+    pending_snapshot_control_bytes.assign(input.substr(input.size() - 1));
+    return;
+  }
+
+  feed_input_to_vterm(input.substr(segment_start));
+}
+
+void TerminalScreen::feed_input_to_vterm(std::string_view const bytes) {
+  if (bytes.empty()) {
+    return;
+  }
+  static_cast<void>(vterm_input_write(terminal.get(), bytes.data(), bytes.size()));
+  vterm_screen_flush_damage(screen);
+}
+
+void TerminalScreen::record_erase_for_snapshot(char const command, VTermPos const cursor,
+                                               int const mode) {
+  CellStyle const style = current_style_from_state(state);
+  int const row = clamp_to_screen(cursor.row, screen_size.rows);
+  int const col = clamp_to_screen(cursor.col, screen_size.cols);
+
+  if (command == 'K') {
+    if (mode == 0) {
+      line_fill_tracker->record_range(row, col, screen_size.cols - 1, style);
+    } else if (mode == 1) {
+      line_fill_tracker->record_range(row, 0, col, style);
+    } else if (mode == 2) {
+      line_fill_tracker->record_range(row, 0, screen_size.cols - 1, style);
+    }
+    return;
+  }
+
+  if (command != 'J') {
+    return;
+  }
+  if (mode == 0) {
+    line_fill_tracker->record_range(row, col, screen_size.cols - 1, style);
+    line_fill_tracker->record_rows(row + 1, screen_size.rows - 1, style);
+  } else if (mode == 1) {
+    line_fill_tracker->record_rows(0, row - 1, style);
+    line_fill_tracker->record_range(row, 0, col, style);
+  } else if (mode == 2 || mode == 3) {
+    line_fill_tracker->record_rows(0, screen_size.rows - 1, style);
+  }
 }
 
 std::string TerminalScreen::render_snapshot() const {
@@ -545,7 +840,7 @@ std::string TerminalScreen::screen_row_snapshot_line(int const row) const {
     static_cast<void>(vterm_screen_get_cell(screen, VTermPos{.row = row, .col = col},
                                             &cells[static_cast<std::size_t>(col)]));
   }
-  return cells_to_snapshot_line(screen_size.cols, cells.data());
+  return cells_to_snapshot_line(screen_size.cols, cells.data(), line_fill_tracker->row(row));
 }
 
 std::string TerminalScreen::cursor_position_sequence(int const row, int const col) {
@@ -572,6 +867,7 @@ int TerminalScreen::settermprop_callback(VTermProp const prop, VTermValue* const
   TerminalScreen& terminal_screen = *static_cast<TerminalScreen*>(user);
   if (prop == VTERM_PROP_ALTSCREEN) {
     terminal_screen.alternate_screen_active = value != nullptr && value->boolean != 0;
+    terminal_screen.line_fill_tracker->clear_all();
     return 1;
   }
   if (prop == VTERM_PROP_REVERSE) {

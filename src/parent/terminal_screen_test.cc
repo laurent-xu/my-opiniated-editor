@@ -104,6 +104,38 @@ TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseWholeLine) {
   EXPECT_EQ(redraw.find("plain"), std::string::npos);
 }
 
+TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseBeforePromptText) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+
+  screen.ingest(
+      "\x1b[2;1H\x1b[48;5;242m\x1b[2K\x1b[0m\x1b[5G"
+      "\x1b[48;5;242m>\x1b[0m");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;242m    >\x1b[K\x1b[0m"), std::string::npos);
+}
+
+TEST(TerminalScreenTest, RedrawKeepsBackgroundFromSplitEraseToEndOfLine) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+
+  screen.ingest("\x1b[48;5;242m>");
+  screen.ingest("\x1b[");
+  screen.ingest("K\x1b[0m");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_NE(redraw.find("48;5;242m>\x1b[K\x1b[0m"), std::string::npos);
+}
+
+TEST(TerminalScreenTest, DefaultEraseClearsRememberedBackgroundFill) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+
+  screen.ingest("\x1b[48;5;242m\x1b[2K\x1b[0m");
+  screen.ingest("\x1b[H\x1b[2K");
+
+  std::string const redraw = screen.render_snapshot();
+  EXPECT_EQ(redraw.find("48;5;242m\x1b[K"), std::string::npos);
+}
+
 TEST(TerminalScreenTest, RedrawPreservesAlternateScreenMode) {
   moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
 

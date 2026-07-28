@@ -34,6 +34,9 @@ class TerminalScreen {
   void configure_screen_callbacks();
   void push_scrollback_line(int cols, void const* cells);
   void clear_scrollback();
+  void ingest_complete_input(std::string_view bytes);
+  void feed_input_to_vterm(std::string_view bytes);
+  void record_erase_for_snapshot(char command, VTermPos cursor, int mode);
   [[nodiscard]] std::string screen_row_snapshot_line(int row) const;
   [[nodiscard]] static std::string cursor_position_sequence(int row, int col);
   [[nodiscard]] static VTermScreenCallbacks const& screen_callbacks();
@@ -46,10 +49,14 @@ class TerminalScreen {
   VTermScreen* screen = nullptr;
   VTermState* state = nullptr;
   std::string pending_utf8_bytes;
+  std::string pending_snapshot_control_bytes;
   bool alternate_screen_active = false;
   bool reverse_screen_active = false;
   bool cursor_visible = true;
   std::deque<std::string> scrollback_lines;
+
+  struct LineFillTracker;
+  std::unique_ptr<LineFillTracker> line_fill_tracker;
 };
 
 }  // namespace moe::parent
