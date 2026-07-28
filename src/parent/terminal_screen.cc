@@ -25,7 +25,7 @@ constexpr std::string_view DISABLE_REVERSE_SCREEN = "\x1b[?5l";
 constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
-constexpr std::size_t MAX_PENDING_CSI_BYTES = 128;
+constexpr std::size_t MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES = 128;
 
 enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
 
@@ -73,18 +73,23 @@ struct SnapshotLineBounds {
   int last_text = -1;
 };
 
-struct CsiSequence {
+struct ControlSequenceIntroducerSequence {
   std::size_t start = 0;
   std::size_t end = 0;
   char command = '\0';
   int mode = -1;
 };
 
-enum class CsiParseStatus : std::uint8_t { NOT_CSI, INCOMPLETE, COMPLETE };
+enum class ControlSequenceIntroducerParseStatus : std::uint8_t {
+  NOT_CONTROL_SEQUENCE_INTRODUCER,
+  INCOMPLETE,
+  COMPLETE
+};
 
-struct CsiParseResult {
-  CsiParseStatus status = CsiParseStatus::NOT_CSI;
-  CsiSequence sequence;
+struct ControlSequenceIntroducerParseResult {
+  ControlSequenceIntroducerParseStatus status =
+      ControlSequenceIntroducerParseStatus::NOT_CONTROL_SEQUENCE_INTRODUCER;
+  ControlSequenceIntroducerSequence sequence;
 };
 
 void validate_size(TerminalSize const size) {
@@ -364,11 +369,14 @@ std::size_t complete_utf8_prefix_size(std::string_view const bytes) {
   return bytes.size();
 }
 
-bool is_csi_final_byte(unsigned char const byte) { return byte >= 0x40U && byte <= 0x7EU; }
+bool is_control_sequence_introducer_final_byte(unsigned char const byte) {
+  return byte >= 0x40U && byte <= 0x7EU;
+}
 
 bool is_ascii_digit(char const character) { return character >= '0' && character <= '9'; }
 
-std::optional<int> first_csi_parameter(std::string_view const parameter_bytes) {
+std::optional<int> first_control_sequence_introducer_parameter(
+    std::string_view const parameter_bytes) {
   int value = 0;
   bool has_digit = false;
   for (char const character : parameter_bytes) {
@@ -388,38 +396,45 @@ std::optional<int> first_csi_parameter(std::string_view const parameter_bytes) {
   return has_digit ? std::optional<int>(value) : std::optional<int>(0);
 }
 
-CsiParseResult parse_csi_sequence(std::string_view const bytes, std::size_t const start) {
+ControlSequenceIntroducerParseResult parse_control_sequence_introducer_sequence(
+    std::string_view const bytes, std::size_t const start) {
   if (start + 1 >= bytes.size()) {
-    return CsiParseResult{.status = CsiParseStatus::INCOMPLETE};
+    return ControlSequenceIntroducerParseResult{
+        .status = ControlSequenceIntroducerParseStatus::INCOMPLETE};
   }
   if (bytes[start] != '\x1b' || bytes[start + 1] != '[') {
-    return CsiParseResult{.status = CsiParseStatus::NOT_CSI};
+    return ControlSequenceIntroducerParseResult{
+        .status = ControlSequenceIntroducerParseStatus::NOT_CONTROL_SEQUENCE_INTRODUCER};
   }
 
   for (std::size_t index = start + 2; index < bytes.size(); ++index) {
-    if (!is_csi_final_byte(static_cast<unsigned char>(bytes[index]))) {
+    if (!is_control_sequence_introducer_final_byte(static_cast<unsigned char>(bytes[index]))) {
       continue;
     }
 
     std::string_view const parameter_bytes = bytes.substr(start + 2, index - (start + 2));
-    std::optional<int> const mode = first_csi_parameter(parameter_bytes);
+    std::optional<int> const mode = first_control_sequence_introducer_parameter(parameter_bytes);
     if (!mode.has_value()) {
-      return CsiParseResult{
-          .status = CsiParseStatus::COMPLETE,
-          .sequence = CsiSequence{.start = start, .end = index + 1, .command = bytes[index]},
+      return ControlSequenceIntroducerParseResult{
+          .status = ControlSequenceIntroducerParseStatus::COMPLETE,
+          .sequence =
+              ControlSequenceIntroducerSequence{
+                  .start = start, .end = index + 1, .command = bytes[index]},
       };
     }
-    return CsiParseResult{
-        .status = CsiParseStatus::COMPLETE,
+    return ControlSequenceIntroducerParseResult{
+        .status = ControlSequenceIntroducerParseStatus::COMPLETE,
         .sequence =
-            CsiSequence{.start = start, .end = index + 1, .command = bytes[index], .mode = *mode},
+            ControlSequenceIntroducerSequence{
+                .start = start, .end = index + 1, .command = bytes[index], .mode = *mode},
     };
   }
 
-  return CsiParseResult{.status = CsiParseStatus::INCOMPLETE};
+  return ControlSequenceIntroducerParseResult{.status =
+                                                  ControlSequenceIntroducerParseStatus::INCOMPLETE};
 }
 
-bool is_erase_sequence(CsiSequence const sequence) {
+bool is_erase_sequence(ControlSequenceIntroducerSequence const sequence) {
   return sequence.mode >= 0 && (sequence.command == 'K' || sequence.command == 'J');
 }
 
@@ -715,9 +730,10 @@ void TerminalScreen::ingest_complete_input(std::string_view const bytes) {
       break;
     }
 
-    CsiParseResult const parse_result = parse_csi_sequence(input, escape_start);
-    if (parse_result.status == CsiParseStatus::INCOMPLETE) {
-      if (input.size() - escape_start > MAX_PENDING_CSI_BYTES) {
+    ControlSequenceIntroducerParseResult const parse_result =
+        parse_control_sequence_introducer_sequence(input, escape_start);
+    if (parse_result.status == ControlSequenceIntroducerParseStatus::INCOMPLETE) {
+      if (input.size() - escape_start > MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES) {
         scan_start = escape_start + 1;
         continue;
       }
@@ -726,7 +742,7 @@ void TerminalScreen::ingest_complete_input(std::string_view const bytes) {
       return;
     }
 
-    CsiSequence const sequence = parse_result.sequence;
+    ControlSequenceIntroducerSequence const sequence = parse_result.sequence;
     if (!is_erase_sequence(sequence)) {
       scan_start = sequence.end;
       continue;
