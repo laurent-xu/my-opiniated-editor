@@ -1,9 +1,7 @@
 #include "src/parent/terminal_screen.h"
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
-#include <fstream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -28,8 +26,6 @@ constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
 constexpr std::size_t MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES = 128;
-constexpr std::string_view CONTROL_SEQUENCE_LOG_PATH =
-    "/tmp/my-opiniated-editor-control-sequences.log";
 
 enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
 
@@ -94,18 +90,6 @@ struct ControlSequenceIntroducerParseResult {
   ControlSequenceIntroducerParseStatus status =
       ControlSequenceIntroducerParseStatus::NOT_CONTROL_SEQUENCE_INTRODUCER;
   ControlSequenceIntroducerSequence sequence;
-};
-
-struct ControlSequenceLogState {
-  VTermPos cursor{};
-  CellStyle style;
-};
-
-struct ControlSequenceLogEntry {
-  ControlSequenceIntroducerSequence sequence;
-  std::string_view bytes;
-  ControlSequenceLogState before;
-  ControlSequenceLogState after;
 };
 
 void validate_size(TerminalSize const size) {
@@ -462,116 +446,6 @@ bool is_erase_sequence(ControlSequenceIntroducerSequence const sequence) {
   return sequence.mode >= 0 && (sequence.command == 'K' || sequence.command == 'J');
 }
 
-std::string escaped_control_sequence(std::string_view const bytes) {
-  constexpr std::array<char, 16> HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7',
-                                               '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-
-  std::string output;
-  for (char const byte : bytes) {
-    auto const value = static_cast<unsigned char>(byte);
-    if (value == 0x1BU) {
-      output.append("\\x1b");
-      continue;
-    }
-    if (value == '\\') {
-      output.append("\\\\");
-      continue;
-    }
-    if (value >= 0x20U && value <= 0x7EU) {
-      output.push_back(static_cast<char>(value));
-      continue;
-    }
-
-    output.append("\\x");
-    output.push_back(HEX_DIGITS[value >> 4U]);
-    output.push_back(HEX_DIGITS[value & 0x0FU]);
-  }
-  return output;
-}
-
-std::string command_name(char const command) {
-  switch (command) {
-    case 'A':
-      return "cursor-up";
-    case 'B':
-      return "cursor-down";
-    case 'C':
-      return "cursor-forward";
-    case 'D':
-      return "cursor-back";
-    case 'G':
-      return "cursor-horizontal-absolute";
-    case 'H':
-    case 'f':
-      return "cursor-position";
-    case 'J':
-      return "erase-screen";
-    case 'K':
-      return "erase-line";
-    case 'X':
-      return "erase-characters";
-    case 'h':
-      return "set-mode";
-    case 'l':
-      return "reset-mode";
-    case 'm':
-      return "set-graphics-rendition";
-    default:
-      return "other";
-  }
-}
-
-std::string color_label(TerminalColor const& color) {
-  if (color.kind == TerminalColorKind::DEFAULT) {
-    return "default";
-  }
-  if (color.kind == TerminalColorKind::INDEXED) {
-    return "indexed:" + std::to_string(color.index);
-  }
-  return "rgb:" + std::to_string(color.red) + "," + std::to_string(color.green) + "," +
-         std::to_string(color.blue);
-}
-
-std::string style_label(CellStyle const& style) {
-  std::string output =
-      "fg=" + color_label(style.foreground) + " bg=" + color_label(style.background);
-  if (style.bold) {
-    output.append(" bold");
-  }
-  if (style.italic) {
-    output.append(" italic");
-  }
-  if (style.underline != VTERM_UNDERLINE_OFF) {
-    output.append(" underline=" + std::to_string(style.underline));
-  }
-  if (style.blink) {
-    output.append(" blink");
-  }
-  if (style.reverse) {
-    output.append(" reverse");
-  }
-  if (style.strike) {
-    output.append(" strike");
-  }
-  return output;
-}
-
-std::string cursor_label(VTermPos const pos) {
-  return "row=" + std::to_string(pos.row + 1) + " col=" + std::to_string(pos.col + 1);
-}
-
-void log_control_sequence(ControlSequenceLogEntry const& entry) {
-  std::ofstream log_file(std::string(CONTROL_SEQUENCE_LOG_PATH), std::ios::app);
-  log_file << "moe-terminal-control-sequence"
-           << " command=" << command_name(entry.sequence.command)
-           << " final=" << entry.sequence.command << " mode=" << entry.sequence.mode << " bytes=\""
-           << escaped_control_sequence(entry.bytes) << "\""
-           << " before_cursor=\"" << cursor_label(entry.before.cursor) << "\""
-           << " after_cursor=\"" << cursor_label(entry.after.cursor) << "\""
-           << " before_style=\"" << style_label(entry.before.style) << "\""
-           << " after_style=\"" << style_label(entry.after.style) << "\"" << '\n';
-}
-
 int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells,
                              RowFillStyles const* const row_fill_styles) {
   int last_rendered = -1;
@@ -877,23 +751,16 @@ void TerminalScreen::ingest_complete_input(std::string_view const bytes) {
     }
 
     ControlSequenceIntroducerSequence const sequence = parse_result.sequence;
+    if (!is_erase_sequence(sequence)) {
+      scan_start = sequence.end;
+      continue;
+    }
+
     feed_input_to_vterm(input.substr(segment_start, sequence.start - segment_start));
     VTermPos cursor{};
     vterm_state_get_cursorpos(state, &cursor);
-    CellStyle const before_style = current_style_from_state(state);
     feed_input_to_vterm(input.substr(sequence.start, sequence.end - sequence.start));
-    VTermPos after_cursor{};
-    vterm_state_get_cursorpos(state, &after_cursor);
-    CellStyle const after_style = current_style_from_state(state);
-    log_control_sequence(ControlSequenceLogEntry{
-        .sequence = sequence,
-        .bytes = input.substr(sequence.start, sequence.end - sequence.start),
-        .before = ControlSequenceLogState{.cursor = cursor, .style = before_style},
-        .after = ControlSequenceLogState{.cursor = after_cursor, .style = after_style},
-    });
-    if (is_erase_sequence(sequence)) {
-      record_erase_for_snapshot(sequence.command, cursor, sequence.mode);
-    }
+    record_erase_for_snapshot(sequence.command, cursor, sequence.mode);
     segment_start = sequence.end;
     scan_start = sequence.end;
   }
