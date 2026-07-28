@@ -10,6 +10,7 @@ refresh_compile_commands(
         "//src/core:core_test",
         "//src/parent:terminal_screen_test",
         "//src/parent:tray_manager_test",
+        "//src/parent:worktree_registry_store_test",
         "//src/parent:workspace_parent",
         "//src/parent:workspace_parent_test",
     ],

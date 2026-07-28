@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package moe.parent.persistence;
+
+message WorktreeRegistry {
+  uint32 format_version = 1;
+  repeated Repository repositories = 2;
+}
+
+message Repository {
+  string root_path = 1;
+  repeated Worktree worktrees = 2;
+}
+
+message Worktree {
+  string path = 1;
+}
