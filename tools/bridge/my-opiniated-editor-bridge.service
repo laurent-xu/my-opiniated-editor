@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/my-opiniated-editor
+WorkingDirectory=%h/my-opiniated-editor/main
 EnvironmentFile=%h/.config/my-opiniated-editor/bridge.env
-ExecStart=%h/my-opiniated-editor/tools/bridge/run_bridge.sh
+ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh
 Restart=on-failure
 RestartSec=2
 

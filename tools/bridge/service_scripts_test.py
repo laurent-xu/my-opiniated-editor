@@ -49,6 +49,17 @@ class ServiceScriptsTest(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertIn("MOE_BRIDGE_TOKEN is required", result.stderr)
 
+    def test_service_uses_main_worktree(self):
+        service = Path(
+            runfile_path("tools/bridge/my-opiniated-editor-bridge.service")
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("WorkingDirectory=%h/my-opiniated-editor/main\n", service)
+        self.assertIn(
+            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh\n",
+            service,
+        )
+
     def test_restart_builds_before_restart(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             bin_dir = Path(temp_dir)
@@ -75,6 +86,7 @@ class ServiceScriptsTest(unittest.TestCase):
                 log_path.read_text(encoding="utf-8").splitlines(),
                 [
                     "bazel --batch build //src/bridge:parent_ws_bridge //src/parent:workspace_parent",
+                    "systemctl --user daemon-reload",
                     "systemctl --user restart my-opiniated-editor-bridge.service",
                 ],
             )

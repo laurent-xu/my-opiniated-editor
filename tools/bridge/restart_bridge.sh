@@ -11,4 +11,5 @@ bazel --batch build \
   //src/bridge:parent_ws_bridge \
   //src/parent:workspace_parent
 
+systemctl --user daemon-reload
 systemctl --user restart my-opiniated-editor-bridge.service
