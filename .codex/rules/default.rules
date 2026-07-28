@@ -1,0 +1,158 @@
+# Repo-local allow rules for commands that repeatedly need host access.
+#
+# These rules are intentionally narrower than the user's global rules. They
+# apply only when this repository is trusted, and they do not grant an agent
+# permission to perform work that the user did not request.
+
+prefix_rule(
+    pattern = ["bazel", "--batch", "test"],
+    decision = "allow",
+    justification = "Run this repository's Bazel tests, including dependency access through Nix.",
+    match = [
+        "bazel --batch test //...",
+        "bazel --batch test //src/bridge:parent_pty_session_test",
+    ],
+    not_match = [
+        "bazel --batch run //src/bridge:parent_ws_bridge",
+    ],
+)
+
+prefix_rule(
+    pattern = ["bazel", "test"],
+    decision = "allow",
+    justification = "Run the repository's documented default Bazel confidence command.",
+    match = [
+        "bazel test //...",
+        "bazel test //src/bridge:parent_pty_session_test",
+    ],
+    not_match = [
+        "bazel run //src/bridge:parent_ws_bridge",
+    ],
+)
+
+prefix_rule(
+    pattern = ["bazel", "--batch", "run", "//tools/python:pyformat"],
+    decision = "allow",
+    justification = "Run the repository-owned Python formatter target.",
+    match = [
+        "bazel --batch run //tools/python:pyformat -- --check .",
+        "bazel --batch run //tools/python:pyformat -- .",
+    ],
+    not_match = [
+        "bazel --batch run //src/bridge:parent_ws_bridge",
+    ],
+)
+
+prefix_rule(
+    pattern = ["tools/bazel/refresh_compile_commands.sh"],
+    decision = "allow",
+    justification = "Refresh compile_commands.json through the repository's safe wrapper.",
+    match = [
+        "tools/bazel/refresh_compile_commands.sh",
+    ],
+    not_match = [
+        "bazel run //:refresh_compile_commands",
+    ],
+)
+
+prefix_rule(
+    pattern = ["tools/git-hooks/pre-commit"],
+    decision = "allow",
+    justification = "Run the repository's tracked pre-commit validation gate.",
+    match = [
+        "tools/git-hooks/pre-commit",
+    ],
+    not_match = [
+        "git commit",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "add"],
+    decision = "allow",
+    justification = "Update this repository's Git index without a repeated approval prompt.",
+    match = [
+        "git add -A",
+        "git add src/bridge/browser_assets.cc",
+    ],
+    not_match = [
+        "git commit",
+        "git reset --hard HEAD~1",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "commit"],
+    decision = "allow",
+    justification = "Create a requested local commit; repository instructions still control when commits are in scope.",
+    match = [
+        "git commit -m \"Fix browser terminal rendering\"",
+    ],
+    not_match = [
+        "git push",
+        "git reset --hard HEAD~1",
+    ],
+)
+
+prefix_rule(
+    pattern = [
+        "install",
+        "-m",
+        "755",
+        "tools/git-hooks/pre-commit",
+        ".git/hooks/pre-commit",
+    ],
+    decision = "allow",
+    justification = "Install the tracked repository hook into this worktree's Git metadata.",
+    match = [
+        "install -m 755 tools/git-hooks/pre-commit .git/hooks/pre-commit",
+    ],
+    not_match = [
+        "install -m 755 tools/git-hooks/pre-commit /usr/local/bin/pre-commit",
+    ],
+)
+
+prefix_rule(
+    pattern = ["ps", "-eo", "pid,ppid,stat,comm,args"],
+    decision = "allow",
+    justification = "Inspect host process state while diagnosing Bazel and bridge processes.",
+    match = [
+        "ps -eo pid,ppid,stat,comm,args",
+        "ps -eo pid,ppid,stat,comm,args | rg parent_ws_bridge",
+    ],
+    not_match = [
+        "kill 1234",
+    ],
+)
+
+prefix_rule(
+    pattern = [
+        "systemctl",
+        "--user",
+        ["status", "show", "is-active"],
+        "my-opiniated-editor-bridge.service",
+    ],
+    decision = "allow",
+    justification = "Read the status of this repository's user bridge service.",
+    match = [
+        "systemctl --user status my-opiniated-editor-bridge.service --no-pager",
+        "systemctl --user show my-opiniated-editor-bridge.service --property=MainPID",
+        "systemctl --user is-active my-opiniated-editor-bridge.service",
+    ],
+    not_match = [
+        "systemctl --user status another.service",
+        "systemctl --user stop my-opiniated-editor-bridge.service",
+    ],
+)
+
+prefix_rule(
+    pattern = ["tools/bridge/restart_bridge.sh"],
+    decision = "allow",
+    justification = "Build and restart only this repository's user bridge service through its tracked helper.",
+    match = [
+        "tools/bridge/restart_bridge.sh",
+    ],
+    not_match = [
+        "systemctl --user restart another.service",
+    ],
+)
