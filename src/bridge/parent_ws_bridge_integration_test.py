@@ -94,8 +94,10 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('event.code === "KeyW" || event.key === "W"', client_js)
     test_case.assertIn('sendCommand("3", "")', client_js)
     test_case.assertIn("toggleWorktreeManager()", client_js)
+    test_case.assertIn('sendCommand("4", "")', client_js)
+    test_case.assertIn("toggleWorktreePicker()", client_js)
     test_case.assertNotIn('sendCommand("0", "\\x03")', client_js)
-    test_case.assertIn('statusNote = "tray find not implemented"', client_js)
+    test_case.assertNotIn("tray find not implemented", client_js)
     test_case.assertIn('event.key === "Tab"', client_js)
     test_case.assertIn('event.code === "Tab"', client_js)
     test_case.assertIn("event.keyCode === 9", client_js)
@@ -205,6 +207,25 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             output = client.read_terminal_output_until("Repository root:")
             self.assertIn("Worktrees | Add repository", output)
             client.open_worktree_manager()
+            redraw = client.read_terminal_output_until("\x1b[H\x1b[2J")
+            self.assertIn("\x1b[H\x1b[2J", redraw)
+        finally:
+            if client is not None:
+                client.close()
+            stop_bridge(process)
+
+    def test_worktree_picker_control_opens_and_cancels_parent_overlay(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.toggle_worktree_picker()
+            output = client.read_terminal_output_until("Worktree picker")
+            self.assertIn("Worktree picker", output)
+            client.toggle_worktree_picker()
             redraw = client.read_terminal_output_until("\x1b[H\x1b[2J")
             self.assertIn("\x1b[H\x1b[2J", redraw)
         finally:

@@ -24,6 +24,26 @@ cc_library(
     srcs = ["worktree_repository_registrar.cc"],
     hdrs = ["worktree_repository_registrar.h"],
     deps = [
+        ":git_worktree_list",
+        ":worktree_registry_store",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_library(
+    name = "git_worktree_list",
+    srcs = ["git_worktree_list.cc"],
+    hdrs = ["git_worktree_list.h"],
+)
+
+cc_library(
+    name = "worktree_candidate_finder",
+    srcs = ["worktree_candidate_finder.cc"],
+    hdrs = ["worktree_candidate_finder.h"],
+    deps = [
+        ":git_worktree_list",
         ":worktree_registry_store",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
@@ -41,11 +61,14 @@ cc_library(
         "tray_manager.cc",
         "tray_number.cc",
         "worktree_management_overlay.cc",
+        "worktree_picker_overlay.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
         "content_pty_session.h",
+        "overlay.h",
         "terminal_screen.h",
+        "terminal_position.h",
         "tray.h",
         "tray_config.h",
         "tray_id.h",
@@ -54,6 +77,7 @@ cc_library(
         "tray_output_source.h",
         "tray_snapshot.h",
         "worktree_management_overlay.h",
+        "worktree_picker_overlay.h",
         "workspace_parent.h",
     ],
     deps = [
@@ -62,6 +86,7 @@ cc_library(
         "//src/base:process_id",
         ":worktree_registry_store",
         ":worktree_repository_registrar",
+        ":worktree_candidate_finder",
         "//third_party/system:libvterm_neovim",
         "//third_party/system:libutil",
     ],
@@ -124,6 +149,18 @@ cc_test(
     deps = [
         ":worktree_registry_store",
         ":worktree_repository_registrar",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_candidate_finder_test",
+    srcs = ["worktree_candidate_finder_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_candidate_finder",
+        ":worktree_registry_store",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],

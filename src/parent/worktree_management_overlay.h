@@ -11,10 +11,11 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/parent/content_pty_session.h"
+#include "src/parent/overlay.h"
 
 namespace moe::parent {
 
-class WorktreeManagementOverlay {
+class WorktreeManagementOverlay : public Overlay {
  public:
   static std::unique_ptr<WorktreeManagementOverlay> start(std::filesystem::path parent_executable,
                                                           std::filesystem::path registry_path,
@@ -23,15 +24,15 @@ class WorktreeManagementOverlay {
 
   WorktreeManagementOverlay(WorktreeManagementOverlay const&) = delete;
   WorktreeManagementOverlay& operator=(WorktreeManagementOverlay const&) = delete;
-  ~WorktreeManagementOverlay();
+  ~WorktreeManagementOverlay() override;
 
-  void write_input(std::string_view bytes);
-  [[nodiscard]] bool read_process_output();
-  [[nodiscard]] bool refresh_process_state();
-  void resize(TerminalSize size);
+  void write_input(std::string_view bytes) override;
+  [[nodiscard]] bool read_process_output() override;
+  [[nodiscard]] bool refresh_process_state() override;
+  void resize(TerminalSize size) override;
 
-  [[nodiscard]] std::optional<base::FileDescriptor> process_file_descriptor() const;
-  [[nodiscard]] std::string redraw_output() const;
+  [[nodiscard]] std::optional<base::FileDescriptor> process_file_descriptor() const override;
+  [[nodiscard]] std::string redraw_output() const override;
 
  private:
   enum class Stage : std::uint8_t {

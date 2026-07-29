@@ -76,6 +76,9 @@ class WebSocketClient:
     def open_worktree_manager(self):
         self.send_binary(b"3")
 
+    def toggle_worktree_picker(self):
+        self.send_binary(b"4")
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 
@@ -200,6 +203,7 @@ def start_bridge(port: int, extra_args: list[str] | None = None) -> subprocess.P
     environment["XDG_STATE_HOME"] = os.path.join(
         os.environ["TEST_TMPDIR"], f"bridge-state-{port}"
     )
+    environment["MOE_FZF_EXECUTABLE"] = runfile_path("test/fixtures/fake_fzf")
     command = [
         runfile_path("src/bridge/parent_ws_bridge"),
         "--port",

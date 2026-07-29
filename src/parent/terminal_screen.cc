@@ -503,16 +503,19 @@ bool should_erase_to_end_of_line(int const cols, VTermScreenCell const* const ce
 }
 
 std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells,
-                                   RowFillStyles const* const row_fill_styles = nullptr) {
+                                   RowFillStyles const* const row_fill_styles = nullptr,
+                                   bool const allow_erase_to_end_of_line = true) {
   int const last_rendered = last_rendered_cell_index(cols, cells, row_fill_styles);
   if (last_rendered < 0) {
     return "";
   }
 
   int const last_text = last_text_cell_index(cols, cells);
-  bool const erase_to_end_of_line = should_erase_to_end_of_line(
-      cols, cells, row_fill_styles,
-      SnapshotLineBounds{.last_rendered = last_rendered, .last_text = last_text});
+  bool const erase_to_end_of_line =
+      allow_erase_to_end_of_line &&
+      should_erase_to_end_of_line(
+          cols, cells, row_fill_styles,
+          SnapshotLineBounds{.last_rendered = last_rendered, .last_text = last_text});
   int const last_cell_to_write = erase_to_end_of_line ? last_text : last_rendered;
 
   std::string line;
@@ -909,6 +912,36 @@ std::string TerminalScreen::render_snapshot() const {
   return output;
 }
 
+std::string TerminalScreen::render_region_snapshot(TerminalPosition const origin) const {
+  std::string output(HIDE_CURSOR);
+  output.append(DISABLE_AUTOWRAP);
+  std::string const blank_line(static_cast<std::size_t>(screen_size.cols), ' ');
+  for (int row = 0; row < screen_size.rows; ++row) {
+    TerminalPosition const output_position{
+        .row = origin.row + row,
+        .column = origin.column,
+    };
+    output.append(cursor_position_sequence(output_position.row, output_position.column));
+    output.append("\x1b[0m");
+    output.append(blank_line);
+
+    std::string const line = screen_row_snapshot_line(row, false);
+    if (!line.empty()) {
+      output.append(cursor_position_sequence(output_position.row, output_position.column));
+      output.append(line);
+    }
+  }
+
+  VTermPos cursor{};
+  vterm_state_get_cursorpos(state, &cursor);
+  output.append(
+      cursor_position_sequence(origin.row + clamp_to_screen(cursor.row, screen_size.rows),
+                               origin.column + clamp_to_screen(cursor.col, screen_size.cols)));
+  output.append(ENABLE_AUTOWRAP);
+  output.append(cursor_visible ? SHOW_CURSOR : HIDE_CURSOR);
+  return output;
+}
+
 void TerminalScreen::push_scrollback_line(int const cols, void const* const cells) {
   scrollback_lines.push_back(
       cells_to_snapshot_line(cols, static_cast<VTermScreenCell const*>(cells)));
@@ -919,13 +952,15 @@ void TerminalScreen::push_scrollback_line(int const cols, void const* const cell
 
 void TerminalScreen::clear_scrollback() { scrollback_lines.clear(); }
 
-std::string TerminalScreen::screen_row_snapshot_line(int const row) const {
+std::string TerminalScreen::screen_row_snapshot_line(int const row,
+                                                     bool const allow_erase_to_end_of_line) const {
   std::vector<VTermScreenCell> cells(static_cast<std::size_t>(screen_size.cols));
   for (int col = 0; col < screen_size.cols; ++col) {
     static_cast<void>(vterm_screen_get_cell(screen, VTermPos{.row = row, .col = col},
                                             &cells[static_cast<std::size_t>(col)]));
   }
-  return cells_to_snapshot_line(screen_size.cols, cells.data(), line_fill_tracker->row(row));
+  return cells_to_snapshot_line(screen_size.cols, cells.data(), line_fill_tracker->row(row),
+                                allow_erase_to_end_of_line);
 }
 
 std::string TerminalScreen::cursor_position_sequence(int const row, int const col) {

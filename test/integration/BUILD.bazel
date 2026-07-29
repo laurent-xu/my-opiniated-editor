@@ -10,6 +10,7 @@ py_test(
     srcs = ["workspace_parent_pty_test.py"],
     data = [
         "//src/parent:workspace_parent",
+        "//test/fixtures:fake_fzf",
         "//test/fixtures:fake_git",
     ],
     tags = ["integration"],

@@ -202,4 +202,17 @@ TEST(TerminalScreenTest, RedrawPreservesReverseScreenAndCursorVisibility) {
   EXPECT_LT(hide_cursor, text);
 }
 
+TEST(TerminalScreenTest, RegionRedrawOffsetsRowsAndDoesNotEraseOutsideRegion) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 2, .cols = 5});
+  screen.ingest("\x1b[48;5;42m>\x1b[K\x1b[0m");
+
+  std::string const redraw =
+      screen.render_region_snapshot(moe::parent::TerminalPosition{.row = 4, .column = 2});
+
+  EXPECT_NE(redraw.find("\x1b[5;3H"), std::string::npos);
+  EXPECT_NE(redraw.find("48;5;42m>    \x1b[0m"), std::string::npos);
+  EXPECT_EQ(redraw.find("\x1b[2J"), std::string::npos);
+  EXPECT_EQ(redraw.find("\x1b[K"), std::string::npos);
+}
+
 }  // namespace

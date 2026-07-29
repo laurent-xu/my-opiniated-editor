@@ -28,7 +28,8 @@ Current owned bridge endpoints:
   output frames use command byte `0`; resize frames use command byte `1` plus
   JSON `{columns, rows}`. Anonymous tray switching uses command byte `2` plus
   JSON `{tray}`. Toggling the active tray's parent-owned worktree manager uses
-  command byte `3` with an empty payload.
+  command byte `3` with an empty payload. Toggling the parent-owned worktree
+  picker uses command byte `4` with an empty payload.
 - When `--token` is configured, `/`, `/health`, and `/ws` require the token.
   The browser client carries it from `/?token=<token>` to `/ws?token=<token>`.
   Static `/client.js` and `/style.css` are not sensitive and remain fetchable

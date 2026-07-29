@@ -1,4 +1,5 @@
 import fcntl
+import json
 import os
 import pty
 import re
@@ -70,8 +71,15 @@ def worktree_test_environment(name: str) -> dict[str, str]:
         os.environ["TEST_TMPDIR"], name, "state"
     )
     environment["MOE_GIT_EXECUTABLE"] = runfile_path("test/fixtures/fake_git")
+    environment["MOE_FZF_EXECUTABLE"] = runfile_path("test/fixtures/fake_fzf")
     environment["MOE_FAKE_GIT_LOG"] = os.path.join(
         os.environ["TEST_TMPDIR"], name, "git.log"
+    )
+    environment["MOE_FAKE_FZF_CANDIDATES_LOG"] = os.path.join(
+        os.environ["TEST_TMPDIR"], name, "fzf-candidates.log"
+    )
+    environment["MOE_FAKE_FZF_INPUT_LOG"] = os.path.join(
+        os.environ["TEST_TMPDIR"], name, "fzf-input.log"
     )
     environment.pop("MOE_FAKE_GIT_FAIL_OPERATION", None)
     environment.pop("MOE_FAKE_GIT_DEFAULT_BRANCH", None)
@@ -408,6 +416,130 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             read_until(master_fd, "> tray-one-input")
             os.write(master_fd, b"\x18w")
             read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_worktree_picker_switches_to_existing_worktree_and_reuses_its_tray(self):
+        test_root = os.path.join(os.environ["TEST_TMPDIR"], "pick-existing")
+        repository = os.path.join(test_root, "repository")
+        main_worktree = os.path.join(repository, "main")
+        feature_worktree = os.path.join(repository, "feature")
+        os.makedirs(os.path.join(repository, ".bare"))
+        os.makedirs(os.path.join(main_worktree, ".git"))
+        os.makedirs(os.path.join(feature_worktree, ".git"))
+        with open(os.path.join(repository, ".git"), "w", encoding="utf-8") as output:
+            output.write("gitdir: ./.bare\n")
+
+        environment = worktree_test_environment("pick-existing")
+        environment["MOE_FAKE_GIT_WORKTREE_LIST"] = (
+            f"worktree {repository}/.bare\n"
+            "HEAD 111\n"
+            "bare\n"
+            "\n"
+            f"worktree {feature_worktree}\n"
+            "HEAD 222\n"
+            "branch refs/heads/feature\n"
+            "\n"
+            f"worktree {main_worktree}\n"
+            "HEAD 333\n"
+            "branch refs/heads/main\n"
+            "\n"
+        )
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=environment,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "Repository root:")
+            os.write(master_fd, repository.encode() + b"\r")
+            read_until(master_fd, "Completed")
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+
+            os.write(master_fd, b"\x18t")
+            read_until(master_fd, "Worktree picker")
+            with open(
+                environment["MOE_FAKE_FZF_CANDIDATES_LOG"], encoding="utf-8"
+            ) as candidate_log:
+                candidates = json.loads(candidate_log.readline())
+            self.assertEqual(candidates, [feature_worktree, main_worktree])
+            os.write(master_fd, b"\x1b[B\r")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, b"pwd\n")
+            selected_pwd = read_until(master_fd, main_worktree)
+            self.assertIn(main_worktree, selected_pwd)
+
+            os.write(master_fd, b"export MOE_WORKTREE_TRAY_MARKER=reused\n")
+            os.write(master_fd, shell_marker_command("__moe_worktree_exported__"))
+            read_until(master_fd, "__moe_worktree_exported__")
+            os.write(master_fd, b"\x181")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+
+            os.write(master_fd, b"\x18t")
+            read_until(master_fd, "Worktree picker")
+            os.write(master_fd, b"\x1b[B\r")
+            read_until(master_fd, "__moe_worktree_exported__")
+            os.write(
+                master_fd,
+                b"printf '__moe_reused_%s__\\n' \"$MOE_WORKTREE_TRAY_MARKER\"\n",
+            )
+            reused = read_until(master_fd, "__moe_reused_reused__")
+            self.assertIn("__moe_reused_reused__", reused)
+
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_worktree_picker_cancel_redraws_drained_tray_without_forwarding_command(
+        self,
+    ):
+        environment = worktree_test_environment("cancel-picker")
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=environment,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(
+                master_fd,
+                b"sleep 0.2; printf '__moe_hidden_while_picker__\\n'\n\x18t",
+            )
+            read_until(master_fd, "Worktree picker")
+            time.sleep(0.4)
+
+            os.write(master_fd, b"\x18t")
+            redraw = read_until(master_fd, "__moe_hidden_while_picker__")
+            self.assertIn("\x1b[H\x1b[2J", redraw)
+
+            os.write(master_fd, shell_marker_command("__moe_after_picker_cancel__"))
+            shell_output = read_until(master_fd, "__moe_after_picker_cancel__")
+            self.assertIn("__moe_after_picker_cancel__", shell_output)
+
             os.write(master_fd, b"exit\n")
             self.assertEqual(process.wait(timeout=5), 0)
         finally:

@@ -180,9 +180,11 @@ std::string browser_client_js() {
     sendCommand("2", JSON.stringify({ tray: trayNumber }));
   }
 
-  function showTrayFindPlaceholder() {
-    statusNote = "tray find not implemented";
+  function toggleWorktreePicker() {
+    commandMode = false;
+    statusNote = "";
     renderStatus();
+    sendCommand("4", "");
   }
 
   function toggleWorktreeManager() {
@@ -274,7 +276,7 @@ std::string browser_client_js() {
       return true;
     }
     if (isShiftTKey(event)) {
-      showTrayFindPlaceholder();
+      toggleWorktreePicker();
       return true;
     }
     if (isShiftWKey(event)) {

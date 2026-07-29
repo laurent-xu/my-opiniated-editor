@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "src/parent/content_pty_session.h"
+#include "src/parent/terminal_position.h"
 
 namespace moe::parent {
 
@@ -25,6 +26,7 @@ class TerminalScreen {
   void ingest(std::string_view bytes);
   void resize(TerminalSize size);
   [[nodiscard]] std::string render_snapshot() const;
+  [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin) const;
 
  private:
   struct VTermDeleter {
@@ -37,7 +39,8 @@ class TerminalScreen {
   void ingest_complete_input(std::string_view bytes);
   void feed_input_to_vterm(std::string_view bytes);
   void record_erase_for_snapshot(char command, VTermPos cursor, int mode);
-  [[nodiscard]] std::string screen_row_snapshot_line(int row) const;
+  [[nodiscard]] std::string screen_row_snapshot_line(int row,
+                                                     bool allow_erase_to_end_of_line = true) const;
   [[nodiscard]] static std::string cursor_position_sequence(int row, int col);
   [[nodiscard]] static VTermScreenCallbacks const& screen_callbacks();
   static int move_rect_callback(VTermRect dest, VTermRect src, void* user);

@@ -13,6 +13,8 @@ The current implementation already provides:
 - One content PTY and terminal screen model per tray.
 - Nine anonymous trays selected through escape mode.
 - Worktree tray identities and shells rooted in a selected worktree.
+- A persistent protobuf registry and per-tray repository-management overlays.
+- A parent-owned fzf picker for switching to available tracked worktrees.
 
 Each milestone below produces one commit. After its tests pass, stop for manual
 review before starting the next milestone.
@@ -30,7 +32,8 @@ The worktree management overlay ultimately provides:
 
 Opening an interactive overlay leaves command mode so typing, arrows, and Enter
 are routed to the overlay. `Esc` continues to toggle command mode without
-closing the overlay. From command mode, `Shift+W` closes it.
+closing the overlay. From command mode, `Shift+W` closes the repository manager
+and `Shift+T` cancels the worktree picker.
 
 Each tray owns its worktree-management overlay state. Switching trays hides the
 previous tray's overlay without destroying it; switching back redraws the tray
@@ -260,17 +263,26 @@ browser
 bridge
   -> parent control command
 workspace parent
-  -> overlay lifecycle and input routing
+  -> shared Overlay lifecycle, command-mode routing, and pane redraw
 worktree workflow
-  -> Git commands and validation
+  -> registry/live-Git candidate intersection and validation
 worktree registry store
   -> protobuf loading and atomic persistence
 tray manager
   -> running tray and content-PTY lifecycle
 ```
 
-The overlay may own a temporary picker PTY. It does not own trays, Git state, or
-persistence, which keeps it suitable for later pane-level selectors.
+The repository manager and worktree picker implement the same `Overlay`
+interaction contract. The repository manager owns its small form editor. The
+worktree picker owns a temporary fzf PTY and terminal screen because fzf handles
+its own query text and arrow input. Command mode remains above both overlays, so
+entering it never leaks Escape into either child surface.
+
+The picker terminal is constrained to a bottom pane. Its bytes are interpreted
+by a dedicated terminal screen and redrawn only inside that region; full-screen
+fzf control sequences cannot erase the tray behind it. The picker does not own
+trays, Git state, or persistence, which keeps it suitable for later pane-level
+selectors.
 
 ## Verification Gate
 

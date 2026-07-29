@@ -22,6 +22,7 @@
 #include "src/base/file_descriptor.h"
 #include "src/base/owned_file_descriptor.h"
 #include "src/base/process_id.h"
+#include "src/parent/git_worktree_list.h"
 #include "src/parent/worktree_registry_store.h"
 
 namespace moe::parent {
@@ -190,58 +191,6 @@ void write_git_pointer(std::filesystem::path const& root) {
   if (!output) {
     throw std::runtime_error("failed to write repository .git pointer: " + pointer_path.string());
   }
-}
-
-std::vector<std::filesystem::path> parse_worktree_porcelain(std::string const& output) {
-  std::vector<std::filesystem::path> worktrees;
-  std::optional<std::filesystem::path> worktree_path;
-  bool bare = false;
-  bool prunable = false;
-
-  auto finish_record = [&]() {
-    if (worktree_path.has_value() && !bare && !prunable) {
-      std::filesystem::path const normalized =
-          normalized_absolute_path(*worktree_path, "git worktree path");
-      std::error_code error;
-      bool const available = std::filesystem::is_directory(normalized, error);
-      if (error != std::error_code{}) {
-        throw std::filesystem::filesystem_error("inspect git worktree", normalized, error);
-      }
-      if (available) {
-        worktrees.push_back(normalized);
-      }
-    }
-    worktree_path.reset();
-    bare = false;
-    prunable = false;
-  };
-
-  std::size_t start = 0;
-  while (start <= output.size()) {
-    std::size_t const end = output.find('\0', start);
-    std::string_view const field(output.data() + start,
-                                 (end == std::string::npos ? output.size() : end) - start);
-    if (field.empty()) {
-      finish_record();
-    } else if (field.starts_with("worktree ")) {
-      worktree_path = std::filesystem::path(field.substr(9));
-    } else if (field == "bare") {
-      bare = true;
-    } else if (field.starts_with("prunable")) {
-      prunable = true;
-    }
-
-    if (end == std::string::npos) {
-      break;
-    }
-    start = end + 1;
-  }
-  finish_record();
-
-  std::ranges::sort(worktrees);
-  auto const unique_end = std::ranges::unique(worktrees).begin();
-  worktrees.erase(unique_end, worktrees.end());
-  return worktrees;
 }
 
 void merge_repository(persistence::WorktreeRegistry& registry,
@@ -417,7 +366,7 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
                    "--porcelain", "-z"},
                   true);
   require_success(worktree_list, "list repository worktrees");
-  merge_repository(registry, root, parse_worktree_porcelain(worktree_list.standard_output));
+  merge_repository(registry, root, available_git_worktree_paths(worktree_list.standard_output));
 
   try {
     store.save(registry);
