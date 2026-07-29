@@ -64,6 +64,21 @@ def set_pty_size(fd: int, rows: int, cols: int):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
 
+def worktree_test_environment(name: str) -> dict[str, str]:
+    environment = dict(os.environ)
+    environment["XDG_STATE_HOME"] = os.path.join(
+        os.environ["TEST_TMPDIR"], name, "state"
+    )
+    environment["MOE_GIT_EXECUTABLE"] = runfile_path("test/fixtures/fake_git")
+    environment["MOE_FAKE_GIT_LOG"] = os.path.join(
+        os.environ["TEST_TMPDIR"], name, "git.log"
+    )
+    environment.pop("MOE_FAKE_GIT_FAIL_OPERATION", None)
+    environment.pop("MOE_FAKE_GIT_DEFAULT_BRANCH", None)
+    environment.pop("MOE_FAKE_GIT_WORKTREE_LIST", None)
+    return environment
+
+
 class WorkspaceParentPtyTest(unittest.TestCase):
     def test_parent_process_renders_child_shell_pty(self):
         master_fd, slave_fd = pty.openpty()
@@ -236,6 +251,163 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             terminal_type = read_until(master_fd, "xterm-256color")
             self.assertIn("xterm-256color", terminal_type)
 
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_worktree_manager_registers_existing_bare_root(self):
+        test_root = os.path.join(os.environ["TEST_TMPDIR"], "register-existing")
+        repository = os.path.join(test_root, "repository")
+        worktree = os.path.join(repository, "main")
+        os.makedirs(os.path.join(repository, ".bare"))
+        os.makedirs(worktree)
+        with open(os.path.join(repository, ".git"), "w", encoding="utf-8") as output:
+            output.write("gitdir: ./.bare\n")
+
+        environment = worktree_test_environment("register-existing")
+        environment["MOE_FAKE_GIT_WORKTREE_LIST"] = (
+            f"worktree {repository}/.bare\n"
+            "HEAD 111\n"
+            "bare\n"
+            "\n"
+            f"worktree {worktree}\n"
+            "HEAD 222\n"
+            "branch refs/heads/main\n"
+            "\n"
+        )
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=environment,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "Repository root:")
+            repository_with_typo = repository.removesuffix("repository") + "reposiory"
+            os.write(
+                master_fd,
+                repository_with_typo.encode() + b"\x1b[D\x1b[D\x1b[Dt\r",
+            )
+            result = read_until(master_fd, "Completed")
+            self.assertIn("Repository registered", result)
+
+            registry_path = os.path.join(
+                environment["XDG_STATE_HOME"],
+                "my-opiniated-editor",
+                "worktrees.pb",
+            )
+            self.assertTrue(os.path.isfile(registry_path))
+            self.assertGreater(os.path.getsize(registry_path), 0)
+
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, shell_marker_command("__moe_after_worktree_overlay__"))
+            shell_output = read_until(master_fd, "__moe_after_worktree_overlay__")
+            self.assertIn("__moe_after_worktree_overlay__", shell_output)
+
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_worktree_manager_creates_new_bare_root(self):
+        test_root = os.path.join(os.environ["TEST_TMPDIR"], "create-repository")
+        repository = os.path.join(test_root, "repository")
+        os.makedirs(test_root)
+        environment = worktree_test_environment("create-repository")
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=environment,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "Repository root:")
+            os.write(master_fd, repository.encode() + b"\r")
+            read_until(master_fd, "Clone URL:")
+            os.write(master_fd, b"ssh://example.invalid/repository.git\r")
+            result = read_until(master_fd, "Completed")
+            self.assertIn("Repository registered", result)
+
+            self.assertTrue(os.path.isdir(os.path.join(repository, ".bare")))
+            with open(os.path.join(repository, ".git"), encoding="utf-8") as pointer:
+                self.assertEqual(pointer.read(), "gitdir: ./.bare\n")
+
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_worktree_manager_is_retained_by_each_tray_until_toggled_closed(self):
+        environment = worktree_test_environment("per-tray-worktree-manager")
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=environment,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "Repository root:")
+            os.write(master_fd, b"tray-one-input")
+            read_until(master_fd, "> tray-one-input")
+
+            os.write(master_fd, b"\x182")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "Repository root:")
+            os.write(master_fd, b"tray-two-input")
+            read_until(master_fd, "> tray-two-input")
+
+            os.write(master_fd, b"\x181")
+            tray_one = read_until(master_fd, "> tray-one-input")
+            self.assertIn("\x1b[H\x1b[2J", tray_one)
+
+            os.write(master_fd, b"\x182")
+            tray_two = read_until(master_fd, "> tray-two-input")
+            self.assertIn("\x1b[H\x1b[2J", tray_two)
+
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, shell_marker_command("__moe_tray_two_after_close__"))
+            read_until(master_fd, "__moe_tray_two_after_close__")
+
+            os.write(master_fd, b"\x181")
+            read_until(master_fd, "> tray-one-input")
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "\x1b[H\x1b[2J")
             os.write(master_fd, b"exit\n")
             self.assertEqual(process.wait(timeout=5), 0)
         finally:

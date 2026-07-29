@@ -101,6 +101,11 @@ void switch_parent_tray(ParentPtySession const& session, int const tray_number) 
   session.write(std::string_view(command.data(), command.size()));
 }
 
+void open_parent_worktree_manager(ParentPtySession const& session) {
+  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, 'w'};
+  session.write(std::string_view(command.data(), command.size()));
+}
+
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
   if (payload.empty()) {
     return;
@@ -118,6 +123,10 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
   }
   if (command == '2') {
     switch_parent_tray(session, parse_tray_switch_payload(data));
+    return;
+  }
+  if (command == '3') {
+    open_parent_worktree_manager(session);
   }
 }
 

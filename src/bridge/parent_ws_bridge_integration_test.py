@@ -56,7 +56,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("lineHeight: 1.15", client_js)
     test_case.assertIn("new WebglAddon.WebglAddon()", client_js)
     test_case.assertIn("terminal.loadAddon(webglAddon)", client_js)
-    test_case.assertIn("console.warn(\"WebGL terminal renderer unavailable\"", client_js)
+    test_case.assertIn('console.warn("WebGL terminal renderer unavailable"', client_js)
     test_case.assertIn(
         "new WebSocket(`${protocol}//${window.location.host}${websocketPath}`",
         client_js,
@@ -71,6 +71,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('document.addEventListener("keydown"', client_js)
     test_case.assertIn("let activeTrayNumber = 1", client_js)
     test_case.assertIn("let commandMode = false", client_js)
+    test_case.assertNotIn("let worktreeManagerOpen", client_js)
     test_case.assertIn('parts.push("command")', client_js)
     test_case.assertIn(
         'sendCommand("2", JSON.stringify({ tray: trayNumber }))', client_js
@@ -86,11 +87,14 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     )
     test_case.assertIn('event.key === "Escape"', client_js)
     test_case.assertIn("setCommandMode(!commandMode)", client_js)
-    test_case.assertNotIn('sendCommand("0", "\\x1b")', client_js)
     test_case.assertIn('event.key === "Shift"', client_js)
     test_case.assertIn("isModifierOnlyKey(event)", client_js)
     test_case.assertIn('/^Digit([1-9])$/.exec(event.code || "")', client_js)
     test_case.assertIn('event.code === "KeyT" || event.key === "T"', client_js)
+    test_case.assertIn('event.code === "KeyW" || event.key === "W"', client_js)
+    test_case.assertIn('sendCommand("3", "")', client_js)
+    test_case.assertIn("toggleWorktreeManager()", client_js)
+    test_case.assertNotIn('sendCommand("0", "\\x03")', client_js)
     test_case.assertIn('statusNote = "tray find not implemented"', client_js)
     test_case.assertIn('event.key === "Tab"', client_js)
     test_case.assertIn('event.code === "Tab"', client_js)
@@ -184,6 +188,25 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
                 "__moe_tray1_tray_one__"
             )
             self.assertIn("__moe_tray1_tray_one__", tray_one_output)
+        finally:
+            if client is not None:
+                client.close()
+            stop_bridge(process)
+
+    def test_worktree_manager_control_opens_parent_overlay(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.open_worktree_manager()
+            output = client.read_terminal_output_until("Repository root:")
+            self.assertIn("Worktrees | Add repository", output)
+            client.open_worktree_manager()
+            redraw = client.read_terminal_output_until("\x1b[H\x1b[2J")
+            self.assertIn("\x1b[H\x1b[2J", redraw)
         finally:
             if client is not None:
                 client.close()

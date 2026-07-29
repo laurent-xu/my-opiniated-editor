@@ -20,6 +20,18 @@ cc_library(
 )
 
 cc_library(
+    name = "worktree_repository_registrar",
+    srcs = ["worktree_repository_registrar.cc"],
+    hdrs = ["worktree_repository_registrar.h"],
+    deps = [
+        ":worktree_registry_store",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
@@ -28,6 +40,7 @@ cc_library(
         "tray_id.cc",
         "tray_manager.cc",
         "tray_number.cc",
+        "worktree_management_overlay.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
@@ -40,12 +53,15 @@ cc_library(
         "tray_number.h",
         "tray_output_source.h",
         "tray_snapshot.h",
+        "worktree_management_overlay.h",
         "workspace_parent.h",
     ],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
+        ":worktree_registry_store",
+        ":worktree_repository_registrar",
         "//third_party/system:libvterm_neovim",
         "//third_party/system:libutil",
     ],
@@ -99,4 +115,16 @@ cc_test(
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
+)
+
+cc_test(
+    name = "worktree_repository_registrar_test",
+    srcs = ["worktree_repository_registrar_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_registry_store",
+        ":worktree_repository_registrar",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
 )

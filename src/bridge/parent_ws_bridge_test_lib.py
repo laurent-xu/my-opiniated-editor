@@ -73,6 +73,9 @@ class WebSocketClient:
         payload = json.dumps({"tray": tray_number}, separators=(",", ":")).encode()
         self.send_binary(b"2" + payload)
 
+    def open_worktree_manager(self):
+        self.send_binary(b"3")
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 
@@ -193,6 +196,10 @@ def fetch_text(port: int, path: str) -> str:
 
 
 def start_bridge(port: int, extra_args: list[str] | None = None) -> subprocess.Popen:
+    environment = dict(os.environ)
+    environment["XDG_STATE_HOME"] = os.path.join(
+        os.environ["TEST_TMPDIR"], f"bridge-state-{port}"
+    )
     command = [
         runfile_path("src/bridge/parent_ws_bridge"),
         "--port",
@@ -211,6 +218,7 @@ def start_bridge(port: int, extra_args: list[str] | None = None) -> subprocess.P
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        env=environment,
     )
 
 

@@ -22,6 +22,9 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/parent/tray_manager.h"
+#include "src/parent/worktree_management_overlay.h"
+#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree_repository_registrar.h"
 
 namespace moe::parent {
 namespace {
@@ -125,39 +128,85 @@ void write_all(base::FileDescriptor const output, std::string_view bytes) {
   }
 }
 
-void write_input_byte(TrayManager& trays, unsigned char const byte) {
-  char const value = static_cast<char>(byte);
-  trays.write_input(std::string_view(&value, 1));
+void write_active_surface_input(TrayManager& trays, std::string_view const bytes) {
+  WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
+  if (overlay != nullptr) {
+    overlay->write_input(bytes);
+    return;
+  }
+  trays.write_input(bytes);
 }
 
-void redraw_active_tray(TrayManager const& trays) {
+void write_active_surface_input_byte(TrayManager& trays, unsigned char const byte) {
+  char const value = static_cast<char>(byte);
+  write_active_surface_input(trays, std::string_view(&value, 1));
+}
+
+void redraw_active_surface(TrayManager const& trays) {
   write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_redraw_output());
+  WorktreeManagementOverlay const* const overlay = trays.active_worktree_management_overlay();
+  if (overlay != nullptr) {
+    write_all(PARENT_OUTPUT_DESCRIPTOR, overlay->redraw_output());
+  }
 }
 
 bool is_anonymous_tray_command(unsigned char const byte) { return byte >= '1' && byte <= '9'; }
 
-void handle_tray_command_byte(TrayManager& trays, unsigned char const byte) {
+std::filesystem::path current_parent_executable() {
+  std::error_code error;
+  std::filesystem::path const executable = std::filesystem::read_symlink("/proc/self/exe", error);
+  if (error != std::error_code{}) {
+    throw std::filesystem::filesystem_error("resolve workspace parent executable", "/proc/self/exe",
+                                            error);
+  }
+  return executable;
+}
+
+void toggle_worktree_management_overlay(TrayManager& trays,
+                                        std::filesystem::path const& parent_executable,
+                                        TerminalSize const size) {
+  if (trays.active_worktree_management_overlay() != nullptr) {
+    trays.clear_active_worktree_management_overlay();
+    redraw_active_surface(trays);
+    return;
+  }
+
+  std::filesystem::path const working_directory = trays.active_snapshot().working_directory;
+  trays.set_active_worktree_management_overlay(WorktreeManagementOverlay::start(
+      parent_executable, WorktreeRegistryStore::default_registry_path(), working_directory, size));
+  redraw_active_surface(trays);
+}
+
+void handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
+                              std::filesystem::path const& parent_executable,
+                              TerminalSize const size) {
   if (is_anonymous_tray_command(byte)) {
     std::optional<TrayNumber> const number = TrayNumber::from_int(static_cast<int>(byte - '0'));
     if (number.has_value()) {
       static_cast<void>(trays.switch_to(*number));
-      redraw_active_tray(trays);
+      redraw_active_surface(trays);
       return;
     }
   }
+  if (byte == 'w') {
+    toggle_worktree_management_overlay(trays, parent_executable, size);
+    return;
+  }
 
-  write_input_byte(trays, TRAY_COMMAND_PREFIX);
-  write_input_byte(trays, byte);
+  write_active_surface_input_byte(trays, TRAY_COMMAND_PREFIX);
+  write_active_surface_input_byte(trays, byte);
 }
 
 void route_parent_input_to_active_tray(TrayManager& trays, std::string_view const bytes,
-                                       ParentInputMode& input_mode) {
+                                       ParentInputMode& input_mode,
+                                       std::filesystem::path const& parent_executable,
+                                       TerminalSize const size) {
   std::string forwarded;
   forwarded.reserve(bytes.size());
 
   auto flush_forwarded = [&]() {
     if (!forwarded.empty()) {
-      trays.write_input(forwarded);
+      write_active_surface_input(trays, forwarded);
       forwarded.clear();
     }
   };
@@ -173,14 +222,20 @@ void route_parent_input_to_active_tray(TrayManager& trays, std::string_view cons
       continue;
     }
 
-    handle_tray_command_byte(trays, byte);
+    handle_tray_command_byte(trays, byte, parent_executable, size);
     input_mode = ParentInputMode::NORMAL;
   }
 
   flush_forwarded();
+  WorktreeManagementOverlay const* const overlay = trays.active_worktree_management_overlay();
+  if (overlay != nullptr) {
+    write_all(PARENT_OUTPUT_DESCRIPTOR, overlay->redraw_output());
+  }
 }
 
-void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& input_mode) {
+void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& input_mode,
+                                         std::filesystem::path const& parent_executable,
+                                         TerminalSize const size) {
   std::array<char, 4096> buffer{};
   ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
   if (read_count <= 0) {
@@ -191,7 +246,8 @@ void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& in
   }
 
   route_parent_input_to_active_tray(
-      trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode);
+      trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode,
+      parent_executable, size);
 }
 
 void draw_tray_output(TrayManager& trays, TrayOutputSource const& source) {
@@ -199,7 +255,8 @@ void draw_tray_output(TrayManager& trays, TrayOutputSource const& source) {
   if (!output.has_value()) {
     return;
   }
-  if (source.tray_id == trays.active_id()) {
+  if (source.tray_id == trays.active_id() &&
+      trays.active_worktree_management_overlay() == nullptr) {
     write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
   }
 }
@@ -210,7 +267,34 @@ void synchronize_active_tray_size_if_changed(TrayManager& trays, TerminalSize& l
     return;
   }
   trays.resize_active(current_size);
+  redraw_active_surface(trays);
   last_size = current_size;
+}
+
+int run_repository_registration_helper(std::span<char*> const arguments) {
+  if (arguments.size() != 4 && arguments.size() != 5) {
+    std::cerr << "usage: workspace_parent --register-worktree-repository "
+                 "<registry-path> <repository-root> [clone-url]\n";
+    return 2;
+  }
+
+  RepositoryRegistrationRequest request{
+      .repository_root = arguments[3],
+      .clone_url = std::nullopt,
+      .registry_path = arguments[2],
+  };
+  if (arguments.size() == 5) {
+    request.clone_url = arguments[4];
+  }
+
+  try {
+    WorktreeRepositoryRegistrar(configured_git_executable())
+        .register_repository(request, std::cout);
+    return 0;
+  } catch (std::exception const& error) {
+    std::cerr << "Repository registration failed: " << error.what() << '\n';
+    return 1;
+  }
 }
 
 }  // namespace
@@ -252,9 +336,11 @@ int run_workspace_parent() {
   RawTerminalModeGuard const raw_terminal(PARENT_INPUT_DESCRIPTOR);
   TerminalSize last_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
   ParentInputMode input_mode = ParentInputMode::NORMAL;
+  std::filesystem::path const working_directory = std::filesystem::current_path();
+  std::filesystem::path const parent_executable = current_parent_executable();
   std::unique_ptr<TrayManager> trays = TrayManager::start(TrayConfig{
       .command = interactive_shell_command(configured_login_shell()),
-      .working_directory = std::filesystem::current_path(),
+      .working_directory = working_directory,
       .initial_size = last_size,
   });
 
@@ -266,10 +352,17 @@ int run_workspace_parent() {
 
     synchronize_active_tray_size_if_changed(*trays, last_size);
 
+    std::vector<TrayOutputSource> overlay_sources =
+        trays->worktree_management_overlay_output_sources();
     std::vector<TrayOutputSource> output_sources = trays->output_sources();
     std::vector<pollfd> descriptors;
-    descriptors.reserve(output_sources.size() + 1);
+    descriptors.reserve(overlay_sources.size() + output_sources.size() + 1);
     descriptors.push_back(readable_descriptor(PARENT_INPUT_DESCRIPTOR));
+    std::size_t const overlay_descriptor_start = descriptors.size();
+    for (TrayOutputSource const& source : overlay_sources) {
+      descriptors.push_back(readable_descriptor(source.file_descriptor));
+    }
+    std::size_t const tray_descriptor_start = descriptors.size();
     for (TrayOutputSource const& source : output_sources) {
       descriptors.push_back(readable_descriptor(source.file_descriptor));
     }
@@ -290,11 +383,29 @@ int run_workspace_parent() {
     synchronize_active_tray_size_if_changed(*trays, last_size);
 
     if ((descriptors[0].revents & POLLIN) != 0) {
-      forward_parent_input_to_active_tray(*trays, input_mode);
+      forward_parent_input_to_active_tray(*trays, input_mode, parent_executable, last_size);
+    }
+
+    for (std::size_t index = 0; index < overlay_sources.size(); ++index) {
+      WorktreeManagementOverlay* const overlay =
+          trays->worktree_management_overlay(overlay_sources[index].tray_id);
+      if (overlay == nullptr) {
+        continue;
+      }
+
+      pollfd const& descriptor = descriptors[overlay_descriptor_start + index];
+      bool changed = false;
+      if ((descriptor.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
+        changed = overlay->read_process_output();
+      }
+      changed = overlay->refresh_process_state() || changed;
+      if (changed && overlay_sources[index].tray_id == trays->active_id()) {
+        write_all(PARENT_OUTPUT_DESCRIPTOR, overlay->redraw_output());
+      }
     }
 
     for (std::size_t index = 0; index < output_sources.size(); ++index) {
-      pollfd const& descriptor = descriptors[index + 1];
+      pollfd const& descriptor = descriptors[tray_descriptor_start + index];
       if ((descriptor.revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
         draw_tray_output(*trays, output_sources[index]);
       }
@@ -302,6 +413,17 @@ int run_workspace_parent() {
   }
 
   return 0;
+}
+
+int run_workspace_parent_command(std::span<char*> const arguments) {
+  if (arguments.size() >= 2 && std::string_view(arguments[1]) == "--register-worktree-repository") {
+    return run_repository_registration_helper(arguments);
+  }
+  if (arguments.size() != 1) {
+    std::cerr << "usage: workspace_parent\n";
+    return 2;
+  }
+  return run_workspace_parent();
 }
 
 int exec_configured_login_shell() {

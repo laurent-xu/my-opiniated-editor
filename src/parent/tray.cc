@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "src/parent/worktree_management_overlay.h"
+
 namespace moe::parent {
 
 std::unique_ptr<Tray> Tray::start(TrayId id, TrayConfig const& config) {
@@ -41,6 +43,9 @@ std::string Tray::redraw_output() const { return terminal_screen.render_snapshot
 void Tray::resize(TerminalSize const size) {
   content->resize(size);
   terminal_screen.resize(size);
+  if (worktree_overlay != nullptr) {
+    worktree_overlay->resize(size);
+  }
 }
 
 std::optional<int> Tray::try_wait_for_exit() noexcept { return content->try_wait_for_exit(); }
@@ -54,6 +59,23 @@ TraySnapshot Tray::snapshot() const {
                       .label = tray_label,
                       .working_directory = cwd,
                       .child_pid = content->child_pid()};
+}
+
+void Tray::set_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay) {
+  if (overlay == nullptr) {
+    throw std::invalid_argument("tray worktree overlay must not be null");
+  }
+  worktree_overlay = std::move(overlay);
+}
+
+void Tray::clear_worktree_management_overlay() { worktree_overlay = nullptr; }
+
+WorktreeManagementOverlay* Tray::worktree_management_overlay() noexcept {
+  return worktree_overlay.get();
+}
+
+WorktreeManagementOverlay const* Tray::worktree_management_overlay() const noexcept {
+  return worktree_overlay.get();
 }
 
 }  // namespace moe::parent

@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+#include "src/parent/worktree_management_overlay.h"
+
 namespace moe::parent {
 namespace {
 
@@ -132,6 +134,51 @@ std::vector<TrayOutputSource> TrayManager::output_sources() const {
     Tray const& tray = *entry.second;
     sources.push_back(
         TrayOutputSource{.tray_id = tray.id(), .file_descriptor = tray.file_descriptor()});
+  }
+  return sources;
+}
+
+void TrayManager::set_active_worktree_management_overlay(
+    std::unique_ptr<WorktreeManagementOverlay> overlay) {
+  mutable_active_tray().set_worktree_management_overlay(std::move(overlay));
+}
+
+void TrayManager::clear_active_worktree_management_overlay() {
+  mutable_active_tray().clear_worktree_management_overlay();
+}
+
+WorktreeManagementOverlay* TrayManager::active_worktree_management_overlay() {
+  return mutable_active_tray().worktree_management_overlay();
+}
+
+WorktreeManagementOverlay const* TrayManager::active_worktree_management_overlay() const {
+  return active_tray().worktree_management_overlay();
+}
+
+WorktreeManagementOverlay* TrayManager::worktree_management_overlay(TrayId const& id) {
+  return mutable_tray(id).worktree_management_overlay();
+}
+
+std::vector<TrayOutputSource> TrayManager::worktree_management_overlay_output_sources() const {
+  std::vector<TrayOutputSource> sources;
+  auto const append_source = [&sources](Tray const& tray) {
+    WorktreeManagementOverlay const* const overlay = tray.worktree_management_overlay();
+    if (overlay == nullptr) {
+      return;
+    }
+    std::optional<base::FileDescriptor> const descriptor = overlay->process_file_descriptor();
+    if (descriptor.has_value()) {
+      sources.push_back(TrayOutputSource{.tray_id = tray.id(), .file_descriptor = *descriptor});
+    }
+  };
+
+  for (std::unique_ptr<Tray> const& tray : anonymous_trays) {
+    if (tray != nullptr) {
+      append_source(*tray);
+    }
+  }
+  for (auto const& entry : worktree_trays) {
+    append_source(*entry.second);
   }
   return sources;
 }

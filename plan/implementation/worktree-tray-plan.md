@@ -21,16 +21,21 @@ review before starting the next milestone.
 
 - `Esc`, `Shift+1` through `Shift+9`: switch anonymous trays.
 - `Esc`, `Shift+T`: switch to an available tracked worktree.
-- `Esc`, `Shift+W`: open the worktree management overlay.
+- `Esc`, `Shift+W`: toggle the active tray's worktree management overlay.
 
 The worktree management overlay ultimately provides:
 
 - Add repository.
 - Create worktree.
 
-Opening an interactive overlay leaves escape mode so typing, arrows, Enter, and
-Escape are routed to the overlay. Canceling the overlay must not forward Escape
-to the active tray's content PTY.
+Opening an interactive overlay leaves command mode so typing, arrows, and Enter
+are routed to the overlay. `Esc` continues to toggle command mode without
+closing the overlay. From command mode, `Shift+W` closes it.
+
+Each tray owns its worktree-management overlay state. Switching trays hides the
+previous tray's overlay without destroying it; switching back redraws the tray
+and its overlay with the input and cursor preserved. Helper PTYs owned by
+inactive overlays continue being drained.
 
 ## Persistent Registry
 
@@ -120,7 +125,7 @@ Exit criteria:
 
 Deliverables:
 
-- Add `Esc`, `Shift+W` and a parent-owned worktree management overlay.
+- Add `Esc`, `Shift+W` and a parent-owned, per-tray worktree management overlay.
 - Initially expose one complete action: Add repository.
 - Ask for the repository-root path first.
 - If the path is an existing valid bare-root repository, register it.

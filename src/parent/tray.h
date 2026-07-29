@@ -15,6 +15,8 @@
 
 namespace moe::parent {
 
+class WorktreeManagementOverlay;
+
 class Tray {
  public:
   static std::unique_ptr<Tray> start(TrayId id, TrayConfig const& config);
@@ -31,6 +33,10 @@ class Tray {
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
   [[nodiscard]] TrayId const& id() const;
   [[nodiscard]] TraySnapshot snapshot() const;
+  void set_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay);
+  void clear_worktree_management_overlay();
+  [[nodiscard]] WorktreeManagementOverlay* worktree_management_overlay() noexcept;
+  [[nodiscard]] WorktreeManagementOverlay const* worktree_management_overlay() const noexcept;
 
  private:
   Tray(TrayId id, std::filesystem::path working_directory,
@@ -41,6 +47,7 @@ class Tray {
   std::filesystem::path cwd;
   std::unique_ptr<ContentPtySession> content;
   TerminalScreen terminal_screen;
+  std::unique_ptr<WorktreeManagementOverlay> worktree_overlay;
 };
 
 }  // namespace moe::parent

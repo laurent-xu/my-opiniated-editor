@@ -15,6 +15,8 @@
 
 namespace moe::parent {
 
+class WorktreeManagementOverlay;
+
 class TrayManager {
  public:
   static std::unique_ptr<TrayManager> start(TrayConfig config);
@@ -36,6 +38,12 @@ class TrayManager {
   [[nodiscard]] TraySnapshot active_snapshot() const;
   [[nodiscard]] std::vector<TraySnapshot> tray_snapshots() const;
   [[nodiscard]] std::vector<TrayOutputSource> output_sources() const;
+  void set_active_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay);
+  void clear_active_worktree_management_overlay();
+  [[nodiscard]] WorktreeManagementOverlay* active_worktree_management_overlay();
+  [[nodiscard]] WorktreeManagementOverlay const* active_worktree_management_overlay() const;
+  [[nodiscard]] WorktreeManagementOverlay* worktree_management_overlay(TrayId const& id);
+  [[nodiscard]] std::vector<TrayOutputSource> worktree_management_overlay_output_sources() const;
 
  private:
   explicit TrayManager(TrayConfig config);

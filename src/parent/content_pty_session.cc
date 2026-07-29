@@ -181,7 +181,9 @@ void ContentPtySession::reset() noexcept {
     int status = 0;
     base::ProcessId const result = wait_for_child(child_process_id, WNOHANG, status);
     if (result.is_child_process()) {
-      ::kill(child_process_id.value(), SIGHUP);
+      if (::kill(-child_process_id.value(), SIGHUP) != 0) {
+        static_cast<void>(::kill(child_process_id.value(), SIGHUP));
+      }
       static_cast<void>(wait_for_child(child_process_id, 0, status));
     }
     child_process_id = base::ProcessId{};

@@ -4,6 +4,12 @@ py_binary(
     visibility = ["//visibility:public"],
 )
 
+py_binary(
+    name = "fake_git",
+    srcs = ["fake_git.py"],
+    visibility = ["//visibility:public"],
+)
+
 py_test(
     name = "fake_agent_test",
     srcs = ["fake_agent_test.py"],

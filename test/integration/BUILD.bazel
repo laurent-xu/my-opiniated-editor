@@ -8,6 +8,9 @@ py_test(
 py_test(
     name = "workspace_parent_pty_test",
     srcs = ["workspace_parent_pty_test.py"],
-    data = ["//src/parent:workspace_parent"],
+    data = [
+        "//src/parent:workspace_parent",
+        "//test/fixtures:fake_git",
+    ],
     tags = ["integration"],
 )

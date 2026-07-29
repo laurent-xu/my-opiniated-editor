@@ -185,6 +185,13 @@ std::string browser_client_js() {
     renderStatus();
   }
 
+  function toggleWorktreeManager() {
+    commandMode = false;
+    statusNote = "";
+    renderStatus();
+    sendCommand("3", "");
+  }
+
   function fitAndSendSize() {
     fitAddon.fit();
     sendCommand("1", JSON.stringify({ columns: terminal.cols, rows: terminal.rows }));
@@ -230,6 +237,11 @@ std::string browser_client_js() {
       (event.code === "KeyT" || event.key === "T");
   }
 
+  function isShiftWKey(event) {
+    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
+      (event.code === "KeyW" || event.key === "W");
+  }
+
   function handleTabKey(event) {
     if (isTabKey(event) && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
@@ -263,6 +275,10 @@ std::string browser_client_js() {
     }
     if (isShiftTKey(event)) {
       showTrayFindPlaceholder();
+      return true;
+    }
+    if (isShiftWKey(event)) {
+      toggleWorktreeManager();
       return true;
     }
 
