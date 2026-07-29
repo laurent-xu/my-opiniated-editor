@@ -55,6 +55,7 @@ cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
+        "parent_status.cc",
         "terminal_screen.cc",
         "tray.cc",
         "tray_id.cc",
@@ -67,6 +68,7 @@ cc_library(
     hdrs = [
         "content_pty_session.h",
         "overlay.h",
+        "parent_status.h",
         "terminal_screen.h",
         "terminal_position.h",
         "tray.h",
@@ -100,6 +102,16 @@ cc_binary(
         "//test/integration:__pkg__",
     ],
     deps = [":parent_lib"],
+)
+
+cc_test(
+    name = "parent_status_test",
+    srcs = ["parent_status_test.cc"],
+    deps = [
+        ":parent_lib",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
 )
 
 cc_test(

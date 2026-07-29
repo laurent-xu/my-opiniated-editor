@@ -35,6 +35,11 @@ are routed to the overlay. `Esc` continues to toggle command mode without
 closing the overlay. From command mode, `Shift+W` closes the repository manager
 and `Shift+T` cancels the worktree picker.
 
+The repository manager and worktree picker are mutually exclusive on the
+visible surface. Invoking `Shift+W` while the picker is open replaces it with
+the repository manager; invoking `Shift+T` while the repository manager is open
+replaces it with the picker.
+
 Each tray owns its worktree-management overlay state. Switching trays hides the
 previous tray's overlay without destroying it; switching back redraws the tray
 and its overlay with the input and cursor preserved. Helper PTYs owned by
@@ -283,6 +288,11 @@ by a dedicated terminal screen and redrawn only inside that region; full-screen
 fzf control sequences cannot erase the tray behind it. The picker does not own
 trays, Git state, or persistence, which keeps it suitable for later pane-level
 selectors.
+
+Command mode, active tray identity, and active overlay identity are parent-owned
+session state. The bridge broadcasts parent status to every attached browser;
+the browser captures keys and renders status but does not independently mutate
+or infer that shared state.
 
 ## Verification Gate
 

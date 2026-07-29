@@ -29,7 +29,12 @@ Current owned bridge endpoints:
   JSON `{columns, rows}`. Anonymous tray switching uses command byte `2` plus
   JSON `{tray}`. Toggling the active tray's parent-owned worktree manager uses
   command byte `3` with an empty payload. Toggling the parent-owned worktree
-  picker uses command byte `4` with an empty payload.
+  picker uses command byte `4` with an empty payload. Toggling parent-owned
+  command mode uses command byte `5` with an empty payload.
+- Server status frames use command byte `1` plus a `parent.status` JSON object.
+  The parent sends these events to the bridge over a dedicated inherited pipe,
+  separate from terminal output. The bridge caches the latest status and sends
+  it to every connected or newly attached WebSocket.
 - When `--token` is configured, `/`, `/health`, and `/ws` require the token.
   The browser client carries it from `/?token=<token>` to `/ws?token=<token>`.
   Static `/client.js` and `/style.css` are not sensitive and remain fetchable
@@ -38,6 +43,8 @@ Current owned bridge endpoints:
   broadcasts parent output to all clients; each client can send input or resize
   frames back to the parent PTY. New clients receive the recent terminal
   backlog so refresh/reconnect does not start from a blank terminal surface.
+  Command mode, active tray identity, and active overlay identity come from the
+  parent status event rather than per-browser guesses.
 
 Initial endpoints:
 

@@ -1,5 +1,6 @@
 #include "src/parent/workspace_parent.h"
 
+#include <fcntl.h>
 #include <poll.h>
 #include <pwd.h>
 #include <sys/ioctl.h>
@@ -8,6 +9,7 @@
 
 #include <array>
 #include <cerrno>
+#include <charconv>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
@@ -22,6 +24,7 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/parent/overlay.h"
+#include "src/parent/parent_status.h"
 #include "src/parent/tray_manager.h"
 #include "src/parent/worktree_candidate_finder.h"
 #include "src/parent/worktree_management_overlay.h"
@@ -36,6 +39,8 @@ constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
 constexpr unsigned char TRAY_COMMAND_PREFIX = 0x18;
+constexpr unsigned char TOGGLE_COMMAND_MODE_COMMAND = 'e';
+constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
@@ -79,6 +84,31 @@ class RawTerminalModeGuard {
 };
 
 bool has_value(char const* value) { return value != nullptr && value[0] != '\0'; }
+
+std::optional<base::FileDescriptor> parent_status_descriptor_from_environment() {
+  char const* const value = std::getenv(PARENT_STATUS_DESCRIPTOR_ENVIRONMENT);
+  if (!has_value(value)) {
+    return std::nullopt;
+  }
+
+  int descriptor_value = -1;
+  char const* const end = value + std::strlen(value);
+  std::from_chars_result const result = std::from_chars(value, end, descriptor_value);
+  if (result.ec != std::errc{} || result.ptr != end || descriptor_value < 0) {
+    throw std::runtime_error(std::string("invalid ") + PARENT_STATUS_DESCRIPTOR_ENVIRONMENT);
+  }
+  int const descriptor_flags = fcntl(descriptor_value, F_GETFD);
+  if (descriptor_flags < 0 ||
+      fcntl(descriptor_value, F_SETFD, descriptor_flags | FD_CLOEXEC) != 0) {
+    throw std::runtime_error(std::string("failed to protect ") +
+                             PARENT_STATUS_DESCRIPTOR_ENVIRONMENT + ": " + std::strerror(errno));
+  }
+  if (unsetenv(PARENT_STATUS_DESCRIPTOR_ENVIRONMENT) != 0) {
+    throw std::runtime_error(std::string("failed to clear ") +
+                             PARENT_STATUS_DESCRIPTOR_ENVIRONMENT + ": " + std::strerror(errno));
+  }
+  return base::FileDescriptor(descriptor_value);
+}
 
 void handle_stop_signal(int const signal_number) {
   static_cast<void>(signal_number);
@@ -145,6 +175,33 @@ Overlay const* active_overlay(TrayManager const& trays, WorktreePickerOverlay co
   return trays.active_worktree_management_overlay();
 }
 
+ParentOverlayKind active_overlay_kind(TrayManager const& trays,
+                                      WorktreePickerOverlay const* const picker) {
+  if (picker != nullptr) {
+    return ParentOverlayKind::WORKTREE_PICKER;
+  }
+  if (trays.active_worktree_management_overlay() != nullptr) {
+    return ParentOverlayKind::WORKTREE_MANAGEMENT;
+  }
+  return ParentOverlayKind::NONE;
+}
+
+void publish_parent_status(TrayManager const& trays, WorktreePickerOverlay const* const picker,
+                           bool const command_mode,
+                           std::optional<base::FileDescriptor> const status_descriptor) {
+  if (!status_descriptor.has_value()) {
+    return;
+  }
+
+  std::string message = serialize_parent_status(ParentStatus{
+      .command_mode = command_mode,
+      .active_tray = trays.active_id(),
+      .overlay = active_overlay_kind(trays, picker),
+  });
+  message.push_back('\n');
+  write_all(*status_descriptor, message);
+}
+
 void write_active_surface_input(TrayManager& trays, WorktreePickerOverlay* const picker,
                                 std::string_view const bytes) {
   Overlay* const overlay = active_overlay(trays, picker);
@@ -187,69 +244,91 @@ std::filesystem::path current_parent_executable() {
 void toggle_worktree_management_overlay(TrayManager& trays,
                                         std::filesystem::path const& parent_executable,
                                         TerminalSize const size,
-                                        WorktreePickerOverlay const* const picker) {
-  if (trays.active_worktree_management_overlay() != nullptr) {
+                                        std::unique_ptr<WorktreePickerOverlay>& picker) {
+  if (picker == nullptr && trays.active_worktree_management_overlay() != nullptr) {
     trays.clear_active_worktree_management_overlay();
-    redraw_active_surface(trays, picker);
     return;
   }
 
+  picker = nullptr;
+  if (trays.active_worktree_management_overlay() != nullptr) {
+    trays.clear_active_worktree_management_overlay();
+  }
   std::filesystem::path const working_directory = trays.active_snapshot().working_directory;
   trays.set_active_worktree_management_overlay(WorktreeManagementOverlay::start(
       parent_executable, WorktreeRegistryStore::default_registry_path(), working_directory, size));
-  redraw_active_surface(trays, picker);
 }
 
-void toggle_worktree_picker(TrayManager& trays, std::unique_ptr<WorktreePickerOverlay>& picker,
-                            TerminalSize const size) {
+std::optional<std::string> toggle_worktree_picker(TrayManager& trays,
+                                                  std::unique_ptr<WorktreePickerOverlay>& picker,
+                                                  TerminalSize const size) {
   if (picker != nullptr) {
     picker = nullptr;
-    redraw_active_surface(trays, nullptr);
-    return;
+    return std::nullopt;
   }
 
+  if (trays.active_worktree_management_overlay() != nullptr) {
+    trays.clear_active_worktree_management_overlay();
+  }
   try {
     std::filesystem::path const registry_path = WorktreeRegistryStore::default_registry_path();
     std::vector<std::filesystem::path> const candidates =
         WorktreeCandidateFinder(configured_git_executable()).find_available(registry_path);
     picker = WorktreePickerOverlay::start(configured_fzf_executable(), candidates, size);
-    redraw_active_surface(trays, picker.get());
   } catch (std::exception const& error) {
-    write_all(PARENT_OUTPUT_DESCRIPTOR,
-              "\r\nWorktree picker failed: " + std::string(error.what()) + "\r\n");
+    return error.what();
   }
+  return std::nullopt;
 }
 
 void handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
                               std::filesystem::path const& parent_executable,
                               TerminalSize const size,
-                              std::unique_ptr<WorktreePickerOverlay>& picker) {
+                              std::unique_ptr<WorktreePickerOverlay>& picker, bool& command_mode,
+                              std::optional<base::FileDescriptor> const status_descriptor) {
+  if (byte == TOGGLE_COMMAND_MODE_COMMAND) {
+    command_mode = !command_mode;
+    publish_parent_status(trays, picker.get(), command_mode, status_descriptor);
+    return;
+  }
   if (is_anonymous_tray_command(byte)) {
     std::optional<TrayNumber> const number = TrayNumber::from_int(static_cast<int>(byte - '0'));
     if (number.has_value()) {
       static_cast<void>(trays.switch_to(*number));
+      publish_parent_status(trays, picker.get(), command_mode, status_descriptor);
       redraw_active_surface(trays, picker.get());
       return;
     }
   }
   if (byte == 'w') {
-    toggle_worktree_management_overlay(trays, parent_executable, size, picker.get());
+    toggle_worktree_management_overlay(trays, parent_executable, size, picker);
+    command_mode = false;
+    publish_parent_status(trays, picker.get(), command_mode, status_descriptor);
+    redraw_active_surface(trays, picker.get());
     return;
   }
   if (byte == 't') {
-    toggle_worktree_picker(trays, picker, size);
+    std::optional<std::string> const picker_error = toggle_worktree_picker(trays, picker, size);
+    command_mode = false;
+    publish_parent_status(trays, picker.get(), command_mode, status_descriptor);
+    redraw_active_surface(trays, picker.get());
+    if (picker_error.has_value()) {
+      write_all(PARENT_OUTPUT_DESCRIPTOR, "\r\nWorktree picker failed: " + *picker_error + "\r\n");
+    }
     return;
   }
 
-  write_active_surface_input_byte(trays, picker.get(), TRAY_COMMAND_PREFIX);
-  write_active_surface_input_byte(trays, picker.get(), byte);
+  if (!command_mode) {
+    write_active_surface_input_byte(trays, picker.get(), TRAY_COMMAND_PREFIX);
+    write_active_surface_input_byte(trays, picker.get(), byte);
+  }
 }
 
-void route_parent_input_to_active_tray(TrayManager& trays, std::string_view const bytes,
-                                       ParentInputMode& input_mode,
-                                       std::filesystem::path const& parent_executable,
-                                       TerminalSize const size,
-                                       std::unique_ptr<WorktreePickerOverlay>& picker) {
+void route_parent_input_to_active_tray(
+    TrayManager& trays, std::string_view const bytes, ParentInputMode& input_mode,
+    std::filesystem::path const& parent_executable, TerminalSize const size,
+    std::unique_ptr<WorktreePickerOverlay>& picker, bool& command_mode,
+    std::optional<base::FileDescriptor> const status_descriptor) {
   std::string forwarded;
   forwarded.reserve(bytes.size());
 
@@ -267,11 +346,14 @@ void route_parent_input_to_active_tray(TrayManager& trays, std::string_view cons
         input_mode = ParentInputMode::TRAY_COMMAND;
         continue;
       }
-      forwarded.push_back(static_cast<char>(byte));
+      if (!command_mode) {
+        forwarded.push_back(static_cast<char>(byte));
+      }
       continue;
     }
 
-    handle_tray_command_byte(trays, byte, parent_executable, size, picker);
+    handle_tray_command_byte(trays, byte, parent_executable, size, picker, command_mode,
+                             status_descriptor);
     input_mode = ParentInputMode::NORMAL;
   }
 
@@ -282,10 +364,10 @@ void route_parent_input_to_active_tray(TrayManager& trays, std::string_view cons
   }
 }
 
-void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& input_mode,
-                                         std::filesystem::path const& parent_executable,
-                                         TerminalSize const size,
-                                         std::unique_ptr<WorktreePickerOverlay>& picker) {
+void forward_parent_input_to_active_tray(
+    TrayManager& trays, ParentInputMode& input_mode, std::filesystem::path const& parent_executable,
+    TerminalSize const size, std::unique_ptr<WorktreePickerOverlay>& picker, bool& command_mode,
+    std::optional<base::FileDescriptor> const status_descriptor) {
   std::array<char, 4096> buffer{};
   ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
   if (read_count <= 0) {
@@ -297,7 +379,7 @@ void forward_parent_input_to_active_tray(TrayManager& trays, ParentInputMode& in
 
   route_parent_input_to_active_tray(
       trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode,
-      parent_executable, size, picker);
+      parent_executable, size, picker, command_mode, status_descriptor);
 }
 
 void draw_tray_output(TrayManager& trays, TrayOutputSource const& source,
@@ -391,6 +473,9 @@ int run_workspace_parent() {
   RawTerminalModeGuard const raw_terminal(PARENT_INPUT_DESCRIPTOR);
   TerminalSize last_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
   ParentInputMode input_mode = ParentInputMode::NORMAL;
+  bool command_mode = false;
+  std::optional<base::FileDescriptor> const parent_status_descriptor =
+      parent_status_descriptor_from_environment();
   std::filesystem::path const working_directory = std::filesystem::current_path();
   std::filesystem::path const parent_executable = current_parent_executable();
   std::unique_ptr<TrayManager> trays = TrayManager::start(TrayConfig{
@@ -399,6 +484,7 @@ int run_workspace_parent() {
       .initial_size = last_size,
   });
   std::unique_ptr<WorktreePickerOverlay> worktree_picker;
+  publish_parent_status(*trays, worktree_picker.get(), command_mode, parent_status_descriptor);
 
   while (stop_requested == 0) {
     if (std::optional<int> const exit_code = trays->try_wait_for_active_exit();
@@ -449,7 +535,7 @@ int run_workspace_parent() {
 
     if ((descriptors[0].revents & POLLIN) != 0) {
       forward_parent_input_to_active_tray(*trays, input_mode, parent_executable, last_size,
-                                          worktree_picker);
+                                          worktree_picker, command_mode, parent_status_descriptor);
     }
 
     if (picker_descriptor_index.has_value() && worktree_picker.get() == polled_picker) {
@@ -470,6 +556,7 @@ int run_workspace_parent() {
             selection_error = error.what();
           }
         }
+        publish_parent_status(*trays, nullptr, command_mode, parent_status_descriptor);
         redraw_active_surface(*trays, nullptr);
         if (selection_error.has_value()) {
           write_all(PARENT_OUTPUT_DESCRIPTOR,

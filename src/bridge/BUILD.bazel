@@ -95,6 +95,7 @@ py_test(
         ":parent_ws_bridge",
         "//src/parent:workspace_parent",
         "//test/fixtures:fake_fzf",
+        "//test/fixtures:fake_git",
     ],
     size = "medium",
     tags = ["integration"],

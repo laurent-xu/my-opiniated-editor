@@ -111,6 +111,11 @@ void toggle_parent_worktree_picker(ParentPtySession const& session) {
   session.write(std::string_view(command.data(), command.size()));
 }
 
+void toggle_parent_command_mode(ParentPtySession const& session) {
+  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, 'e'};
+  session.write(std::string_view(command.data(), command.size()));
+}
+
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
   if (payload.empty()) {
     return;
@@ -136,6 +141,10 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
   }
   if (command == '4') {
     toggle_parent_worktree_picker(session);
+    return;
+  }
+  if (command == '5') {
+    toggle_parent_command_mode(session);
   }
 }
 
@@ -218,6 +227,7 @@ class PtyWebsocketHub {
 
  private:
   static constexpr std::size_t MAX_TERMINAL_BACKLOG = static_cast<std::size_t>(64U) * 1024U;
+  static constexpr std::size_t MAX_PARENT_STATUS_BUFFER = static_cast<std::size_t>(64U) * 1024U;
 
   void add_client(std::shared_ptr<WebsocketClientConnection> const& client) {
     std::scoped_lock const lock(state_mutex);
@@ -225,6 +235,11 @@ class PtyWebsocketHub {
     if (!terminal_backlog.empty()) {
       std::string payload("0");
       payload.append(terminal_backlog);
+      static_cast<void>(client->send_binary(payload));
+    }
+    if (!latest_parent_status.empty()) {
+      std::string payload("1");
+      payload.append(latest_parent_status);
       static_cast<void>(client->send_binary(payload));
     }
   }
@@ -252,6 +267,15 @@ class PtyWebsocketHub {
     send_to_clients(payload);
   }
 
+  void broadcast_parent_status(std::string status) {
+    std::scoped_lock const lock(state_mutex);
+    latest_parent_status = std::move(status);
+
+    std::string payload("1");
+    payload.append(latest_parent_status);
+    send_to_clients(payload);
+  }
+
   void send_to_clients(std::string_view payload) {
     for (auto iterator = clients.begin(); iterator != clients.end();) {
       if ((*iterator)->send_binary(payload)) {
@@ -262,10 +286,46 @@ class PtyWebsocketHub {
     }
   }
 
+  void read_terminal_output() {
+    std::array<char, 4096> buffer{};
+    ssize_t const read_count =
+        ::read(session.file_descriptor().value(), buffer.data(), buffer.size());
+    if (read_count > 0) {
+      broadcast_terminal_output(std::string(buffer.data(), static_cast<std::size_t>(read_count)));
+    }
+  }
+
+  void read_parent_status() {
+    std::array<char, 4096> buffer{};
+    ssize_t const read_count =
+        ::read(session.status_file_descriptor().value(), buffer.data(), buffer.size());
+    if (read_count <= 0) {
+      return;
+    }
+
+    parent_status_buffer.append(buffer.data(), static_cast<std::size_t>(read_count));
+    for (std::size_t newline = parent_status_buffer.find('\n'); newline != std::string::npos;
+         newline = parent_status_buffer.find('\n')) {
+      std::string status = parent_status_buffer.substr(0, newline);
+      parent_status_buffer.erase(0, newline + 1U);
+      if (!status.empty()) {
+        broadcast_parent_status(std::move(status));
+      }
+    }
+    if (parent_status_buffer.size() > MAX_PARENT_STATUS_BUFFER) {
+      std::cerr << "parent status message exceeded buffer limit\n";
+      parent_status_buffer.clear();
+    }
+  }
+
   void read_pty_loop() {
     while (should_keep_running() && !stopping) {
-      pollfd descriptor{.fd = session.file_descriptor().value(), .events = POLLIN, .revents = 0};
-      int const result = poll(&descriptor, 1, POLL_TIMEOUT_MILLISECONDS);
+      std::array<pollfd, 2> descriptors{
+          pollfd{.fd = session.file_descriptor().value(), .events = POLLIN, .revents = 0},
+          pollfd{.fd = session.status_file_descriptor().value(), .events = POLLIN, .revents = 0},
+      };
+      int const result = poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()),
+                              POLL_TIMEOUT_MILLISECONDS);
       if (result < 0) {
         if (errno == EINTR) {
           continue;
@@ -273,18 +333,15 @@ class PtyWebsocketHub {
         std::cerr << "pty reader error: " << std::strerror(errno) << '\n';
         return;
       }
-      if (result == 0 || (descriptor.revents & POLLIN) == 0) {
+      if (result == 0) {
         continue;
       }
-
-      std::array<char, 4096> buffer{};
-      ssize_t const read_count =
-          ::read(session.file_descriptor().value(), buffer.data(), buffer.size());
-      if (read_count <= 0) {
-        continue;
+      if ((descriptors[0].revents & POLLIN) != 0) {
+        read_terminal_output();
       }
-
-      broadcast_terminal_output(std::string(buffer.data(), static_cast<std::size_t>(read_count)));
+      if ((descriptors[1].revents & POLLIN) != 0) {
+        read_parent_status();
+      }
     }
   }
 
@@ -295,6 +352,8 @@ class PtyWebsocketHub {
   std::mutex state_mutex;
   std::vector<std::shared_ptr<WebsocketClientConnection>> clients;
   std::string terminal_backlog;
+  std::string latest_parent_status;
+  std::string parent_status_buffer;
 };
 
 void serve_websocket_client(OwnedFileDescriptor client, PtyWebsocketHub& hub) {

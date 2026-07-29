@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import subprocess
 import sys
 import urllib.error
@@ -15,6 +16,31 @@ from parent_ws_bridge_test_lib import (
     stop_bridge,
     wait_for_health,
 )
+
+
+def register_worktree_repository(port: int, repository: Path, porcelain: str) -> None:
+    registry_path = (
+        Path(os.environ["TEST_TMPDIR"])
+        / f"bridge-state-{port}"
+        / "my-opiniated-editor"
+        / "worktrees.pb"
+    )
+    subprocess.run(
+        [
+            runfile_path("src/parent/workspace_parent"),
+            "--register-worktree-repository",
+            str(registry_path),
+            str(repository),
+        ],
+        env={
+            **os.environ,
+            "MOE_GIT_EXECUTABLE": runfile_path("test/fixtures/fake_git"),
+            "MOE_FAKE_GIT_WORKTREE_LIST": porcelain,
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def assert_browser_assets(test_case: unittest.TestCase, port: int):
@@ -66,27 +92,25 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         "const payload = decoder.decode(bytes.slice(1), { stream: true })",
         client_js,
     )
+    test_case.assertIn(
+        "applyParentStatus(JSON.parse(statusDecoder.decode(bytes.slice(1))))",
+        client_js,
+    )
     test_case.assertIn("const pendingPayload = decoder.decode()", client_js)
     test_case.assertIn("terminal.attachCustomKeyEventHandler", client_js)
     test_case.assertIn('document.addEventListener("keydown"', client_js)
-    test_case.assertIn("let activeTrayNumber = 1", client_js)
+    test_case.assertIn('let activeTrayLabel = "tray 1"', client_js)
     test_case.assertIn("let commandMode = false", client_js)
     test_case.assertNotIn("let worktreeManagerOpen", client_js)
     test_case.assertIn('parts.push("command")', client_js)
     test_case.assertIn(
         'sendCommand("2", JSON.stringify({ tray: trayNumber }))', client_js
     )
-    test_case.assertIn(
-        "function sendTraySwitch(trayNumber) {\n"
-        "    activeTrayNumber = trayNumber;\n"
-        '    statusNote = "";\n'
-        "    renderStatus();\n"
-        '    sendCommand("2", JSON.stringify({ tray: trayNumber }));\n'
-        "  }",
-        client_js,
-    )
+    test_case.assertNotIn("activeTrayNumber", client_js)
+    test_case.assertNotIn("setCommandMode", client_js)
+    test_case.assertIn("activeTrayLabel = status.trayLabel", client_js)
     test_case.assertIn('event.key === "Escape"', client_js)
-    test_case.assertIn("setCommandMode(!commandMode)", client_js)
+    test_case.assertIn('sendCommand("5", "")', client_js)
     test_case.assertIn('event.key === "Shift"', client_js)
     test_case.assertIn("isModifierOnlyKey(event)", client_js)
     test_case.assertIn('/^Digit([1-9])$/.exec(event.code || "")', client_js)
@@ -114,6 +138,50 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
 
 
 class ParentWsBridgeIntegrationTest(unittest.TestCase):
+    def test_parent_status_is_shared_and_replayed_to_all_clients(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        first_client = None
+        second_client = None
+        reconnected_client = None
+        try:
+            wait_for_health(port, process)
+            first_client = WebSocketClient(port)
+            second_client = WebSocketClient(port)
+            initial_status = {
+                "commandMode": False,
+                "trayKey": "anonymous:1",
+                "trayLabel": "tray 1",
+            }
+            first_client.read_parent_status_until(initial_status)
+            second_client.read_parent_status_until(initial_status)
+
+            first_client.toggle_command_mode()
+            command_status = {"commandMode": True, "trayKey": "anonymous:1"}
+            first_client.read_parent_status_until(command_status)
+            second_client.read_parent_status_until(command_status)
+
+            second_client.send_tray_switch(2)
+            tray_status = {
+                "commandMode": True,
+                "trayKey": "anonymous:2",
+                "trayLabel": "tray 2",
+            }
+            first_client.read_parent_status_until(tray_status)
+            second_client.read_parent_status_until(tray_status)
+
+            reconnected_client = WebSocketClient(port)
+            reconnected_client.read_parent_status_until(tray_status)
+        finally:
+            if first_client is not None:
+                first_client.close()
+            if second_client is not None:
+                second_client.close()
+            if reconnected_client is not None:
+                reconnected_client.close()
+            stop_bridge(process)
+
     def test_reconnect_uses_same_parent_process(self):
         port = free_loopback_port()
         process = start_bridge(port)
@@ -231,6 +299,84 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
         finally:
             if client is not None:
                 client.close()
+            stop_bridge(process)
+
+    def test_worktree_overlays_replace_each_other(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.open_worktree_manager()
+            manager_output = client.read_terminal_output_until("Repository root:")
+            self.assertIn("Worktrees | Add repository", manager_output)
+
+            client.toggle_worktree_picker()
+            picker_output = client.read_terminal_output_until("Worktree picker")
+            self.assertIn("Worktree picker", picker_output)
+
+            client.open_worktree_manager()
+            replacement_output = client.read_terminal_output_until("Repository root:")
+            self.assertIn("Worktrees | Add repository", replacement_output)
+        finally:
+            if client is not None:
+                client.close()
+            stop_bridge(process)
+
+    def test_selected_worktree_status_is_shared_with_other_clients(self):
+        port = free_loopback_port()
+        repository = Path(os.environ["TEST_TMPDIR"]) / f"repository-{port}"
+        worktree = repository / "feature-status"
+        (repository / ".bare").mkdir(parents=True)
+        (repository / ".git").write_text("gitdir: ./.bare\n", encoding="utf-8")
+        worktree.mkdir()
+        (worktree / ".git").touch()
+        repository = repository.resolve()
+        worktree = worktree.resolve()
+
+        porcelain = (
+            f"worktree {repository / '.bare'}\n"
+            "HEAD 111\n"
+            "bare\n\n"
+            f"worktree {worktree}\n"
+            "HEAD 222\n"
+            "branch refs/heads/main\n\n"
+        )
+        register_worktree_repository(port, repository, porcelain)
+        process = start_bridge(
+            port,
+            extra_environment={
+                "MOE_GIT_EXECUTABLE": runfile_path("test/fixtures/fake_git"),
+                "MOE_FAKE_GIT_WORKTREE_LIST": porcelain,
+            },
+        )
+
+        first_client = None
+        second_client = None
+        try:
+            wait_for_health(port, process)
+            first_client = WebSocketClient(port)
+            second_client = WebSocketClient(port)
+            first_client.read_parent_status_until({"trayKey": "anonymous:1"})
+            second_client.read_parent_status_until({"trayKey": "anonymous:1"})
+            first_client.toggle_worktree_picker()
+            first_client.read_terminal_output_until("Worktree picker")
+            first_client.send_terminal_input(b"\r")
+
+            expected = {
+                "commandMode": False,
+                "trayKey": f"worktree:{worktree}",
+                "trayLabel": "worktree feature-status",
+            }
+            first_client.read_parent_status_until(expected)
+            second_client.read_parent_status_until(expected)
+        finally:
+            if first_client is not None:
+                first_client.close()
+            if second_client is not None:
+                second_client.close()
             stop_bridge(process)
 
     def test_token_protects_http_and_websocket_endpoints(self):

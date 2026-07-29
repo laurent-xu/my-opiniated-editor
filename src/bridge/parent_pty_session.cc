@@ -1,5 +1,6 @@
 #include "src/bridge/parent_pty_session.h"
 
+#include <fcntl.h>
 #include <poll.h>
 #include <pty.h>
 #include <sys/ioctl.h>
@@ -22,7 +23,10 @@ namespace moe::bridge {
 namespace {
 
 using base::FileDescriptor;
+using base::OwnedFileDescriptor;
 using base::ProcessId;
+
+constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
 
 std::runtime_error errno_error(std::string const& action) {
   return std::runtime_error(action + ": " + std::strerror(errno));
@@ -68,14 +72,32 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
     throw std::invalid_argument("pty command must not be empty");
   }
 
+  std::array<int, 2> status_pipe{};
+  if (pipe2(status_pipe.data(), O_CLOEXEC) != 0) {
+    throw errno_error("create parent status pipe failed");
+  }
+
   int raw_master_fd = -1;
   winsize window_size = to_winsize(size);
   base::ProcessId const child_pid(forkpty(&raw_master_fd, nullptr, nullptr, &window_size));
   if (child_pid.is_error()) {
+    ::close(status_pipe[0]);
+    ::close(status_pipe[1]);
     throw errno_error("forkpty failed");
   }
 
   if (child_pid.is_child_process()) {
+    ::close(status_pipe[0]);
+    int const descriptor_flags = fcntl(status_pipe[1], F_GETFD);
+    if (descriptor_flags < 0 ||
+        fcntl(status_pipe[1], F_SETFD, descriptor_flags & ~FD_CLOEXEC) != 0) {
+      _exit(126);
+    }
+    std::string const status_descriptor_value = std::to_string(status_pipe[1]);
+    if (setenv(PARENT_STATUS_DESCRIPTOR_ENVIRONMENT, status_descriptor_value.c_str(), 1) != 0) {
+      _exit(126);
+    }
+
     if (!working_directory.empty() && chdir(working_directory.c_str()) != 0) {
       _exit(126);
     }
@@ -91,22 +113,28 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
     _exit(127);
   }
 
+  ::close(status_pipe[1]);
   return std::unique_ptr<ParentPtySession>(new ParentPtySession(
       Handles{.master_fd = base::OwnedFileDescriptor(base::FileDescriptor(raw_master_fd)),
+              .status_fd = OwnedFileDescriptor(FileDescriptor(status_pipe[0])),
               .child_pid = child_pid}));
 }
 
 ParentPtySession::ParentPtySession(Handles handles)
-    : master_file_descriptor(std::move(handles.master_fd)), child_process_id(handles.child_pid) {}
+    : master_file_descriptor(std::move(handles.master_fd)),
+      status_descriptor(std::move(handles.status_fd)),
+      child_process_id(handles.child_pid) {}
 
 ParentPtySession::ParentPtySession(ParentPtySession&& other) noexcept
     : master_file_descriptor(std::move(other.master_file_descriptor)),
+      status_descriptor(std::move(other.status_descriptor)),
       child_process_id(std::exchange(other.child_process_id, base::ProcessId{})) {}
 
 ParentPtySession& ParentPtySession::operator=(ParentPtySession&& other) noexcept {
   if (this != &other) {
     reset();
     master_file_descriptor = std::move(other.master_file_descriptor);
+    status_descriptor = std::move(other.status_descriptor);
     child_process_id = std::exchange(other.child_process_id, base::ProcessId{});
   }
   return *this;
@@ -118,6 +146,10 @@ base::ProcessId ParentPtySession::child_pid() const { return child_process_id; }
 
 base::FileDescriptor ParentPtySession::file_descriptor() const {
   return master_file_descriptor.get();
+}
+
+base::FileDescriptor ParentPtySession::status_file_descriptor() const {
+  return status_descriptor.get();
 }
 
 void ParentPtySession::write(std::string_view bytes) const {
@@ -194,6 +226,7 @@ void ParentPtySession::reset() noexcept {
     }
     child_process_id = base::ProcessId{};
   }
+  status_descriptor.reset();
 }
 
 }  // namespace moe::bridge

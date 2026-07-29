@@ -111,13 +111,14 @@ The browser owns:
 - Rendering the parent terminal stream through xterm.js.
 - Keyboard event capture.
 - Passing keyboard input to the parent app.
-- Local transient UI state.
+- Connection-local transient UI state.
 - Resize events.
 - Optional status/control overlay.
 
-The browser should be able to reconnect to the parent PTY and rebuild any small
-overlay state from the server. Avoid making browser memory the only copy of
-important workspace state.
+The parent owns command mode, active tray identity, and workspace overlay
+identity. It publishes that state through a dedicated parent-to-bridge status
+channel. The bridge caches and broadcasts the latest status so all browser tabs
+render the same state and a reconnect does not depend on browser memory.
 
 ## Persistence
 

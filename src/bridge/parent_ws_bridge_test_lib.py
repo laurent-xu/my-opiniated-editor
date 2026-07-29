@@ -79,6 +79,9 @@ class WebSocketClient:
     def toggle_worktree_picker(self):
         self.send_binary(b"4")
 
+    def toggle_command_mode(self):
+        self.send_binary(b"5")
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 
@@ -156,6 +159,30 @@ class WebSocketClient:
         text = output.decode(errors="replace")
         raise AssertionError(f"timed out waiting for {needle!r}; output was {text!r}")
 
+    def read_parent_status_until(
+        self, expected: dict, timeout_seconds: float = 5.0
+    ) -> dict:
+        deadline = time.monotonic() + timeout_seconds
+        statuses = []
+
+        while time.monotonic() < deadline:
+            self.sock.settimeout(max(0.1, deadline - time.monotonic()))
+            opcode, payload = self.read_frame()
+            if opcode == 0x8:
+                break
+            if opcode not in (0x1, 0x2) or not payload or payload[:1] != b"1":
+                continue
+
+            status = json.loads(payload[1:].decode())
+            statuses.append(status)
+            if all(status.get(key) == value for key, value in expected.items()):
+                return status
+
+        raise AssertionError(
+            f"timed out waiting for parent status {expected!r}; "
+            f"statuses were {statuses!r}"
+        )
+
 
 def wait_for_health(
     port: int,
@@ -198,12 +225,18 @@ def fetch_text(port: int, path: str) -> str:
         return response.read().decode()
 
 
-def start_bridge(port: int, extra_args: list[str] | None = None) -> subprocess.Popen:
+def start_bridge(
+    port: int,
+    extra_args: list[str] | None = None,
+    extra_environment: dict[str, str] | None = None,
+) -> subprocess.Popen:
     environment = dict(os.environ)
     environment["XDG_STATE_HOME"] = os.path.join(
         os.environ["TEST_TMPDIR"], f"bridge-state-{port}"
     )
     environment["MOE_FZF_EXECUTABLE"] = runfile_path("test/fixtures/fake_fzf")
+    if extra_environment is not None:
+        environment.update(extra_environment)
     command = [
         runfile_path("src/bridge/parent_ws_bridge"),
         "--port",

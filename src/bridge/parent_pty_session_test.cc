@@ -1,5 +1,9 @@
 #include "src/bridge/parent_pty_session.h"
 
+#include <poll.h>
+
+#include <array>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iomanip>
@@ -49,12 +53,43 @@ void wait_for_shell_command(moe::bridge::ParentPtySession const& session,
   EXPECT_NE(output.find(marker), std::string::npos);
 }
 
+std::string read_parent_status(moe::bridge::ParentPtySession const& session) {
+  auto const deadline = std::chrono::steady_clock::now() + 5s;
+  std::string output;
+
+  while (std::chrono::steady_clock::now() < deadline) {
+    auto const remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        deadline - std::chrono::steady_clock::now());
+    pollfd descriptor{
+        .fd = session.status_file_descriptor().value(), .events = POLLIN, .revents = 0};
+    int const result = poll(&descriptor, 1, static_cast<int>(remaining.count()));
+    if (result <= 0) {
+      continue;
+    }
+
+    std::array<char, 4096> buffer{};
+    ssize_t const read_count =
+        ::read(session.status_file_descriptor().value(), buffer.data(), buffer.size());
+    if (read_count > 0) {
+      output.append(buffer.data(), static_cast<std::size_t>(read_count));
+      if (output.find('\n') != std::string::npos) {
+        return output.substr(0, output.find('\n'));
+      }
+    }
+  }
+  throw std::runtime_error("timed out waiting for parent status; output was: " + output);
+}
+
 TEST(ParentPtySessionTest, StartsParentAndExchangesBytes) {
   std::unique_ptr<moe::bridge::ParentPtySession> session = start_parent();
   EXPECT_GT(session->child_pid().value(), 0);
   EXPECT_TRUE(session->file_descriptor().is_valid());
+  EXPECT_TRUE(session->status_file_descriptor().is_valid());
 
   wait_for_shell_command(*session, "__moe_parent_pty_ready__");
+  EXPECT_EQ(
+      read_parent_status(*session),
+      R"({"type":"parent.status","commandMode":false,"trayKey":"anonymous:1","trayLabel":"tray 1","overlay":"none"})");
 }
 
 TEST(ParentPtySessionTest, InvalidSizeReportsBoundsAndActualValues) {

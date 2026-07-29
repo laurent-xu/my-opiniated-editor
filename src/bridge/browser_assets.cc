@@ -133,21 +133,18 @@ std::string browser_client_js() {
 
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
+  const statusDecoder = new TextDecoder();
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${window.location.host}${websocketPath}`, "workspace-pty");
   socket.binaryType = "arraybuffer";
   let connectionState = "connecting";
-  let activeTrayNumber = 1;
+  let activeTrayLabel = "tray 1";
   let commandMode = false;
-  let statusNote = "";
 
   function renderStatus() {
-    const parts = [connectionState, `tray ${activeTrayNumber}`];
+    const parts = [connectionState, activeTrayLabel];
     if (commandMode) {
       parts.push("command");
-    }
-    if (statusNote) {
-      parts.push(statusNote);
     }
     statusElement.textContent = parts.join(" | ");
   }
@@ -157,10 +154,13 @@ std::string browser_client_js() {
     renderStatus();
   }
 
-  function setCommandMode(enabled) {
-    commandMode = enabled;
-    if (enabled) {
-      statusNote = "";
+  function applyParentStatus(status) {
+    if (status.type !== "parent.status") {
+      return;
+    }
+    commandMode = status.commandMode === true;
+    if (typeof status.trayLabel === "string" && status.trayLabel.length > 0) {
+      activeTrayLabel = status.trayLabel;
     }
     renderStatus();
   }
@@ -174,23 +174,14 @@ std::string browser_client_js() {
   }
 
   function sendTraySwitch(trayNumber) {
-    activeTrayNumber = trayNumber;
-    statusNote = "";
-    renderStatus();
     sendCommand("2", JSON.stringify({ tray: trayNumber }));
   }
 
   function toggleWorktreePicker() {
-    commandMode = false;
-    statusNote = "";
-    renderStatus();
     sendCommand("4", "");
   }
 
   function toggleWorktreeManager() {
-    commandMode = false;
-    statusNote = "";
-    renderStatus();
     sendCommand("3", "");
   }
 
@@ -256,7 +247,7 @@ std::string browser_client_js() {
   function handleCommandModeKey(event) {
     if (isEscapeKey(event)) {
       event.preventDefault();
-      setCommandMode(!commandMode);
+      sendCommand("5", "");
       return true;
     }
 
@@ -324,6 +315,14 @@ std::string browser_client_js() {
     if (command === "0") {
       const payload = decoder.decode(bytes.slice(1), { stream: true });
       terminal.write(payload);
+      return;
+    }
+    if (command === "1") {
+      try {
+        applyParentStatus(JSON.parse(statusDecoder.decode(bytes.slice(1))));
+      } catch (error) {
+        console.warn("Invalid parent status", error);
+      }
     }
   });
 
