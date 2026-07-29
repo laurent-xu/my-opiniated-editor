@@ -26,7 +26,7 @@ class ServiceScriptsTest(unittest.TestCase):
                     check=True,
                 )
 
-    def test_runner_requires_token_before_building(self):
+    def test_runner_requires_token_before_starting(self):
         env = dict(os.environ)
         env.pop("MOE_BRIDGE_TOKEN", None)
         env.update(
@@ -48,6 +48,57 @@ class ServiceScriptsTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
         self.assertIn("MOE_BRIDGE_TOKEN is required", result.stderr)
+
+    def test_runner_executes_prebuilt_bridge_without_bazel(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "repo"
+            runner = repo_root / "tools" / "bridge" / "run_bridge.sh"
+            runner.parent.mkdir(parents=True)
+            shutil.copyfile(runfile_path("tools/bridge/run_bridge.sh"), runner)
+            runner.chmod(0o755)
+
+            bridge = repo_root / "bazel-bin" / "src" / "bridge" / "parent_ws_bridge"
+            bridge.parent.mkdir(parents=True)
+            bridge.write_text(
+                "#!/usr/bin/env bash\n"
+                'printf "cwd=%s\\n" "$PWD" > "$MOE_TEST_LOG"\n'
+                'printf "arg=%s\\n" "$@" >> "$MOE_TEST_LOG"\n',
+                encoding="utf-8",
+            )
+            bridge.chmod(0o755)
+            parent = repo_root / "bazel-bin" / "src" / "parent" / "workspace_parent"
+            parent.parent.mkdir(parents=True)
+            parent.touch()
+
+            log_path = repo_root / "runner.log"
+            subprocess.run(
+                [self.bash, runner],
+                env={
+                    **os.environ,
+                    "MOE_BRIDGE_INTERFACE": "127.0.0.1",
+                    "MOE_BRIDGE_PORT": "8765",
+                    "MOE_BRIDGE_TOKEN": "test-token",
+                    "MOE_TEST_LOG": str(log_path),
+                },
+                check=True,
+            )
+
+            self.assertEqual(
+                log_path.read_text(encoding="utf-8").splitlines(),
+                [
+                    f"cwd={repo_root}",
+                    "arg=--interface",
+                    "arg=127.0.0.1",
+                    "arg=--port",
+                    "arg=8765",
+                    "arg=--token",
+                    "arg=test-token",
+                    "arg=--parent",
+                    "arg=bazel-bin/src/parent/workspace_parent",
+                    "arg=--cwd",
+                    f"arg={repo_root}",
+                ],
+            )
 
     def test_service_uses_main_worktree(self):
         service = Path(
