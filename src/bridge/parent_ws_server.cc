@@ -106,11 +106,6 @@ void open_parent_worktree_manager(ParentPtySession const& session) {
   session.write(std::string_view(command.data(), command.size()));
 }
 
-void toggle_parent_worktree_picker(ParentPtySession const& session) {
-  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, 't'};
-  session.write(std::string_view(command.data(), command.size()));
-}
-
 void toggle_parent_command_mode(ParentPtySession const& session) {
   std::array<char, 2> const command{TRAY_COMMAND_PREFIX, 'e'};
   session.write(std::string_view(command.data(), command.size()));
@@ -137,10 +132,6 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
   }
   if (command == '3') {
     open_parent_worktree_manager(session);
-    return;
-  }
-  if (command == '4') {
-    toggle_parent_worktree_picker(session);
     return;
   }
   if (command == '5') {

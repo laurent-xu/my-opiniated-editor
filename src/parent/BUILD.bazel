@@ -55,6 +55,8 @@ cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
+        "overlay_footer.cc",
+        "path_picker_overlay.cc",
         "parent_status.cc",
         "terminal_screen.cc",
         "tray.cc",
@@ -62,12 +64,14 @@ cc_library(
         "tray_manager.cc",
         "tray_number.cc",
         "worktree_management_overlay.cc",
-        "worktree_picker_overlay.cc",
+        "worktree_provisioner.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
         "content_pty_session.h",
         "overlay.h",
+        "overlay_footer.h",
+        "path_picker_overlay.h",
         "parent_status.h",
         "terminal_screen.h",
         "terminal_position.h",
@@ -77,9 +81,10 @@ cc_library(
         "tray_manager.h",
         "tray_number.h",
         "tray_output_source.h",
+        "tray_preview_request.h",
         "tray_snapshot.h",
         "worktree_management_overlay.h",
-        "worktree_picker_overlay.h",
+        "worktree_provisioner.h",
         "workspace_parent.h",
     ],
     deps = [
@@ -102,6 +107,28 @@ cc_binary(
         "//test/integration:__pkg__",
     ],
     deps = [":parent_lib"],
+)
+
+cc_test(
+    name = "worktree_management_overlay_test",
+    srcs = ["worktree_management_overlay_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":parent_lib",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_provisioner_test",
+    srcs = ["worktree_provisioner_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":parent_lib",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
 )
 
 cc_test(

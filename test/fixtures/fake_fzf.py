@@ -16,7 +16,19 @@ def write_json_log(environment_name: str, value: object) -> None:
         output.write("\n")
 
 
+def focus_notification(index: int) -> bytes:
+    return f"\x1b]697;focus;{index}\x07".encode()
+
+
 def main() -> int:
+    prompt = next(
+        (
+            argument.removeprefix("--prompt=")
+            for argument in sys.argv[1:]
+            if argument.startswith("--prompt=")
+        ),
+        "> ",
+    )
     candidate_bytes = sys.stdin.buffer.read()
     candidates = [
         candidate.decode(errors="surrogateescape")
@@ -34,9 +46,10 @@ def main() -> int:
     try:
         os.write(
             tty_descriptor,
-            ("\x1b[2J\x1b[HWorktree picker\n" + "\n".join(candidates)).encode(
+            ("\x1b[2J\x1b[H" + prompt + "\r\n" + "\r\n".join(candidates)).encode(
                 errors="surrogateescape"
-            ),
+            )
+            + (focus_notification(0) if candidates else b""),
         )
         while True:
             chunk = os.read(tty_descriptor, 64)
@@ -48,12 +61,15 @@ def main() -> int:
                 selected_index = min(selected_index + 1, len(candidates) - 1)
                 arrow_index = pending.index(b"\x1b[B")
                 del pending[arrow_index : arrow_index + 3]
+                os.write(tty_descriptor, focus_notification(selected_index))
+            if b"\x1b[A" in pending and candidates:
+                selected_index = max(selected_index - 1, 0)
+                arrow_index = pending.index(b"\x1b[A")
+                del pending[arrow_index : arrow_index + 3]
+                os.write(tty_descriptor, focus_notification(selected_index))
             if b"\r" in pending or b"\n" in pending:
                 if candidates:
-                    sys.stdout.buffer.write(
-                        candidates[selected_index].encode(errors="surrogateescape")
-                        + b"\0"
-                    )
+                    sys.stdout.buffer.write(f"{selected_index}\0".encode())
                     sys.stdout.buffer.flush()
                 return 0
     finally:

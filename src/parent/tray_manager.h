@@ -40,10 +40,13 @@ class TrayManager {
   [[nodiscard]] std::vector<TrayOutputSource> output_sources() const;
   void set_active_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay);
   void clear_active_worktree_management_overlay();
+  void clear_worktree_management_overlay(TrayId const& id);
   [[nodiscard]] WorktreeManagementOverlay* active_worktree_management_overlay();
   [[nodiscard]] WorktreeManagementOverlay const* active_worktree_management_overlay() const;
   [[nodiscard]] WorktreeManagementOverlay* worktree_management_overlay(TrayId const& id);
   [[nodiscard]] std::vector<TrayOutputSource> worktree_management_overlay_output_sources() const;
+  [[nodiscard]] std::string active_worktree_management_overlay_redraw_output() const;
+  [[nodiscard]] bool active_worktree_management_overlay_previews(TrayId const& id) const;
 
  private:
   explicit TrayManager(TrayConfig config);
@@ -51,11 +54,13 @@ class TrayManager {
   [[nodiscard]] Tray const& active_tray() const;
   [[nodiscard]] Tray& mutable_active_tray();
   [[nodiscard]] Tray const& tray(TrayId const& id) const;
+  [[nodiscard]] Tray const* find_tray(TrayId const& id) const;
   [[nodiscard]] Tray& mutable_tray(TrayId const& id);
   [[nodiscard]] Tray& ensure_tray(TrayNumber number);
   [[nodiscard]] Tray& ensure_worktree_tray(std::filesystem::path const& root);
   [[nodiscard]] Tray const& worktree_tray(std::filesystem::path const& root) const;
   [[nodiscard]] Tray& mutable_worktree_tray(std::filesystem::path const& root);
+  void refresh_active_overlay_session_trays();
   [[nodiscard]] static std::size_t tray_index(TrayNumber number);
 
   TrayConfig config;

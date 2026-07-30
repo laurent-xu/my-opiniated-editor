@@ -28,6 +28,7 @@ class Tray {
   void write_input(std::string_view bytes) const;
   [[nodiscard]] std::optional<std::string> read_output();
   [[nodiscard]] std::string redraw_output() const;
+  [[nodiscard]] std::string preview_output(TerminalPosition origin, TerminalSize region_size) const;
   void resize(TerminalSize size);
   [[nodiscard]] std::optional<int> try_wait_for_exit() noexcept;
   [[nodiscard]] base::FileDescriptor file_descriptor() const;

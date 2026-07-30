@@ -14,7 +14,8 @@ The current implementation already provides:
 - Nine anonymous trays selected through escape mode.
 - Worktree tray identities and shells rooted in a selected worktree.
 - A persistent protobuf registry and per-tray repository-management overlays.
-- A parent-owned fzf picker for switching to available tracked worktrees.
+- One parent-owned worktree overlay with fzf selectors for tracked worktrees and
+  registered repositories.
 
 Each milestone below produces one commit. After its tests pass, stop for manual
 review before starting the next milestone.
@@ -22,23 +23,26 @@ review before starting the next milestone.
 ## Shortcuts
 
 - `Esc`, `Shift+1` through `Shift+9`: switch anonymous trays.
-- `Esc`, `Shift+T`: switch to an available tracked worktree.
-- `Esc`, `Shift+W`: toggle the active tray's worktree management overlay.
+- `Esc`, `Shift+W`: toggle the active tray's worktree overlay.
 
-The worktree management overlay ultimately provides:
+The worktree overlay provides three modes, in this order:
 
-- Add repository.
-- Create worktree.
+- Worktrees: switch to an available tracked worktree. This is the default.
+- Add worktree: select a registered repository and create or adopt a worktree.
+- Add repository: register an existing bare root or create a new one.
 
-Opening an interactive overlay leaves command mode so typing, arrows, and Enter
-are routed to the overlay. `Esc` continues to toggle command mode without
-closing the overlay. From command mode, `Shift+W` closes the repository manager
-and `Shift+T` cancels the worktree picker.
-
-The repository manager and worktree picker are mutually exclusive on the
-visible surface. Invoking `Shift+W` while the picker is open replaces it with
-the repository manager; invoking `Shift+T` while the repository manager is open
-replaces it with the picker.
+`Tab` and `Shift+Tab` cycle directly through those modes. Worktrees and the
+repository-selection step of Add worktree use the same fzf-backed path picker,
+so their complete candidate lists remain visible and searchable. One shared
+parent-rendered mode footer stays on the bottom row while either the fzf dialog
+or a form dialog is drawn independently above it. Changing modes resets every
+mode to its initial selector or form. The Worktrees picker also includes every
+anonymous tray used in the current session as `/anonymous/N`. Its highlighted
+tray is previewed above fzf; a registered worktree without an in-session tray
+has a dark preview. Opening the overlay leaves command mode so typing, arrows,
+and Enter are routed to it. `Esc` continues to toggle command mode without
+closing the overlay. From command mode, `Shift+W` closes the overlay and leaves
+command mode active.
 
 Each tray owns its worktree-management overlay state. Switching trays hides the
 previous tray's overlay without destroying it; switching back redraws the tray
@@ -182,7 +186,7 @@ Exit criteria:
 
 Deliverables:
 
-- Replace the `Shift+T` placeholder with a parent-owned `fzf` overlay.
+- Add a parent-owned `fzf` path-picker overlay.
 - Build candidates from available worktrees in the persistent registry.
 - Validate candidates with `git worktree list --porcelain`.
 - Exclude bare, prunable, missing, and untracked entries.
@@ -198,7 +202,7 @@ filtering, input routing, redraw, and stable tray identity.
 
 Exit criteria:
 
-- `Esc`, `Shift+T` opens and switches among manually registered worktrees.
+- A parent-owned fzf selector switches among manually registered worktrees.
 - Canceling does not switch trays or leak Escape to the content PTY.
 - The full Bazel test suite passes.
 - One commit is ready for manual review.
@@ -207,18 +211,33 @@ Exit criteria:
 
 Deliverables:
 
-- Add Create worktree to the `Shift+W` management overlay.
-- Select a registered repository.
-- Ask for a new branch name.
-- Resolve the repository's default branch from Git.
-- Derive a worktree path below the repository root, replacing branch-name
-  slashes with hyphens.
-- Allow the user to review or edit that path before confirmation.
-- Create the branch and worktree with direct process arguments.
+- Fold existing-worktree selection into `Shift+W` as its first and default
+  Worktrees mode.
+- Add mutually exclusive Add worktree and Add repository modes.
+- Use `Tab` or `Shift+Tab` to cycle modes directly and reset mode-local state.
+- Reuse the fzf path picker to show and select all registered repositories in
+  Add worktree mode.
+- Ask for a branch name and derive a worktree path below the selected
+  repository, replacing branch-name slashes with hyphens.
+- Start provisioning immediately after the branch is submitted; do not ask for
+  path confirmation.
+- If the path already contains a linked worktree for the selected repository
+  and branch, register it using filesystem metadata without running Git.
+- If the path does not exist, first attempt to fetch that branch from origin.
+  Check out an existing local branch when present, create a tracking branch
+  when only the fetched remote branch exists, or create a new branch from the
+  repository default when neither exists.
 - Atomically add the new worktree to the registry.
 - Open its worktree tray immediately.
+- Include used anonymous trays in Worktrees and preview the focused in-session
+  tray above fzf.
 
-The operation is equivalent to:
+Repository mode retains repository registration and bare-root creation. A
+single flow asks for either worktree information or repository information,
+never both. Additional worktrees for a registered repository do not repeat
+repository registration.
+
+Creating a genuinely new branch is equivalent to:
 
 ```text
 git worktree add -b <branch> <path> <default-branch>
@@ -233,15 +252,20 @@ partial success, and allow it to be adopted during a later management action.
 Tests:
 
 - Default-branch resolution.
+- Existing local branches, fetched remote branches, and fetch failure fallback.
 - Branch-name and path validation.
 - Derived paths for branch names containing slashes.
-- Duplicate branches and existing destinations.
+- Existing matching worktrees are adopted without a Git process.
+- Mismatched branches, duplicate branches, and invalid existing destinations.
 - Git and persistence failures.
 - Immediate switch into the new worktree tray.
+- Anonymous tray candidates and focused tray previews.
 
 Exit criteria:
 
-- `Esc`, `Shift+W` handles both repository addition and worktree creation.
+- `Esc`, `Shift+W` handles worktree switching, repository addition, and
+  worktree creation.
+- Closing the overlay with `Shift+W` leaves command mode active.
 - New worktrees always branch from the repository default branch.
 - The full Bazel test suite passes.
 - One commit is ready for manual review.
@@ -256,9 +280,9 @@ When the registry or a selector is opened:
 - Detect live Git worktrees not yet tracked by the editor.
 - Never silently delete persisted repository or worktree entries.
 
-`Shift+T` shows only available tracked worktrees. Adoption and removal actions
-beyond the recovery behavior described above are out of scope for these
-milestones.
+Worktrees mode shows only available tracked worktrees. Adoption and removal
+actions beyond the recovery behavior described above are out of scope for
+these milestones.
 
 ## Architecture Boundary
 
@@ -268,20 +292,23 @@ browser
 bridge
   -> parent control command
 workspace parent
-  -> shared Overlay lifecycle, command-mode routing, and pane redraw
+  -> tray-owned overlay lifecycle, command-mode routing, and pane redraw
 worktree workflow
   -> registry/live-Git candidate intersection and validation
+path picker
+  -> temporary fzf PTY, candidate display, filtering, and selection
 worktree registry store
   -> protobuf loading and atomic persistence
 tray manager
   -> running tray and content-PTY lifecycle
 ```
 
-The repository manager and worktree picker implement the same `Overlay`
-interaction contract. The repository manager owns its small form editor. The
-worktree picker owns a temporary fzf PTY and terminal screen because fzf handles
-its own query text and arrow input. Command mode remains above both overlays, so
-entering it never leaks Escape into either child surface.
+The worktree overlay implements the `Overlay` interaction contract and owns its
+small form editor. It composes a reusable path picker for Worktrees mode and
+the repository-selection step of Add worktree mode. The path picker owns a
+temporary fzf PTY and terminal screen because fzf handles its own query text
+and arrow input. Command mode remains above the worktree overlay, so entering
+it never leaks Escape into either child surface.
 
 The picker terminal is constrained to a bottom pane. Its bytes are interpreted
 by a dedicated terminal screen and redrawn only inside that region; full-screen

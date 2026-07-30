@@ -1,6 +1,10 @@
 #include "src/parent/tray_manager.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -47,6 +51,35 @@ std::filesystem::path worktree_root_for(std::filesystem::path const& path) {
   throw std::invalid_argument("path is not inside a git worktree: " + path.string());
 }
 
+std::string preview_target(TrayId const& id) {
+  if (id.kind() == TrayIdKind::ANONYMOUS) {
+    return "/anonymous/" + std::to_string(id.anonymous_number().value());
+  }
+  return id.worktree_root().string();
+}
+
+std::string render_preview_header(TrayPreviewRequest const& preview) {
+  std::size_t const width = static_cast<std::size_t>(std::max(preview.size.cols, 0));
+  if (width == 0U || preview.size.rows <= 0) {
+    return {};
+  }
+
+  constexpr std::string_view PREFIX = "Preview: ";
+  std::string const target = preview_target(preview.tray_id);
+  std::string title(PREFIX);
+  if (title.size() + target.size() <= width) {
+    title += target;
+  } else if (width > title.size() + 3U) {
+    std::size_t const target_width = width - title.size() - 3U;
+    title += "..." + target.substr(target.size() - target_width);
+  }
+  title.resize(width, ' ');
+
+  return "\x1b[?25l\x1b[" + std::to_string(preview.origin.row + 1) + ";" +
+         std::to_string(preview.origin.column + 1) + "H\x1b[48;5;236m\x1b[38;5;252m" + title +
+         "\x1b[0m";
+}
+
 }  // namespace
 
 std::unique_ptr<TrayManager> TrayManager::start(TrayConfig config) {
@@ -86,6 +119,7 @@ TraySnapshot TrayManager::switch_to(TrayNumber const number) {
   Tray& tray = ensure_tray(number);
   active_tray_id = TrayId::anonymous(number);
   tray.resize(current_size);
+  refresh_active_overlay_session_trays();
   return tray.snapshot();
 }
 
@@ -94,6 +128,7 @@ TraySnapshot TrayManager::switch_to_worktree(std::filesystem::path const& path) 
   Tray& tray = ensure_worktree_tray(root);
   active_tray_id = TrayId::worktree(root);
   tray.resize(current_size);
+  refresh_active_overlay_session_trays();
   return tray.snapshot();
 }
 
@@ -147,6 +182,10 @@ void TrayManager::clear_active_worktree_management_overlay() {
   mutable_active_tray().clear_worktree_management_overlay();
 }
 
+void TrayManager::clear_worktree_management_overlay(TrayId const& id) {
+  mutable_tray(id).clear_worktree_management_overlay();
+}
+
 WorktreeManagementOverlay* TrayManager::active_worktree_management_overlay() {
   return mutable_active_tray().worktree_management_overlay();
 }
@@ -183,6 +222,48 @@ std::vector<TrayOutputSource> TrayManager::worktree_management_overlay_output_so
   return sources;
 }
 
+std::string TrayManager::active_worktree_management_overlay_redraw_output() const {
+  WorktreeManagementOverlay const* const overlay = active_worktree_management_overlay();
+  if (overlay == nullptr) {
+    return {};
+  }
+
+  std::string output;
+  std::optional<TrayPreviewRequest> const preview = overlay->preview_request();
+  if (preview.has_value()) {
+    TrayPreviewRequest const content_preview{
+        .tray_id = preview->tray_id,
+        .origin =
+            TerminalPosition{
+                .row = preview->origin.row + 1,
+                .column = preview->origin.column,
+            },
+        .size =
+            TerminalSize{
+                .rows = std::max(preview->size.rows - 1, 0),
+                .cols = preview->size.cols,
+            },
+    };
+    Tray const* const previewed_tray = find_tray(preview->tray_id);
+    output = previewed_tray == nullptr
+                 ? TerminalScreen::render_blank_region_snapshot(content_preview.origin,
+                                                                content_preview.size)
+                 : previewed_tray->preview_output(content_preview.origin, content_preview.size);
+    output += render_preview_header(*preview);
+  }
+  output += overlay->redraw_output();
+  return output;
+}
+
+bool TrayManager::active_worktree_management_overlay_previews(TrayId const& id) const {
+  WorktreeManagementOverlay const* const overlay = active_worktree_management_overlay();
+  if (overlay == nullptr) {
+    return false;
+  }
+  std::optional<TrayPreviewRequest> const preview = overlay->preview_request();
+  return preview.has_value() && preview->tray_id == id;
+}
+
 Tray const& TrayManager::active_tray() const { return tray(active_tray_id); }
 
 Tray& TrayManager::mutable_active_tray() { return mutable_tray(active_tray_id); }
@@ -197,6 +278,16 @@ Tray const& TrayManager::tray(TrayId const& id) const {
     throw std::logic_error("requested anonymous tray is missing");
   }
   return *tray;
+}
+
+Tray const* TrayManager::find_tray(TrayId const& id) const {
+  if (id.kind() == TrayIdKind::WORKTREE) {
+    auto const iterator = worktree_trays.find(id.worktree_root());
+    return iterator == worktree_trays.end() ? nullptr : iterator->second.get();
+  }
+
+  std::unique_ptr<Tray> const& candidate = anonymous_trays.at(tray_index(id.anonymous_number()));
+  return candidate.get();
 }
 
 Tray& TrayManager::mutable_tray(TrayId const& id) {
@@ -252,6 +343,13 @@ Tray& TrayManager::mutable_worktree_tray(std::filesystem::path const& root) {
     throw std::logic_error("requested worktree tray is missing");
   }
   return *iterator->second;
+}
+
+void TrayManager::refresh_active_overlay_session_trays() {
+  WorktreeManagementOverlay* const overlay = active_worktree_management_overlay();
+  if (overlay != nullptr) {
+    overlay->update_session_trays(tray_snapshots());
+  }
 }
 
 std::size_t TrayManager::tray_index(TrayNumber const number) {

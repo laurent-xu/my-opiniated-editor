@@ -76,9 +76,6 @@ class WebSocketClient:
     def open_worktree_manager(self):
         self.send_binary(b"3")
 
-    def toggle_worktree_picker(self):
-        self.send_binary(b"4")
-
     def toggle_command_mode(self):
         self.send_binary(b"5")
 

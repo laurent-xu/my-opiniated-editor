@@ -28,9 +28,9 @@ Current owned bridge endpoints:
   output frames use command byte `0`; resize frames use command byte `1` plus
   JSON `{columns, rows}`. Anonymous tray switching uses command byte `2` plus
   JSON `{tray}`. Toggling the active tray's parent-owned worktree manager uses
-  command byte `3` with an empty payload. Toggling the parent-owned worktree
-  picker uses command byte `4` with an empty payload. Toggling parent-owned
-  command mode uses command byte `5` with an empty payload.
+  command byte `3` with an empty payload. The manager contains worktree
+  switching, worktree creation, and repository registration. Toggling
+  parent-owned command mode uses command byte `5` with an empty payload.
 - Server status frames use command byte `1` plus a `parent.status` JSON object.
   The parent sends these events to the bridge over a dedicated inherited pipe,
   separate from terminal output. The bridge caches the latest status and sends

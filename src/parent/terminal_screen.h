@@ -27,6 +27,10 @@ class TerminalScreen {
   void resize(TerminalSize size);
   [[nodiscard]] std::string render_snapshot() const;
   [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin) const;
+  [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin,
+                                                   TerminalSize region_size) const;
+  [[nodiscard]] static std::string render_blank_region_snapshot(TerminalPosition origin,
+                                                                TerminalSize region_size);
 
  private:
   struct VTermDeleter {
@@ -39,8 +43,13 @@ class TerminalScreen {
   void ingest_complete_input(std::string_view bytes);
   void feed_input_to_vterm(std::string_view bytes);
   void record_erase_for_snapshot(char command, VTermPos cursor, int mode);
-  [[nodiscard]] std::string screen_row_snapshot_line(int row,
-                                                     bool allow_erase_to_end_of_line = true) const;
+  [[nodiscard]] std::string screen_row_snapshot_line(int row, bool allow_erase_to_end_of_line,
+                                                     int columns) const;
+  [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin,
+                                                   TerminalSize region_size,
+                                                   bool restore_cursor) const;
+  static void append_blank_region(std::string& output, TerminalPosition origin,
+                                  TerminalSize region_size);
   [[nodiscard]] static std::string cursor_position_sequence(int row, int col);
   [[nodiscard]] static VTermScreenCallbacks const& screen_callbacks();
   static int move_rect_callback(VTermRect dest, VTermRect src, void* user);

@@ -65,6 +65,14 @@ def set_pty_size(fd: int, rows: int, cols: int):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
 
 
+def switch_worktree_overlay_to_repository_mode(fd: int):
+    os.write(fd, b"\t\t")
+
+
+def switch_worktree_overlay_to_add_worktree_mode(fd: int):
+    os.write(fd, b"\t")
+
+
 def worktree_test_environment(name: str) -> dict[str, str]:
     environment = dict(os.environ)
     environment["XDG_STATE_HOME"] = os.path.join(
@@ -301,6 +309,7 @@ class WorkspaceParentPtyTest(unittest.TestCase):
 
         try:
             os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_repository_mode(master_fd)
             read_until(master_fd, "Repository root:")
             repository_with_typo = repository.removesuffix("repository") + "reposiory"
             os.write(
@@ -351,6 +360,7 @@ class WorkspaceParentPtyTest(unittest.TestCase):
 
         try:
             os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_repository_mode(master_fd)
             read_until(master_fd, "Repository root:")
             os.write(master_fd, repository.encode() + b"\r")
             read_until(master_fd, "Clone URL:")
@@ -364,6 +374,84 @@ class WorkspaceParentPtyTest(unittest.TestCase):
 
             os.write(master_fd, b"\x18w")
             read_until(master_fd, "\x1b[H\x1b[2J")
+            os.write(master_fd, b"exit\n")
+            self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+            os.close(master_fd)
+
+    def test_worktree_manager_creates_worktree_and_switches_to_its_tray(self):
+        test_root = os.path.join(os.environ["TEST_TMPDIR"], "create-worktree")
+        repository = os.path.join(test_root, "repository")
+        worktree = os.path.join(repository, "feature-terminal")
+        os.makedirs(os.path.join(repository, ".bare"))
+        with open(os.path.join(repository, ".git"), "w", encoding="utf-8") as output:
+            output.write("gitdir: ./.bare\n")
+
+        environment = worktree_test_environment("create-worktree")
+        environment["MOE_FAKE_GIT_WORKTREE_LIST"] = (
+            f"worktree {repository}/.bare\n" "HEAD 111\n" "bare\n" "\n"
+        )
+        master_fd, slave_fd = pty.openpty()
+        process = subprocess.Popen(
+            [runfile_path("src/parent/workspace_parent")],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            cwd=os.environ["TEST_TMPDIR"],
+            env=environment,
+        )
+        os.close(slave_fd)
+
+        try:
+            os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_repository_mode(master_fd)
+            read_until(master_fd, "Repository root:")
+            os.write(master_fd, repository.encode() + b"\r")
+            read_until(master_fd, "Completed")
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "\x1b[H\x1b[2J")
+
+            os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_add_worktree_mode(master_fd)
+            repository_selection = read_until(master_fd, "Repository> ")
+            self.assertIn(
+                "\x1b[48;5;244mAdd worktree\x1b[48;5;236m",
+                repository_selection,
+            )
+            with open(
+                environment["MOE_FAKE_FZF_CANDIDATES_LOG"], encoding="utf-8"
+            ) as candidate_log:
+                self.assertEqual(json.loads(candidate_log.readline()), [repository])
+
+            os.write(master_fd, b"\t")
+            repository_mode = read_until(master_fd, "Repository root:")
+            self.assertIn("\x1b[H\x1b[2J", repository_mode)
+            os.write(master_fd, b"\x1b[Z")
+            read_until(master_fd, "Repository> ")
+
+            os.write(master_fd, b"\r")
+            branch_form = read_until(master_fd, "Branch:")
+            self.assertIn("\x1b[H\x1b[2J", branch_form)
+            os.write(master_fd, b"feature/terminal\r")
+            provision_output = read_until(master_fd, "\x1b[H\x1b[2J")
+            self.assertIn("Worktree created:", provision_output)
+
+            os.write(
+                master_fd,
+                b"pwd\n" + shell_marker_command("__moe_created_worktree_ready__"),
+            )
+            selected_output = read_until(master_fd, "__moe_created_worktree_ready__")
+            self.assertIn(worktree, selected_output)
+            self.assertTrue(os.path.isfile(os.path.join(worktree, ".git")))
+
+            with open(environment["MOE_FAKE_GIT_LOG"], encoding="utf-8") as git_log:
+                invocations = git_log.read()
+            self.assertIn('"worktree", "add", "-b", "feature/terminal"', invocations)
+
             os.write(master_fd, b"exit\n")
             self.assertEqual(process.wait(timeout=5), 0)
         finally:
@@ -388,6 +476,7 @@ class WorkspaceParentPtyTest(unittest.TestCase):
 
         try:
             os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_repository_mode(master_fd)
             read_until(master_fd, "Repository root:")
             os.write(master_fd, b"tray-one-input")
             read_until(master_fd, "> tray-one-input")
@@ -395,6 +484,7 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             os.write(master_fd, b"\x182")
             read_until(master_fd, "\x1b[H\x1b[2J")
             os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_repository_mode(master_fd)
             read_until(master_fd, "Repository root:")
             os.write(master_fd, b"tray-two-input")
             read_until(master_fd, "> tray-two-input")
@@ -464,19 +554,22 @@ class WorkspaceParentPtyTest(unittest.TestCase):
 
         try:
             os.write(master_fd, b"\x18w")
+            switch_worktree_overlay_to_repository_mode(master_fd)
             read_until(master_fd, "Repository root:")
             os.write(master_fd, repository.encode() + b"\r")
             read_until(master_fd, "Completed")
             os.write(master_fd, b"\x18w")
             read_until(master_fd, "\x1b[H\x1b[2J")
 
-            os.write(master_fd, b"\x18t")
-            read_until(master_fd, "Worktree picker")
+            os.write(master_fd, b"\x18w")
+            read_until(master_fd, "Worktree> ")
             with open(
                 environment["MOE_FAKE_FZF_CANDIDATES_LOG"], encoding="utf-8"
             ) as candidate_log:
                 candidates = json.loads(candidate_log.readline())
-            self.assertEqual(candidates, [feature_worktree, main_worktree])
+            self.assertEqual(
+                candidates, [feature_worktree, main_worktree, "/anonymous/1"]
+            )
             os.write(master_fd, b"\x1b[B\r")
             read_until(master_fd, "\x1b[H\x1b[2J")
             os.write(master_fd, b"pwd\n")
@@ -489,10 +582,18 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             os.write(master_fd, b"\x181")
             read_until(master_fd, "\x1b[H\x1b[2J")
 
-            os.write(master_fd, b"\x18t")
-            read_until(master_fd, "Worktree picker")
-            os.write(master_fd, b"\x1b[B\r")
-            read_until(master_fd, "__moe_worktree_exported__")
+            os.write(master_fd, b"\x18w")
+            initial_preview = read_until(master_fd, "Preview: ...")
+            self.assertIn("repository/feature", initial_preview)
+            read_until(master_fd, "Worktree> ")
+            os.write(master_fd, b"\x1b[B")
+            focused_preview = read_until(
+                master_fd, "export MOE_WORKTREE_TRAY_MARKER=reused"
+            )
+            self.assertIn("Preview: ...", focused_preview)
+            self.assertIn("repository/main", focused_preview)
+            os.write(master_fd, b"\r")
+            read_until(master_fd, "\x1b[H\x1b[2J")
             os.write(
                 master_fd,
                 b"printf '__moe_reused_%s__\\n' \"$MOE_WORKTREE_TRAY_MARKER\"\n",
@@ -527,14 +628,19 @@ class WorkspaceParentPtyTest(unittest.TestCase):
         try:
             os.write(
                 master_fd,
-                b"sleep 0.2; printf '__moe_hidden_while_picker__\\n'\n\x18t",
+                b"sleep 0.2; printf '__moe_hidden_while_picker__\\n'\n\x18w",
             )
-            read_until(master_fd, "Worktree picker")
+            read_until(master_fd, "\x1b[48;5;244mWorktrees\x1b[48;5;236m")
             time.sleep(0.4)
 
-            os.write(master_fd, b"\x18t")
-            redraw = read_until(master_fd, "__moe_hidden_while_picker__")
+            live_preview = read_until(master_fd, "__moe_hidden_while_picker__")
+            self.assertIn("Preview: /anonymous/1", live_preview)
+            os.write(master_fd, b"\x18w")
+            redraw = read_until(master_fd, "\x1b[H\x1b[2J")
+            if "__moe_hidden_while_picker__" not in redraw:
+                redraw += read_until(master_fd, "__moe_hidden_while_picker__")
             self.assertIn("\x1b[H\x1b[2J", redraw)
+            self.assertIn("__moe_hidden_while_picker__", redraw)
 
             os.write(master_fd, shell_marker_command("__moe_after_picker_cancel__"))
             shell_output = read_until(master_fd, "__moe_after_picker_cancel__")

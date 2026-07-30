@@ -40,6 +40,11 @@ std::optional<std::string> Tray::read_output() {
 
 std::string Tray::redraw_output() const { return terminal_screen.render_snapshot(); }
 
+std::string Tray::preview_output(TerminalPosition const origin,
+                                 TerminalSize const region_size) const {
+  return terminal_screen.render_region_snapshot(origin, region_size);
+}
+
 void Tray::resize(TerminalSize const size) {
   content->resize(size);
   terminal_screen.resize(size);

@@ -177,10 +177,6 @@ std::string browser_client_js() {
     sendCommand("2", JSON.stringify({ tray: trayNumber }));
   }
 
-  function toggleWorktreePicker() {
-    sendCommand("4", "");
-  }
-
   function toggleWorktreeManager() {
     sendCommand("3", "");
   }
@@ -225,11 +221,6 @@ std::string browser_client_js() {
     return null;
   }
 
-  function isShiftTKey(event) {
-    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
-      (event.code === "KeyT" || event.key === "T");
-  }
-
   function isShiftWKey(event) {
     return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
       (event.code === "KeyW" || event.key === "W");
@@ -264,10 +255,6 @@ std::string browser_client_js() {
     const trayNumber = trayNumberFromShiftDigit(event);
     if (trayNumber !== null) {
       sendTraySwitch(trayNumber);
-      return true;
-    }
-    if (isShiftTKey(event)) {
-      toggleWorktreePicker();
       return true;
     }
     if (isShiftWKey(event)) {

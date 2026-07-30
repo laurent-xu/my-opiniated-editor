@@ -12,8 +12,6 @@ std::string_view overlay_name(ParentOverlayKind const overlay) {
       return "none";
     case ParentOverlayKind::WORKTREE_MANAGEMENT:
       return "worktreeManagement";
-    case ParentOverlayKind::WORKTREE_PICKER:
-      return "worktreePicker";
   }
   return "none";
 }

@@ -11,12 +11,12 @@ TEST(ParentStatusTest, SerializesAnonymousTrayStatus) {
   moe::parent::ParentStatus const status{
       .command_mode = true,
       .active_tray = moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()),
-      .overlay = moe::parent::ParentOverlayKind::WORKTREE_PICKER,
+      .overlay = moe::parent::ParentOverlayKind::WORKTREE_MANAGEMENT,
   };
 
   EXPECT_EQ(
       moe::parent::serialize_parent_status(status),
-      R"({"type":"parent.status","commandMode":true,"trayKey":"anonymous:1","trayLabel":"tray 1","overlay":"worktreePicker"})");
+      R"({"type":"parent.status","commandMode":true,"trayKey":"anonymous:1","trayLabel":"tray 1","overlay":"worktreeManagement"})");
 }
 
 TEST(ParentStatusTest, EscapesWorktreeStatusStrings) {

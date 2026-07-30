@@ -215,4 +215,26 @@ TEST(TerminalScreenTest, RegionRedrawOffsetsRowsAndDoesNotEraseOutsideRegion) {
   EXPECT_EQ(redraw.find("\x1b[K"), std::string::npos);
 }
 
+TEST(TerminalScreenTest, ClippedRegionRedrawShowsTopRows) {
+  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 4, .cols = 8});
+  screen.ingest("\x1b[1;1Htop\x1b[4;1Hbottom");
+
+  std::string const redraw =
+      screen.render_region_snapshot(moe::parent::TerminalPosition{.row = 4, .column = 0},
+                                    moe::parent::TerminalSize{.rows = 2, .cols = 8});
+
+  EXPECT_NE(redraw.find("\x1b[5;1Htop"), std::string::npos);
+  EXPECT_EQ(redraw.find("bottom"), std::string::npos);
+  EXPECT_NE(redraw.find("\x1b[6;1H\x1b[0m        "), std::string::npos);
+}
+
+TEST(TerminalScreenTest, BlankRegionRedrawIsCompletelyDark) {
+  std::string const redraw = moe::parent::TerminalScreen::render_blank_region_snapshot(
+      moe::parent::TerminalPosition{.row = 2, .column = 1},
+      moe::parent::TerminalSize{.rows = 2, .cols = 4});
+
+  EXPECT_NE(redraw.find("\x1b[3;2H\x1b[0;48;5;232m    "), std::string::npos);
+  EXPECT_NE(redraw.find("\x1b[4;2H\x1b[0;48;5;232m    "), std::string::npos);
+}
+
 }  // namespace
