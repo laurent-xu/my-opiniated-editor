@@ -109,7 +109,7 @@ TEST(TrayIdTest, SupportsAnonymousAndWorktreeIdentities) {
   EXPECT_EQ(worktree.kind(), moe::parent::TrayIdKind::WORKTREE);
   EXPECT_EQ(worktree.worktree_root(), root);
   EXPECT_EQ(worktree.key(), "worktree:" + root.string());
-  EXPECT_EQ(worktree.label(), "worktree tray-id-worktree");
+  EXPECT_EQ(worktree.label(), "worktree " + root.string());
 }
 
 TEST(TrayManagerTest, StartsWithAnonymousTrayOne) {
@@ -226,7 +226,7 @@ TEST(TrayManagerTest, WorktreeTrayStartsShellInWorktreeRoot) {
   EXPECT_EQ(snapshot.id.kind(), moe::parent::TrayIdKind::WORKTREE);
   EXPECT_EQ(snapshot.id.worktree_root(), root);
   EXPECT_EQ(snapshot.id.key(), "worktree:" + root.string());
-  EXPECT_EQ(snapshot.label, "worktree cwd-worktree");
+  EXPECT_EQ(snapshot.label, "worktree " + root.string());
   EXPECT_EQ(snapshot.working_directory, root);
 
   manager->write_input("pwd\n");

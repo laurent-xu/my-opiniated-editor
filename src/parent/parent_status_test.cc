@@ -28,7 +28,7 @@ TEST(ParentStatusTest, EscapesWorktreeStatusStrings) {
 
   EXPECT_EQ(
       moe::parent::serialize_parent_status(status),
-      R"({"type":"parent.status","commandMode":false,"trayKey":"worktree:/tmp/quoted\"worktree","trayLabel":"worktree quoted\"worktree","overlay":"worktreeManagement"})");
+      R"({"type":"parent.status","commandMode":false,"trayKey":"worktree:/tmp/quoted\"worktree","trayLabel":"worktree /tmp/quoted\"worktree","overlay":"worktreeManagement"})");
 }
 
 }  // namespace

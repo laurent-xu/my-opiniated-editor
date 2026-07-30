@@ -41,11 +41,7 @@ std::string TrayId::label() const {
   if (kind() == TrayIdKind::ANONYMOUS) {
     return "tray " + std::to_string(anonymous_number().value());
   }
-  std::string name = worktree_root().filename().string();
-  if (name.empty()) {
-    name = worktree_root().string();
-  }
-  return "worktree " + name;
+  return "worktree " + worktree_root().string();
 }
 
 TrayId::TrayId(TrayNumber const tray_number) : value(tray_number) {}

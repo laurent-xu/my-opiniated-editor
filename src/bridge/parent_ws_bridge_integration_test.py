@@ -368,7 +368,7 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             expected = {
                 "commandMode": False,
                 "trayKey": f"worktree:{worktree}",
-                "trayLabel": "worktree feature-status",
+                "trayLabel": f"worktree {worktree}",
             }
             first_client.read_parent_status_until(expected)
             second_client.read_parent_status_until(expected)
