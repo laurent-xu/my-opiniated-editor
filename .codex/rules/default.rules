@@ -74,9 +74,25 @@ prefix_rule(
     match = [
         "git add -A",
         "git add src/bridge/browser_assets.cc",
+        "git add src/parent/BUILD.bazel src/parent/terminal_screen.cc",
     ],
     not_match = [
         "git commit",
+        "git reset --hard HEAD~1",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "diff"],
+    decision = "allow",
+    justification = "Inspect working-tree or staged changes without a repeated approval prompt.",
+    match = [
+        "git diff",
+        "git diff --check",
+        "git diff --cached --check",
+        "git diff --stat",
+    ],
+    not_match = [
         "git reset --hard HEAD~1",
     ],
 )
@@ -87,6 +103,7 @@ prefix_rule(
     justification = "Create a requested local commit; repository instructions still control when commits are in scope.",
     match = [
         "git commit -m \"Fix browser terminal rendering\"",
+        "git commit -m \"Extract terminal screen library\"",
     ],
     not_match = [
         "git push",
