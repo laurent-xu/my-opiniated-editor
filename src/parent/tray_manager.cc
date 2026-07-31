@@ -147,9 +147,6 @@ bool TrayManager::destroy_tray(TrayId const& id) {
   }
   if (id == active_tray_id) {
     activate_anonymous_tray_one();
-  } else if (id.kind() == TrayIdKind::ANONYMOUS &&
-             id.anonymous_number().value() == TrayNumber::MIN_VALUE) {
-    static_cast<void>(ensure_tray(TrayNumber::one()));
   }
   refresh_active_overlay_session_trays();
   return true;

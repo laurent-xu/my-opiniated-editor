@@ -90,6 +90,7 @@ cc_library(
         "terminal_screen.h",
         "terminal_position.h",
         "tray.h",
+        "tray_action_request.h",
         "tray_config.h",
         "tray_id.h",
         "tray_manager.h",

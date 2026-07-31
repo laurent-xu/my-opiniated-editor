@@ -263,37 +263,38 @@ std::optional<TrayId> WorktreeManagementOverlay::highlighted_tray_id() const {
   return switch_candidate_tray_ids[*index];
 }
 
-bool WorktreeManagementOverlay::begin_remove_confirmation() {
+bool WorktreeManagementOverlay::begin_tray_action_confirmation(TrayActionKind const kind) {
   std::optional<TrayId> const highlighted = highlighted_tray_id();
   if (!highlighted.has_value()) {
     return false;
   }
-  remove_confirmation = highlighted;
+  tray_action_confirmation = TrayActionRequest{.kind = kind, .tray_id = *highlighted};
   picker_action_error.clear();
   full_redraw_requested = true;
   return true;
 }
 
-bool WorktreeManagementOverlay::has_remove_confirmation() const noexcept {
-  return remove_confirmation.has_value();
+bool WorktreeManagementOverlay::has_tray_action_confirmation() const noexcept {
+  return tray_action_confirmation.has_value();
 }
 
-std::optional<TrayId> WorktreeManagementOverlay::resolve_remove_confirmation(bool const confirmed) {
-  if (!remove_confirmation.has_value()) {
+std::optional<TrayActionRequest> WorktreeManagementOverlay::resolve_tray_action_confirmation(
+    bool const confirmed) {
+  if (!tray_action_confirmation.has_value()) {
     return std::nullopt;
   }
-  std::optional<TrayId> target = std::exchange(remove_confirmation, std::nullopt);
+  std::optional<TrayActionRequest> request = std::exchange(tray_action_confirmation, std::nullopt);
   full_redraw_requested = true;
-  return confirmed ? target : std::nullopt;
+  return confirmed ? request : std::nullopt;
 }
 
-void WorktreeManagementOverlay::cancel_remove_confirmation() {
-  remove_confirmation.reset();
+void WorktreeManagementOverlay::cancel_tray_action_confirmation() {
+  tray_action_confirmation.reset();
   full_redraw_requested = true;
 }
 
 void WorktreeManagementOverlay::set_picker_action_error(std::string message) {
-  remove_confirmation.reset();
+  tray_action_confirmation.reset();
   picker_action_error = std::move(message);
   full_redraw_requested = true;
 }
@@ -302,7 +303,7 @@ void WorktreeManagementOverlay::refresh_worktree_picker() {
   if (mode != Mode::SWITCH_WORKTREE) {
     return;
   }
-  remove_confirmation.reset();
+  tray_action_confirmation.reset();
   picker_action_error.clear();
   picker = nullptr;
   start_switch_worktree_picker();
@@ -437,7 +438,7 @@ void WorktreeManagementOverlay::reset_mode_state() {
   process_escape_sequence = false;
   process_control_sequence = false;
   result_succeeded = false;
-  remove_confirmation.reset();
+  tray_action_confirmation.reset();
   picker_action_error.clear();
   load_repositories();
 }
@@ -587,28 +588,31 @@ std::string WorktreeManagementOverlay::redraw_output() const {
 }
 
 std::string WorktreeManagementOverlay::picker_action_output() const {
-  if (!remove_confirmation.has_value() && picker_action_error.empty()) {
+  if (!tray_action_confirmation.has_value() && picker_action_error.empty()) {
     return {};
   }
 
   std::string message;
   std::string background = "\x1b[48;5;52m";
-  if (remove_confirmation.has_value()) {
+  if (tray_action_confirmation.has_value()) {
+    TrayId const& tray_id = tray_action_confirmation->tray_id;
     std::string const target =
-        remove_confirmation->kind() == TrayIdKind::ANONYMOUS
-            ? "/anonymous/" + std::to_string(remove_confirmation->anonymous_number().value())
-            : remove_confirmation->worktree_root().string();
-    constexpr std::string_view PREFIX = "Remove ";
+        tray_id.kind() == TrayIdKind::ANONYMOUS
+            ? "/anonymous/" + std::to_string(tray_id.anonymous_number().value())
+            : tray_id.worktree_root().string();
+    std::string_view const prefix =
+        tray_action_confirmation->kind == TrayActionKind::CLEAR ? "Clear " : "Remove ";
     constexpr std::string_view SUFFIX = "? [y/N]";
     std::size_t const width = static_cast<std::size_t>(std::max(size.cols, 1));
-    if (PREFIX.size() + target.size() + SUFFIX.size() <= width) {
-      message = std::string(PREFIX) + target + std::string(SUFFIX);
-    } else if (width > PREFIX.size() + SUFFIX.size() + 3U) {
-      std::size_t const target_width = width - PREFIX.size() - SUFFIX.size() - 3U;
-      message = std::string(PREFIX) + "..." + target.substr(target.size() - target_width) +
+    if (prefix.size() + target.size() + SUFFIX.size() <= width) {
+      message = std::string(prefix) + target + std::string(SUFFIX);
+    } else if (width > prefix.size() + SUFFIX.size() + 3U) {
+      std::size_t const target_width = width - prefix.size() - SUFFIX.size() - 3U;
+      message = std::string(prefix) + "..." + target.substr(target.size() - target_width) +
                 std::string(SUFFIX);
     } else {
-      message = "Remove? [y/N]";
+      message = tray_action_confirmation->kind == TrayActionKind::CLEAR ? "Clear? [y/N]"
+                                                                        : "Remove? [y/N]";
     }
   } else {
     message = picker_action_error;

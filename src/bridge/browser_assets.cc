@@ -185,6 +185,10 @@ std::string browser_client_js() {
     sendCommand("6", command);
   }
 
+  function sendWorktreeOverlayNavigation(navigation) {
+    sendCommand("7", navigation);
+  }
+
   function fitAndSendSize() {
     fitAddon.fit();
     sendCommand("1", JSON.stringify({ columns: terminal.cols, rows: terminal.rows }));
@@ -240,7 +244,7 @@ std::string browser_client_js() {
       (event.code === "KeyR" || event.key === "R");
   }
 
-  function removalConfirmationFromKey(event) {
+  function trayActionConfirmationFromKey(event) {
     if (event.altKey || event.ctrlKey || event.metaKey) {
       return null;
     }
@@ -252,6 +256,22 @@ std::string browser_client_js() {
       return key.toLowerCase();
     }
     return null;
+  }
+
+  function worktreeOverlayNavigationFromKey(event) {
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return null;
+    }
+    if (isTabKey(event)) {
+      return event.shiftKey ? "backtab" : "tab";
+    }
+    const navigationByKey = {
+      ArrowUp: "up",
+      ArrowDown: "down",
+      ArrowLeft: "left",
+      ArrowRight: "right",
+    };
+    return navigationByKey[event.key] || navigationByKey[event.code] || null;
   }
 
   function handleTabKey(event) {
@@ -297,9 +317,14 @@ std::string browser_client_js() {
       sendWorktreePickerCommand("r");
       return true;
     }
-    const removalConfirmation = removalConfirmationFromKey(event);
-    if (removalConfirmation !== null) {
-      sendWorktreePickerCommand(removalConfirmation);
+    const trayActionConfirmation = trayActionConfirmationFromKey(event);
+    if (trayActionConfirmation !== null) {
+      sendWorktreePickerCommand(trayActionConfirmation);
+      return true;
+    }
+    const worktreeOverlayNavigation = worktreeOverlayNavigationFromKey(event);
+    if (worktreeOverlayNavigation !== null) {
+      sendWorktreeOverlayNavigation(worktreeOverlayNavigation);
       return true;
     }
 

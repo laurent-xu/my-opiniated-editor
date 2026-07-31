@@ -326,7 +326,7 @@ TEST(TrayManagerTest, DestroyingAnonymousTrayOneRecreatesIt) {
   EXPECT_FALSE(process_exists(first.child_pid));
 }
 
-TEST(TrayManagerTest, DestroyingInactiveAnonymousTrayOneRecreatesItWithoutChangingFocus) {
+TEST(TrayManagerTest, DestroyingInactiveAnonymousTrayOneDoesNotRecreateIt) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
   moe::parent::TraySnapshot const first = manager->active_snapshot();
   moe::parent::TraySnapshot const second = manager->switch_to(required_tray_number(2));
@@ -336,9 +336,9 @@ TEST(TrayManagerTest, DestroyingInactiveAnonymousTrayOneRecreatesItWithoutChangi
   EXPECT_EQ(manager->active_snapshot().id, second.id);
   EXPECT_EQ(manager->active_snapshot().child_pid.value(), second.child_pid.value());
   std::vector<moe::parent::TraySnapshot> const snapshots = manager->tray_snapshots();
-  ASSERT_EQ(snapshots.size(), 2U);
-  EXPECT_EQ(snapshots.front().id, first.id);
-  EXPECT_NE(snapshots.front().child_pid.value(), first.child_pid.value());
+  ASSERT_EQ(snapshots.size(), 1U);
+  EXPECT_EQ(snapshots.front().id, second.id);
+  EXPECT_FALSE(process_exists(first.child_pid));
 }
 
 TEST(TrayManagerTest, ExitedShellDestroysTrayAndRecreatesAnonymousTrayOne) {

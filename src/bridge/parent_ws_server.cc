@@ -121,6 +121,29 @@ void send_parent_worktree_picker_command(ParentPtySession const& session,
   session.write(std::string_view(parent_command.data(), parent_command.size()));
 }
 
+void send_parent_worktree_overlay_navigation(ParentPtySession const& session,
+                                             std::string_view const navigation) {
+  char parent_command_byte = '\0';
+  if (navigation == "up") {
+    parent_command_byte = 'A';
+  } else if (navigation == "down") {
+    parent_command_byte = 'B';
+  } else if (navigation == "right") {
+    parent_command_byte = 'C';
+  } else if (navigation == "left") {
+    parent_command_byte = 'D';
+  } else if (navigation == "tab") {
+    parent_command_byte = 'I';
+  } else if (navigation == "backtab") {
+    parent_command_byte = 'Z';
+  } else {
+    throw std::runtime_error("worktree overlay navigation is invalid");
+  }
+
+  std::array<char, 2> const parent_command{TRAY_COMMAND_PREFIX, parent_command_byte};
+  session.write(std::string_view(parent_command.data(), parent_command.size()));
+}
+
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
   if (payload.empty()) {
     return;
@@ -150,6 +173,10 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
   }
   if (command == '6') {
     send_parent_worktree_picker_command(session, data);
+    return;
+  }
+  if (command == '7') {
+    send_parent_worktree_overlay_navigation(session, data);
   }
 }
 

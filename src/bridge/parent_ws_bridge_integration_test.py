@@ -121,8 +121,12 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('sendCommand("3", "")', client_js)
     test_case.assertIn("toggleWorktreeManager()", client_js)
     test_case.assertIn('sendCommand("6", command)', client_js)
+    test_case.assertIn('sendCommand("7", navigation)', client_js)
     test_case.assertIn('sendWorktreePickerCommand("c")', client_js)
     test_case.assertIn('sendWorktreePickerCommand("r")', client_js)
+    test_case.assertIn('ArrowUp: "up"', client_js)
+    test_case.assertIn('ArrowDown: "down"', client_js)
+    test_case.assertIn('return event.shiftKey ? "backtab" : "tab"', client_js)
     test_case.assertNotIn('sendCommand("4", "")', client_js)
     test_case.assertNotIn("toggleWorktreePicker()", client_js)
     test_case.assertNotIn('sendCommand("0", "\\x03")', client_js)
@@ -321,6 +325,47 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
                 client.close()
             stop_bridge(process)
 
+    def test_command_mode_forwards_navigation_to_worktree_overlay(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.read_parent_status_until({"trayKey": "anonymous:1"})
+            client.send_tray_switch(2)
+            client.read_parent_status_until({"trayKey": "anonymous:2"})
+            client.send_tray_switch(1)
+            client.read_parent_status_until({"trayKey": "anonymous:1"})
+
+            client.toggle_command_mode()
+            client.read_parent_status_until({"commandMode": True})
+            client.open_worktree_manager()
+            client.read_parent_status_until(
+                {"commandMode": False, "overlay": "worktreeManagement"}
+            )
+            client.read_terminal_output_until("/anonymous/2")
+            client.toggle_command_mode()
+            client.read_parent_status_until({"commandMode": True})
+
+            client.send_worktree_overlay_navigation("down")
+            client.read_terminal_output_until("Preview: /anonymous/2")
+            client.send_worktree_picker_command("c")
+            confirmation = client.read_terminal_output_until("[y/N]")
+            self.assertIn("Clear /anonymous/2? [y/N]", confirmation)
+            client.send_worktree_picker_command("n")
+            client.read_terminal_output_until("Worktree> ")
+
+            client.send_worktree_overlay_navigation("tab")
+            client.read_terminal_output_until("No registered repositories")
+            client.send_worktree_overlay_navigation("backtab")
+            client.read_terminal_output_until("Worktree> ")
+        finally:
+            if client is not None:
+                client.close()
+            stop_bridge(process)
+
     def test_selected_worktree_status_is_shared_with_other_clients(self):
         port = free_loopback_port()
         repository = Path(os.environ["TEST_TMPDIR"]) / f"repository-{port}"
@@ -416,6 +461,12 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             client.toggle_command_mode()
             client.read_parent_status_until({"commandMode": True})
             client.send_worktree_picker_command("c")
+            client.read_terminal_output_until("Clear /anonymous/1? [y/N]")
+            client.send_worktree_picker_command("n")
+            client.read_terminal_output_until("Worktree> ")
+            client.send_worktree_picker_command("c")
+            client.read_terminal_output_until("Clear /anonymous/1? [y/N]")
+            client.send_worktree_picker_command("y")
             client.read_parent_status_until(
                 {
                     "commandMode": True,
@@ -430,6 +481,57 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
                 b"printf '__moe_after_clear_%s__\\n' " b'"${MOE_CLEAR_MARKER:-empty}"\n'
             )
             client.read_terminal_output_until("__moe_after_clear_empty__")
+        finally:
+            if client is not None:
+                client.close()
+            stop_bridge(process)
+
+    def test_clearing_inactive_tray_one_defers_recreation_until_active_tray_dies(
+        self,
+    ):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.read_parent_status_until({"trayKey": "anonymous:1"})
+            client.send_tray_switch(2)
+            client.read_parent_status_until({"trayKey": "anonymous:2"})
+            client.toggle_command_mode()
+            client.read_parent_status_until({"commandMode": True})
+            client.open_worktree_manager()
+            client.read_parent_status_until(
+                {"commandMode": False, "overlay": "worktreeManagement"}
+            )
+            client.read_terminal_output_until("/anonymous/2")
+            client.toggle_command_mode()
+            client.read_parent_status_until({"commandMode": True})
+
+            client.send_worktree_picker_command("c")
+            client.read_terminal_output_until("Clear /anonymous/1? [y/N]")
+            client.send_worktree_picker_command("y")
+            client.read_parent_status_until(
+                {
+                    "commandMode": True,
+                    "trayKey": "anonymous:2",
+                    "overlay": "worktreeManagement",
+                }
+            )
+            refreshed_picker = client.read_terminal_output_until("/anonymous/2")
+            self.assertNotIn("/anonymous/1", refreshed_picker)
+
+            client.send_worktree_picker_command("c")
+            client.read_terminal_output_until("Clear /anonymous/2? [y/N]")
+            client.send_worktree_picker_command("y")
+            client.read_parent_status_until(
+                {
+                    "commandMode": True,
+                    "trayKey": "anonymous:1",
+                    "overlay": "none",
+                }
+            )
         finally:
             if client is not None:
                 client.close()
@@ -492,6 +594,9 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             first_client.toggle_command_mode()
             first_client.read_parent_status_until({"commandMode": True})
             first_client.send_worktree_picker_command("c")
+            clear_confirmation = first_client.read_terminal_output_until("[y/N]")
+            self.assertIn("Clear ", clear_confirmation)
+            first_client.send_worktree_picker_command("y")
             clear_fallback = {
                 "commandMode": True,
                 "trayKey": "anonymous:1",

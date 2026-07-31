@@ -13,6 +13,7 @@
 #include "src/parent/content_pty_session.h"
 #include "src/parent/overlay.h"
 #include "src/parent/path_picker_overlay.h"
+#include "src/parent/tray_action_request.h"
 #include "src/parent/tray_preview_request.h"
 #include "src/parent/tray_snapshot.h"
 
@@ -41,10 +42,10 @@ class WorktreeManagementOverlay : public Overlay {
   [[nodiscard]] std::optional<TrayId> take_tray_to_open();
   [[nodiscard]] std::optional<TrayPreviewRequest> preview_request() const;
   [[nodiscard]] std::optional<TrayId> highlighted_tray_id() const;
-  [[nodiscard]] bool begin_remove_confirmation();
-  [[nodiscard]] bool has_remove_confirmation() const noexcept;
-  [[nodiscard]] std::optional<TrayId> resolve_remove_confirmation(bool confirmed);
-  void cancel_remove_confirmation();
+  [[nodiscard]] bool begin_tray_action_confirmation(TrayActionKind kind);
+  [[nodiscard]] bool has_tray_action_confirmation() const noexcept;
+  [[nodiscard]] std::optional<TrayActionRequest> resolve_tray_action_confirmation(bool confirmed);
+  void cancel_tray_action_confirmation();
   void set_picker_action_error(std::string message);
   void refresh_worktree_picker();
   void update_session_trays(std::vector<TraySnapshot> const& session_trays);
@@ -146,7 +147,7 @@ class WorktreeManagementOverlay : public Overlay {
   std::optional<std::filesystem::path> repository_root;
   std::optional<std::filesystem::path> pending_worktree_path;
   std::optional<TrayId> tray_to_open;
-  std::optional<TrayId> remove_confirmation;
+  std::optional<TrayActionRequest> tray_action_confirmation;
   std::string picker_action_error;
   std::unique_ptr<PathPickerOverlay> picker;
   std::unique_ptr<ContentPtySession> process;

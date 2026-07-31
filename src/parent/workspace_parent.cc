@@ -40,6 +40,12 @@ constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
 constexpr unsigned char TRAY_COMMAND_PREFIX = 0x18;
 constexpr unsigned char TOGGLE_COMMAND_MODE_COMMAND = 'e';
+constexpr unsigned char OVERLAY_NAVIGATION_UP_COMMAND = 'A';
+constexpr unsigned char OVERLAY_NAVIGATION_DOWN_COMMAND = 'B';
+constexpr unsigned char OVERLAY_NAVIGATION_RIGHT_COMMAND = 'C';
+constexpr unsigned char OVERLAY_NAVIGATION_LEFT_COMMAND = 'D';
+constexpr unsigned char OVERLAY_NAVIGATION_TAB_COMMAND = 'I';
+constexpr unsigned char OVERLAY_NAVIGATION_BACKTAB_COMMAND = 'Z';
 constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
@@ -232,39 +238,24 @@ bool toggle_worktree_management_overlay(TrayManager& trays,
   return false;
 }
 
-bool clear_highlighted_tray(TrayManager& trays) {
-  WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
-  if (overlay == nullptr) {
-    return false;
-  }
-  std::optional<TrayId> const highlighted = overlay->highlighted_tray_id();
-  if (!highlighted.has_value()) {
-    return false;
-  }
-  bool const destroyed = trays.destroy_tray(*highlighted);
-  if (!destroyed) {
-    overlay->set_picker_action_error("Tray has no in-session content");
-  }
-  return destroyed;
-}
-
-bool resolve_remove_confirmation(TrayManager& trays, bool const confirmed) {
+bool resolve_tray_action_confirmation(TrayManager& trays, bool const confirmed) {
   WorktreeManagementOverlay* overlay = trays.active_worktree_management_overlay();
-  if (overlay == nullptr || !overlay->has_remove_confirmation()) {
+  if (overlay == nullptr || !overlay->has_tray_action_confirmation()) {
     return false;
   }
-  std::optional<TrayId> const target = overlay->resolve_remove_confirmation(confirmed);
-  if (!target.has_value()) {
+  std::optional<TrayActionRequest> const request =
+      overlay->resolve_tray_action_confirmation(confirmed);
+  if (!request.has_value()) {
     return false;
   }
 
-  bool const target_is_active = *target == trays.active_id();
-  if (target->kind() == TrayIdKind::WORKTREE) {
+  bool const target_is_active = request->tray_id == trays.active_id();
+  if (request->kind == TrayActionKind::REMOVE && request->tray_id.kind() == TrayIdKind::WORKTREE) {
     try {
       WorktreeRemover(configured_git_executable())
           .remove(WorktreeRemovalRequest{
               .registry_path = WorktreeRegistryStore::default_registry_path(),
-              .worktree_path = target->worktree_root(),
+              .worktree_path = request->tray_id.worktree_root(),
           });
     } catch (std::exception const& error) {
       overlay->set_picker_action_error("Remove failed: " + std::string(error.what()));
@@ -272,7 +263,11 @@ bool resolve_remove_confirmation(TrayManager& trays, bool const confirmed) {
     }
   }
 
-  bool const destroyed = trays.destroy_tray(*target);
+  bool const destroyed = trays.destroy_tray(request->tray_id);
+  if (!destroyed && request->kind == TrayActionKind::CLEAR) {
+    overlay->set_picker_action_error("Tray has no in-session content");
+    return false;
+  }
   if (!target_is_active) {
     overlay = trays.active_worktree_management_overlay();
     if (overlay != nullptr) {
@@ -282,19 +277,38 @@ bool resolve_remove_confirmation(TrayManager& trays, bool const confirmed) {
   return destroyed;
 }
 
+std::optional<std::string_view> overlay_navigation_sequence(unsigned char const byte) {
+  switch (byte) {
+    case OVERLAY_NAVIGATION_UP_COMMAND:
+      return "\x1b[A";
+    case OVERLAY_NAVIGATION_DOWN_COMMAND:
+      return "\x1b[B";
+    case OVERLAY_NAVIGATION_RIGHT_COMMAND:
+      return "\x1b[C";
+    case OVERLAY_NAVIGATION_LEFT_COMMAND:
+      return "\x1b[D";
+    case OVERLAY_NAVIGATION_TAB_COMMAND:
+      return "\t";
+    case OVERLAY_NAVIGATION_BACKTAB_COMMAND:
+      return "\x1b[Z";
+    default:
+      return std::nullopt;
+  }
+}
+
 bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
                               std::filesystem::path const& parent_executable,
                               TerminalSize const size, bool& command_mode,
                               std::optional<base::FileDescriptor> const status_descriptor) {
   if (byte == TOGGLE_COMMAND_MODE_COMMAND) {
     WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
-    bool const canceled_removal = overlay != nullptr && overlay->has_remove_confirmation();
-    if (canceled_removal) {
-      overlay->cancel_remove_confirmation();
+    bool const canceled_action = overlay != nullptr && overlay->has_tray_action_confirmation();
+    if (canceled_action) {
+      overlay->cancel_tray_action_confirmation();
     }
     command_mode = !command_mode;
     publish_parent_status(trays, command_mode, status_descriptor);
-    if (canceled_removal) {
+    if (canceled_action) {
       redraw_active_surface(trays);
     }
     return false;
@@ -317,20 +331,27 @@ bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
     redraw_active_surface(trays);
     return false;
   }
+  std::optional<std::string_view> const navigation = overlay_navigation_sequence(byte);
+  if (navigation.has_value()) {
+    WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
+    if (command_mode && overlay != nullptr && !overlay->has_tray_action_confirmation()) {
+      overlay->write_input(*navigation);
+    }
+    return false;
+  }
   if (byte == 'c' || byte == 'r' || byte == 'y' || byte == 'n') {
     if (!command_mode) {
       return false;
     }
     bool trays_destroyed = false;
-    if (byte == 'c') {
-      trays_destroyed = clear_highlighted_tray(trays);
-    } else if (byte == 'r') {
+    if (byte == 'c' || byte == 'r') {
       WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
       if (overlay != nullptr) {
-        static_cast<void>(overlay->begin_remove_confirmation());
+        TrayActionKind const kind = byte == 'c' ? TrayActionKind::CLEAR : TrayActionKind::REMOVE;
+        static_cast<void>(overlay->begin_tray_action_confirmation(kind));
       }
     } else {
-      trays_destroyed = resolve_remove_confirmation(trays, byte == 'y');
+      trays_destroyed = resolve_tray_action_confirmation(trays, byte == 'y');
     }
     publish_parent_status(trays, command_mode, status_descriptor);
     redraw_active_surface(trays);

@@ -24,8 +24,9 @@ review before starting the next milestone.
 
 - `Esc`, `Shift+1` through `Shift+9`: switch anonymous trays.
 - `Esc`, `Shift+W`: toggle the active tray's worktree overlay.
-- In command mode while the Worktrees picker is visible, `Shift+C`: clear the
-  highlighted tray without changing Git or the persistent registry.
+- In command mode while the Worktrees picker is visible, `Shift+C`: ask for
+  `y/N` confirmation, then clear the highlighted tray without changing Git or
+  the persistent registry.
 - In command mode while the Worktrees picker is visible, `Shift+R`: ask for
   `y/N` confirmation, then purge and unregister the highlighted worktree. For
   an anonymous tray, this behaves like `Shift+C` because there is no persistent
@@ -47,8 +48,9 @@ anonymous tray used in the current session as `/anonymous/N`. Its highlighted
 tray is previewed above fzf; a registered worktree without an in-session tray
 has a dark preview. Opening the overlay leaves command mode so typing, arrows,
 and Enter are routed to it. `Esc` continues to toggle command mode without
-closing the overlay. From command mode, `Shift+W` closes the overlay and leaves
-command mode active.
+closing the overlay. Arrows, `Tab`, and `Shift+Tab` continue navigating the
+overlay while command mode is active. From command mode, `Shift+W` closes the
+overlay and leaves command mode active.
 
 Each tray owns its worktree-management overlay state. Switching trays hides the
 previous tray's overlay without destroying it; switching back redraws the tray
@@ -284,10 +286,11 @@ Deliverables:
   picker.
 - Resolve both actions from the picker's highlighted structured `TrayId`, not
   from displayed path text.
-- `Shift+C` destroys the highlighted tray's overlay, content PTY, terminal
-  screen, and shell process without changing Git or the protobuf registry.
-- `Shift+R` shows a `y/N` confirmation without leaving command mode. `N`,
-  `Enter`, or `Esc` cancels without changing state.
+- `Shift+C` and `Shift+R` show a `y/N` confirmation without leaving command
+  mode. `N`, `Enter`, or `Esc` cancels without changing state.
+- Confirming `Shift+C` destroys the highlighted tray's overlay, content PTY,
+  terminal screen, and shell process without changing Git or the protobuf
+  registry.
 - Confirming removal of a worktree asks Git to force-remove the linked
   worktree, including stale metadata for a worktree missing from disk, then
   atomically removes the worktree from the protobuf registry and destroys any
@@ -303,6 +306,8 @@ Deliverables:
   destroyed, switch to anonymous tray 1. Destroying anonymous tray 1 starts a
   fresh anonymous tray 1 with the initial working directory and current
   terminal size.
+- Destroying an inactive anonymous tray 1 leaves it absent. It is recreated
+  only when the active tray is later destroyed and needs the fallback.
 - Refresh the Worktrees picker after an inactive tray is cleared or removed;
   destroying the active tray closes its attached picker as part of destroying
   the tray.
@@ -311,9 +316,11 @@ Tests:
 
 - Command routing is inactive outside command mode and outside the Worktrees
   picker.
-- `Shift+R` confirmation, cancellation, successful purge, stale-worktree
-  pruning, already-purged unregistration, and Git/persistence failures.
-- `Shift+C` preserves Git and registry state.
+- `Shift+C` and `Shift+R` confirmation and cancellation; successful purge,
+  stale-worktree pruning, already-purged unregistration, and Git/persistence
+  failures.
+- `Shift+C` preserves Git and registry state, and command mode continues to
+  route arrows, `Tab`, and `Shift+Tab` to the overlay.
 - Destroying active and inactive anonymous and worktree trays terminates their
   content PTYs and selects the documented fallback.
 - Exiting a content shell destroys its tray and selects or recreates anonymous

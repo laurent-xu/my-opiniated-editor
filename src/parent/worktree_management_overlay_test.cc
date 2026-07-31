@@ -184,17 +184,19 @@ TEST(WorktreeManagementOverlayTest, ConfirmsRemovalOfHighlightedWorktreePickerTr
           "/unused/workspace_parent", registry_path, root, "/unused/git",
           runfile_path("test/fixtures/fake_fzf").string(), session_trays, size);
 
-  ASSERT_TRUE(overlay->begin_remove_confirmation());
-  EXPECT_TRUE(overlay->has_remove_confirmation());
+  ASSERT_TRUE(overlay->begin_tray_action_confirmation(moe::parent::TrayActionKind::REMOVE));
+  EXPECT_TRUE(overlay->has_tray_action_confirmation());
   EXPECT_NE(overlay->redraw_output().find("Remove /anonymous/1? [y/N]"), std::string::npos);
 
-  std::optional<moe::parent::TrayId> const confirmed = overlay->resolve_remove_confirmation(true);
+  std::optional<moe::parent::TrayActionRequest> const confirmed =
+      overlay->resolve_tray_action_confirmation(true);
   if (!confirmed.has_value()) {
     ADD_FAILURE() << "confirmed removal did not return a tray";
     return;
   }
-  EXPECT_EQ(confirmed.value(), moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()));
-  EXPECT_FALSE(overlay->has_remove_confirmation());
+  EXPECT_EQ(confirmed->kind, moe::parent::TrayActionKind::REMOVE);
+  EXPECT_EQ(confirmed->tray_id, moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()));
+  EXPECT_FALSE(overlay->has_tray_action_confirmation());
 }
 
 TEST(WorktreeManagementOverlayTest, CancelsRemovalAndRejectsItOutsideWorktreePicker) {
@@ -216,12 +218,13 @@ TEST(WorktreeManagementOverlayTest, CancelsRemovalAndRejectsItOutsideWorktreePic
           "/unused/workspace_parent", registry_path, root, "/unused/git",
           runfile_path("test/fixtures/fake_fzf").string(), session_trays, size);
 
-  ASSERT_TRUE(overlay->begin_remove_confirmation());
-  EXPECT_FALSE(overlay->resolve_remove_confirmation(false).has_value());
-  EXPECT_FALSE(overlay->has_remove_confirmation());
+  ASSERT_TRUE(overlay->begin_tray_action_confirmation(moe::parent::TrayActionKind::CLEAR));
+  EXPECT_NE(overlay->redraw_output().find("Clear /anonymous/1? [y/N]"), std::string::npos);
+  EXPECT_FALSE(overlay->resolve_tray_action_confirmation(false).has_value());
+  EXPECT_FALSE(overlay->has_tray_action_confirmation());
 
   overlay->write_input("\t");
-  EXPECT_FALSE(overlay->begin_remove_confirmation());
+  EXPECT_FALSE(overlay->begin_tray_action_confirmation(moe::parent::TrayActionKind::REMOVE));
 }
 
 TEST(WorktreeManagementOverlayTest, MissingTrackedWorktreeRemainsSelectableForRemoval) {
@@ -253,14 +256,16 @@ TEST(WorktreeManagementOverlayTest, MissingTrackedWorktreeRemainsSelectableForRe
   EXPECT_TRUE(overlay->read_process_output());
 
   EXPECT_NE(overlay->redraw_output().find("[unavailable]"), std::string::npos);
-  ASSERT_TRUE(overlay->begin_remove_confirmation());
-  std::optional<moe::parent::TrayId> const target = overlay->resolve_remove_confirmation(true);
-  if (!target.has_value()) {
+  ASSERT_TRUE(overlay->begin_tray_action_confirmation(moe::parent::TrayActionKind::REMOVE));
+  std::optional<moe::parent::TrayActionRequest> const request =
+      overlay->resolve_tray_action_confirmation(true);
+  if (!request.has_value()) {
     ADD_FAILURE() << "missing worktree removal did not return a tray";
     return;
   }
-  EXPECT_EQ(target.value().kind(), moe::parent::TrayIdKind::WORKTREE);
-  EXPECT_EQ(target.value().worktree_root(), std::filesystem::weakly_canonical(missing_worktree));
+  EXPECT_EQ(request->kind, moe::parent::TrayActionKind::REMOVE);
+  EXPECT_EQ(request->tray_id.kind(), moe::parent::TrayIdKind::WORKTREE);
+  EXPECT_EQ(request->tray_id.worktree_root(), std::filesystem::weakly_canonical(missing_worktree));
 }
 
 }  // namespace
