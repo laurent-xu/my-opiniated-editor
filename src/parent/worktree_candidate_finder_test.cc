@@ -2,39 +2,17 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "src/parent/test/support/environment_guard.h"
 #include "src/parent/worktree_registry_store.h"
 
 namespace {
 
-class EnvironmentGuard {
- public:
-  explicit EnvironmentGuard(char const* variable_name)
-      : name(variable_name),
-        original(std::getenv(variable_name) == nullptr
-                     ? std::nullopt
-                     : std::optional<std::string>(std::getenv(variable_name))) {}
-
-  EnvironmentGuard(EnvironmentGuard const&) = delete;
-  EnvironmentGuard& operator=(EnvironmentGuard const&) = delete;
-
-  ~EnvironmentGuard() {
-    if (original.has_value()) {
-      static_cast<void>(setenv(name.c_str(), original->c_str(), 1));
-    } else {
-      static_cast<void>(unsetenv(name.c_str()));
-    }
-  }
-
- private:
-  std::string name;
-  std::optional<std::string> original;
-};
+using moe::parent::test_support::EnvironmentGuard;
 
 std::filesystem::path required_env_path(char const* const name) {
   char const* const value = std::getenv(name);

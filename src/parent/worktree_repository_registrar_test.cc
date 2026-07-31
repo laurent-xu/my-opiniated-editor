@@ -7,9 +7,9 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
 #include "gtest/gtest.h"
+#include "src/parent/test/support/environment_guard.h"
 #include "src/parent/worktree_registry_store.h"
 
 namespace {
@@ -18,6 +18,7 @@ using moe::parent::RepositoryRegistrationRequest;
 using moe::parent::WorktreeRegistryStore;
 using moe::parent::WorktreeRepositoryRegistrar;
 using moe::parent::persistence::WorktreeRegistry;
+using moe::parent::test_support::EnvironmentGuard;
 
 std::filesystem::path required_environment_path(char const* name) {
   char const* value = std::getenv(name);
@@ -48,32 +49,6 @@ std::string read_file(std::filesystem::path const& path) {
   std::ifstream input(path);
   return {std::istreambuf_iterator<char>(input), {}};
 }
-
-class EnvironmentGuard {
- public:
-  explicit EnvironmentGuard(std::string name)
-      : name(std::move(name)), original(read_value(this->name)) {}
-
-  EnvironmentGuard(EnvironmentGuard const&) = delete;
-  EnvironmentGuard& operator=(EnvironmentGuard const&) = delete;
-
-  ~EnvironmentGuard() {
-    if (original.has_value()) {
-      static_cast<void>(::setenv(name.c_str(), original->c_str(), 1));
-    } else {
-      static_cast<void>(::unsetenv(name.c_str()));
-    }
-  }
-
- private:
-  static std::optional<std::string> read_value(std::string const& name) {
-    char const* value = std::getenv(name.c_str());
-    return value == nullptr ? std::nullopt : std::optional<std::string>(value);
-  }
-
-  std::string name;
-  std::optional<std::string> original;
-};
 
 class WorktreeRepositoryRegistrarTest : public testing::Test {
  protected:

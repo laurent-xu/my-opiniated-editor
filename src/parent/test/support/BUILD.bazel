@@ -1,0 +1,5 @@
+cc_library(
+    name = "environment_guard",
+    hdrs = ["environment_guard.h"],
+    visibility = ["//src/parent:__pkg__"],
+)

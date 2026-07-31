@@ -142,6 +142,7 @@ cc_test(
     data = ["//test/fixtures:fake_git"],
     deps = [
         ":parent_lib",
+        "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
@@ -154,6 +155,7 @@ cc_test(
     deps = [
         ":worktree_registry_store",
         ":worktree_remover",
+        "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
@@ -204,6 +206,7 @@ cc_test(
     srcs = ["worktree_registry_store_test.cc"],
     deps = [
         ":worktree_registry_store",
+        "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
@@ -216,6 +219,7 @@ cc_test(
     deps = [
         ":worktree_registry_store",
         ":worktree_repository_registrar",
+        "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
@@ -228,6 +232,7 @@ cc_test(
     deps = [
         ":worktree_candidate_finder",
         ":worktree_registry_store",
+        "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
