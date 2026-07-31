@@ -1,0 +1,145 @@
+proto_library(
+    name = "worktree_registry_proto",
+    srcs = ["worktree_registry.proto"],
+)
+
+cc_proto_library(
+    name = "worktree_registry_cc_proto",
+    deps = [":worktree_registry_proto"],
+)
+
+cc_library(
+    name = "worktree_registry_store",
+    srcs = ["worktree_registry_store.cc"],
+    hdrs = ["worktree_registry_store.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":worktree_registry_cc_proto",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+    ],
+)
+
+cc_library(
+    name = "worktree_repository_registrar",
+    srcs = ["worktree_repository_registrar.cc"],
+    hdrs = ["worktree_repository_registrar.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":git_worktree_list",
+        ":worktree_registry_store",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_library(
+    name = "git_worktree_list",
+    srcs = ["git_worktree_list.cc"],
+    hdrs = ["git_worktree_list.h"],
+)
+
+cc_library(
+    name = "worktree_candidate_finder",
+    srcs = ["worktree_candidate_finder.cc"],
+    hdrs = ["worktree_candidate_finder.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":git_worktree_list",
+        ":worktree_registry_store",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_library(
+    name = "worktree_remover",
+    srcs = ["worktree_remover.cc"],
+    hdrs = [
+        "worktree_removal_request.h",
+        "worktree_remover.h",
+    ],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":git_worktree_list",
+        ":worktree_registry_store",
+        "//src/base:process_id",
+    ],
+)
+
+cc_library(
+    name = "worktree_provisioner",
+    srcs = ["worktree_provisioner.cc"],
+    hdrs = ["worktree_provisioner.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":worktree_registry_store",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_test(
+    name = "worktree_provisioner_test",
+    srcs = ["worktree_provisioner_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_provisioner",
+        "//src/parent/test/support:environment_guard",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_remover_test",
+    srcs = ["worktree_remover_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_registry_store",
+        ":worktree_remover",
+        "//src/parent/test/support:environment_guard",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_registry_store_test",
+    srcs = ["worktree_registry_store_test.cc"],
+    deps = [
+        ":worktree_registry_store",
+        "//src/parent/test/support:environment_guard",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_test(
+    name = "worktree_repository_registrar_test",
+    srcs = ["worktree_repository_registrar_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_registry_store",
+        ":worktree_repository_registrar",
+        "//src/parent/test/support:environment_guard",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_candidate_finder_test",
+    srcs = ["worktree_candidate_finder_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_candidate_finder",
+        ":worktree_registry_store",
+        "//src/parent/test/support:environment_guard",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)

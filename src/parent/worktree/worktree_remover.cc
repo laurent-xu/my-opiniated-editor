@@ -1,4 +1,4 @@
-#include "src/parent/worktree_remover.h"
+#include "src/parent/worktree/worktree_remover.h"
 
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -15,8 +15,8 @@
 #include <vector>
 
 #include "src/base/process_id.h"
-#include "src/parent/git_worktree_list.h"
-#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree/git_worktree_list.h"
+#include "src/parent/worktree/worktree_registry_store.h"
 
 namespace moe::parent {
 namespace {

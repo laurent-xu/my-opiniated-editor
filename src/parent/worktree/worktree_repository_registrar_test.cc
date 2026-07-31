@@ -1,4 +1,4 @@
-#include "src/parent/worktree_repository_registrar.h"
+#include "src/parent/worktree/worktree_repository_registrar.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -10,7 +10,7 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
-#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {
 

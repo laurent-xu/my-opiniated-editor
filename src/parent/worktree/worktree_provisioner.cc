@@ -1,4 +1,4 @@
-#include "src/parent/worktree_provisioner.h"
+#include "src/parent/worktree/worktree_provisioner.h"
 
 #include <sys/wait.h>
 #include <unistd.h>
@@ -23,7 +23,7 @@
 #include "src/base/file_descriptor.h"
 #include "src/base/owned_file_descriptor.h"
 #include "src/base/process_id.h"
-#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_registry_store.h"
 
 namespace moe::parent {
 namespace {

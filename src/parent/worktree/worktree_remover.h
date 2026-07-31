@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "src/parent/worktree_removal_request.h"
+#include "src/parent/worktree/worktree_removal_request.h"
 
 namespace moe::parent {
 

@@ -13,10 +13,10 @@
 #include <vector>
 
 #include "src/parent/overlay_footer.h"
-#include "src/parent/worktree_candidate_finder.h"
-#include "src/parent/worktree_provisioner.h"
-#include "src/parent/worktree_registry_store.h"
-#include "src/parent/worktree_repository_registrar.h"
+#include "src/parent/worktree/worktree_candidate_finder.h"
+#include "src/parent/worktree/worktree_provisioner.h"
+#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_repository_registrar.h"
 
 namespace moe::parent {
 namespace {

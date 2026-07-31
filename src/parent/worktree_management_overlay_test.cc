@@ -13,7 +13,7 @@
 #include "gtest/gtest.h"
 #include "src/base/process_id.h"
 #include "src/parent/overlay_footer.h"
-#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {
 

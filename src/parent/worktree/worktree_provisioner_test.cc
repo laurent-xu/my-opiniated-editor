@@ -1,4 +1,4 @@
-#include "src/parent/worktree_provisioner.h"
+#include "src/parent/worktree/worktree_provisioner.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -9,7 +9,7 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
-#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {
 

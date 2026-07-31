@@ -26,11 +26,11 @@
 #include "src/parent/parent_status.h"
 #include "src/parent/path_picker_overlay.h"
 #include "src/parent/tray_manager.h"
+#include "src/parent/worktree/worktree_provisioner.h"
+#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_remover.h"
+#include "src/parent/worktree/worktree_repository_registrar.h"
 #include "src/parent/worktree_management_overlay.h"
-#include "src/parent/worktree_provisioner.h"
-#include "src/parent/worktree_registry_store.h"
-#include "src/parent/worktree_remover.h"
-#include "src/parent/worktree_repository_registrar.h"
 
 namespace moe::parent {
 namespace {

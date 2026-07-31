@@ -1,4 +1,4 @@
-#include "src/parent/worktree_remover.h"
+#include "src/parent/worktree/worktree_remover.h"
 
 #include <cstdlib>
 #include <filesystem>
@@ -8,7 +8,7 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
-#include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {
 
