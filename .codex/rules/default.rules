@@ -112,6 +112,20 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = ["tools/git/commit"],
+    decision = "allow",
+    justification = "Create requested commits through the repository wrapper so amend-aware checks receive an explicit mode.",
+    match = [
+        "tools/git/commit -m \"Extract terminal screen library\"",
+        "tools/git/commit --amend --no-edit",
+    ],
+    not_match = [
+        "git push",
+        "git reset --hard HEAD~1",
+    ],
+)
+
+prefix_rule(
     pattern = [
         "install",
         "-m",

@@ -1,0 +1,11 @@
+sh_test(
+    name = "pre_commit_test",
+    srcs = ["pre_commit_test.sh"],
+    data = [
+        "commit_files.sh",
+        "pre-commit",
+        "//tools/git:commit",
+        "//tools/git:commit_mode.sh",
+    ],
+    tags = ["unit"],
+)

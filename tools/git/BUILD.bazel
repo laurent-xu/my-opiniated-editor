@@ -1,0 +1,7 @@
+exports_files(
+    [
+        "commit",
+        "commit_mode.sh",
+    ],
+    visibility = ["//tools/git-hooks:__pkg__"],
+)

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$script_dir/commit_mode.sh"
+
+unset MY_OPINIONATED_EDITOR_GIT_COMMIT_MODE
+is_amend=false
+parse_options=true
+
+for argument in "$@"; do
+  if [[ "$parse_options" == false ]]; then
+    continue
+  fi
+
+  case "$argument" in
+    --)
+      parse_options=false
+      ;;
+    --amend)
+      is_amend=true
+      ;;
+    --no-amend)
+      is_amend=false
+      ;;
+  esac
+done
+
+if [[ "$is_amend" == true ]]; then
+  export MY_OPINIONATED_EDITOR_GIT_COMMIT_MODE="$MY_OPINIONATED_EDITOR_GIT_COMMIT_MODE_AMEND"
+fi
+
+exec git commit "$@"

@@ -4,22 +4,22 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-# Only lint files that the hook knows how to check. Python formatting follows
-# the staged set, while C++ linting follows the full branch diff.
+source "$repo_root/tools/git/commit_mode.sh"
+source "$repo_root/tools/git-hooks/commit_files.sh"
+
+commit_base_tree="$(proposed_commit_base_tree)"
+
+# Only lint files that the hook knows how to check. Both languages follow the
+# complete tree proposed by this commit relative to its parent tree.
 mapfile -t python_files < <(
-  git diff --cached --name-only --diff-filter=ACMR -- '*.py'
+  list_proposed_commit_files "$commit_base_tree" -- '*.py'
 )
 
 status=0
 readonly CLANG_TIDY_PARALLELISM=10
 
-if ! cpp_base="$(git merge-base HEAD origin/main 2>/dev/null)"; then
-  echo "origin/main is required for C++ pre-commit checks. Fetch it first." >&2
-  exit 1
-fi
-
 mapfile -t cpp_files < <(
-  git diff --name-only --diff-filter=ACMR "$cpp_base" -- \
+  list_proposed_commit_files "$commit_base_tree" -- \
     '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh'
 )
 

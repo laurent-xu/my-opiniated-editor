@@ -18,6 +18,9 @@ subdirectories override or extend this file.
 
 - Start with [plan/START_HERE.md](plan/START_HERE.md).
 - Add or update tests for implementation work.
+- Create commits with `tools/git/commit`, including amendments. Pass
+  `--amend` explicitly so the pre-commit hook checks the complete proposed
+  commit instead of only the index changes relative to `HEAD`.
 - Use the repo-local `$run-bazel-tests` skill when running, selecting, or
   triaging Bazel test commands.
 - Prefer Bazel targets over ad hoc scripts.
