@@ -79,6 +79,9 @@ class WebSocketClient:
     def toggle_command_mode(self):
         self.send_binary(b"5")
 
+    def send_worktree_picker_command(self, command: str):
+        self.send_binary(b"6" + command.encode())
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 

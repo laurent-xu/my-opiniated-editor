@@ -40,6 +40,13 @@ class WorktreeManagementOverlay : public Overlay {
   [[nodiscard]] bool take_full_redraw_request() noexcept;
   [[nodiscard]] std::optional<TrayId> take_tray_to_open();
   [[nodiscard]] std::optional<TrayPreviewRequest> preview_request() const;
+  [[nodiscard]] std::optional<TrayId> highlighted_tray_id() const;
+  [[nodiscard]] bool begin_remove_confirmation();
+  [[nodiscard]] bool has_remove_confirmation() const noexcept;
+  [[nodiscard]] std::optional<TrayId> resolve_remove_confirmation(bool confirmed);
+  void cancel_remove_confirmation();
+  void set_picker_action_error(std::string message);
+  void refresh_worktree_picker();
   void update_session_trays(std::vector<TraySnapshot> const& session_trays);
 
  private:
@@ -85,6 +92,7 @@ class WorktreeManagementOverlay : public Overlay {
   [[nodiscard]] std::string footer_output() const;
   [[nodiscard]] TerminalSize dialog_terminal_size() const;
   [[nodiscard]] std::string dialog_redraw_output() const;
+  [[nodiscard]] std::string picker_action_output() const;
   [[nodiscard]] std::optional<std::filesystem::path> selected_repository_root() const;
   void load_repositories();
   void reset_mode_state();
@@ -133,10 +141,13 @@ class WorktreeManagementOverlay : public Overlay {
   std::vector<std::filesystem::path> repositories;
   std::vector<TrayId> session_tray_ids;
   std::vector<TrayId> switch_candidate_tray_ids;
+  std::vector<bool> switch_candidate_available;
   std::optional<std::filesystem::path> selected_repository;
   std::optional<std::filesystem::path> repository_root;
   std::optional<std::filesystem::path> pending_worktree_path;
   std::optional<TrayId> tray_to_open;
+  std::optional<TrayId> remove_confirmation;
+  std::string picker_action_error;
   std::unique_ptr<PathPickerOverlay> picker;
   std::unique_ptr<ContentPtySession> process;
   std::vector<std::string> transcript_lines;

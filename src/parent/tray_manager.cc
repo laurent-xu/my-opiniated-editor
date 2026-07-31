@@ -132,8 +132,46 @@ TraySnapshot TrayManager::switch_to_worktree(std::filesystem::path const& path) 
   return tray.snapshot();
 }
 
-std::optional<int> TrayManager::try_wait_for_active_exit() noexcept {
-  return mutable_active_tray().try_wait_for_exit();
+bool TrayManager::destroy_tray(TrayId const& id) {
+  bool destroyed = false;
+  if (id.kind() == TrayIdKind::ANONYMOUS) {
+    std::unique_ptr<Tray>& tray = anonymous_trays.at(tray_index(id.anonymous_number()));
+    destroyed = tray != nullptr;
+    tray.reset();
+  } else {
+    destroyed = worktree_trays.erase(id.worktree_root()) != 0U;
+  }
+
+  if (!destroyed) {
+    return false;
+  }
+  if (id == active_tray_id) {
+    activate_anonymous_tray_one();
+  } else if (id.kind() == TrayIdKind::ANONYMOUS &&
+             id.anonymous_number().value() == TrayNumber::MIN_VALUE) {
+    static_cast<void>(ensure_tray(TrayNumber::one()));
+  }
+  refresh_active_overlay_session_trays();
+  return true;
+}
+
+bool TrayManager::destroy_exited_trays() {
+  std::vector<TrayId> exited;
+  for (std::unique_ptr<Tray> const& tray : anonymous_trays) {
+    if (tray != nullptr && tray->try_wait_for_exit().has_value()) {
+      exited.push_back(tray->id());
+    }
+  }
+  for (auto const& entry : worktree_trays) {
+    if (entry.second->try_wait_for_exit().has_value()) {
+      exited.push_back(entry.second->id());
+    }
+  }
+
+  for (TrayId const& id : exited) {
+    static_cast<void>(destroy_tray(id));
+  }
+  return !exited.empty();
 }
 
 base::FileDescriptor TrayManager::active_content_file_descriptor() const {
@@ -350,6 +388,12 @@ void TrayManager::refresh_active_overlay_session_trays() {
   if (overlay != nullptr) {
     overlay->update_session_trays(tray_snapshots());
   }
+}
+
+void TrayManager::activate_anonymous_tray_one() {
+  active_tray_id = TrayId::anonymous(TrayNumber::one());
+  Tray& tray = ensure_tray(TrayNumber::one());
+  tray.resize(current_size);
 }
 
 std::size_t TrayManager::tray_index(TrayNumber const number) {

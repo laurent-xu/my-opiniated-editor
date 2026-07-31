@@ -165,4 +165,102 @@ TEST(WorktreeManagementOverlayTest, WorktreePickerIncludesAndPreviewsUsedAnonymo
   EXPECT_NE(overlay->redraw_output().find("/anonymous/1"), std::string::npos);
 }
 
+TEST(WorktreeManagementOverlayTest, ConfirmsRemovalOfHighlightedWorktreePickerTray) {
+  std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "remove-picker";
+  std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
+  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::parent::WorktreeRegistryStore(registry_path)
+      .save(moe::parent::WorktreeRegistryStore::empty_registry());
+  std::vector<moe::parent::TraySnapshot> const session_trays{
+      moe::parent::TraySnapshot{
+          .id = moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()),
+          .label = "tray 1",
+          .working_directory = root,
+          .child_pid = moe::base::ProcessId{},
+      },
+  };
+  std::unique_ptr<moe::parent::WorktreeManagementOverlay> overlay =
+      moe::parent::WorktreeManagementOverlay::start(
+          "/unused/workspace_parent", registry_path, root, "/unused/git",
+          runfile_path("test/fixtures/fake_fzf").string(), session_trays, size);
+
+  ASSERT_TRUE(overlay->begin_remove_confirmation());
+  EXPECT_TRUE(overlay->has_remove_confirmation());
+  EXPECT_NE(overlay->redraw_output().find("Remove /anonymous/1? [y/N]"), std::string::npos);
+
+  std::optional<moe::parent::TrayId> const confirmed = overlay->resolve_remove_confirmation(true);
+  if (!confirmed.has_value()) {
+    ADD_FAILURE() << "confirmed removal did not return a tray";
+    return;
+  }
+  EXPECT_EQ(confirmed.value(), moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()));
+  EXPECT_FALSE(overlay->has_remove_confirmation());
+}
+
+TEST(WorktreeManagementOverlayTest, CancelsRemovalAndRejectsItOutsideWorktreePicker) {
+  std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "cancel-remove";
+  std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
+  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::parent::WorktreeRegistryStore(registry_path)
+      .save(moe::parent::WorktreeRegistryStore::empty_registry());
+  std::vector<moe::parent::TraySnapshot> const session_trays{
+      moe::parent::TraySnapshot{
+          .id = moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()),
+          .label = "tray 1",
+          .working_directory = root,
+          .child_pid = moe::base::ProcessId{},
+      },
+  };
+  std::unique_ptr<moe::parent::WorktreeManagementOverlay> overlay =
+      moe::parent::WorktreeManagementOverlay::start(
+          "/unused/workspace_parent", registry_path, root, "/unused/git",
+          runfile_path("test/fixtures/fake_fzf").string(), session_trays, size);
+
+  ASSERT_TRUE(overlay->begin_remove_confirmation());
+  EXPECT_FALSE(overlay->resolve_remove_confirmation(false).has_value());
+  EXPECT_FALSE(overlay->has_remove_confirmation());
+
+  overlay->write_input("\t");
+  EXPECT_FALSE(overlay->begin_remove_confirmation());
+}
+
+TEST(WorktreeManagementOverlayTest, MissingTrackedWorktreeRemainsSelectableForRemoval) {
+  std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "missing-picker";
+  std::filesystem::path const repository = root / "repository";
+  std::filesystem::path const missing_worktree = repository / "missing";
+  std::filesystem::create_directories(repository / ".bare");
+  std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
+  moe::parent::persistence::WorktreeRegistry registry =
+      moe::parent::WorktreeRegistryStore::empty_registry();
+  moe::parent::persistence::Repository* const entry = registry.add_repositories();
+  entry->set_root_path(std::filesystem::weakly_canonical(repository).string());
+  entry->add_worktrees()->set_path(std::filesystem::weakly_canonical(missing_worktree).string());
+  moe::parent::WorktreeRegistryStore(registry_path).save(registry);
+  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+
+  std::unique_ptr<moe::parent::WorktreeManagementOverlay> overlay =
+      moe::parent::WorktreeManagementOverlay::start("/unused/workspace_parent", registry_path, root,
+                                                    runfile_path("test/fixtures/fake_git").string(),
+                                                    runfile_path("test/fixtures/fake_fzf").string(),
+                                                    {}, size);
+  std::optional<moe::base::FileDescriptor> const descriptor = overlay->process_file_descriptor();
+  if (!descriptor.has_value()) {
+    ADD_FAILURE() << "missing worktree picker did not expose its PTY descriptor";
+    return;
+  }
+  pollfd readable{.fd = descriptor.value().value(), .events = POLLIN, .revents = 0};
+  ASSERT_EQ(::poll(&readable, 1, 1000), 1);
+  EXPECT_TRUE(overlay->read_process_output());
+
+  EXPECT_NE(overlay->redraw_output().find("[unavailable]"), std::string::npos);
+  ASSERT_TRUE(overlay->begin_remove_confirmation());
+  std::optional<moe::parent::TrayId> const target = overlay->resolve_remove_confirmation(true);
+  if (!target.has_value()) {
+    ADD_FAILURE() << "missing worktree removal did not return a tray";
+    return;
+  }
+  EXPECT_EQ(target.value().kind(), moe::parent::TrayIdKind::WORKTREE);
+  EXPECT_EQ(target.value().worktree_root(), std::filesystem::weakly_canonical(missing_worktree));
+}
+
 }  // namespace

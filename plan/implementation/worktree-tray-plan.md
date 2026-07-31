@@ -24,6 +24,12 @@ review before starting the next milestone.
 
 - `Esc`, `Shift+1` through `Shift+9`: switch anonymous trays.
 - `Esc`, `Shift+W`: toggle the active tray's worktree overlay.
+- In command mode while the Worktrees picker is visible, `Shift+C`: clear the
+  highlighted tray without changing Git or the persistent registry.
+- In command mode while the Worktrees picker is visible, `Shift+R`: ask for
+  `y/N` confirmation, then purge and unregister the highlighted worktree. For
+  an anonymous tray, this behaves like `Shift+C` because there is no persistent
+  worktree to remove.
 
 The worktree overlay provides three modes, in this order:
 
@@ -270,6 +276,60 @@ Exit criteria:
 - The full Bazel test suite passes.
 - One commit is ready for manual review.
 
+## Milestone 10: Clear Or Remove A Tray
+
+Deliverables:
+
+- Add command-mode-only `Shift+C` and `Shift+R` actions to the Worktrees fzf
+  picker.
+- Resolve both actions from the picker's highlighted structured `TrayId`, not
+  from displayed path text.
+- `Shift+C` destroys the highlighted tray's overlay, content PTY, terminal
+  screen, and shell process without changing Git or the protobuf registry.
+- `Shift+R` shows a `y/N` confirmation without leaving command mode. `N`,
+  `Enter`, or `Esc` cancels without changing state.
+- Confirming removal of a worktree asks Git to force-remove the linked
+  worktree, including stale metadata for a worktree missing from disk, then
+  atomically removes the worktree from the protobuf registry and destroys any
+  in-session tray.
+- A worktree already absent from Git is silently unregistered. A Git failure
+  that leaves the worktree registered does not alter the protobuf registry or
+  destroy its tray.
+- Confirming removal of an anonymous tray only destroys that tray.
+- Keep tracked worktrees that are missing or otherwise unavailable visible in
+  the picker with an `[unavailable]` suffix. Enter does not open them, but
+  `Shift+R` can still purge stale Git metadata and unregister them.
+- When the active content shell exits or the active tray is explicitly
+  destroyed, switch to anonymous tray 1. Destroying anonymous tray 1 starts a
+  fresh anonymous tray 1 with the initial working directory and current
+  terminal size.
+- Refresh the Worktrees picker after an inactive tray is cleared or removed;
+  destroying the active tray closes its attached picker as part of destroying
+  the tray.
+
+Tests:
+
+- Command routing is inactive outside command mode and outside the Worktrees
+  picker.
+- `Shift+R` confirmation, cancellation, successful purge, stale-worktree
+  pruning, already-purged unregistration, and Git/persistence failures.
+- `Shift+C` preserves Git and registry state.
+- Destroying active and inactive anonymous and worktree trays terminates their
+  content PTYs and selects the documented fallback.
+- Exiting a content shell destroys its tray and selects or recreates anonymous
+  tray 1.
+- Browser assets and WebSocket integration cover the new shortcuts and shared
+  parent status after an active tray is destroyed.
+
+Exit criteria:
+
+- Clearing a tray never changes the persistent worktree model.
+- Removing a worktree leaves Git, the registry, and in-session trays in a
+  consistent recoverable state.
+- Anonymous tray 1 remains available after every destruction path.
+- The full Bazel test suite passes.
+- One commit is ready for manual review.
+
 ## Reconciliation Rules
 
 When the registry or a selector is opened:
@@ -280,9 +340,9 @@ When the registry or a selector is opened:
 - Detect live Git worktrees not yet tracked by the editor.
 - Never silently delete persisted repository or worktree entries.
 
-Worktrees mode shows only available tracked worktrees. Adoption and removal
-actions beyond the recovery behavior described above are out of scope for
-these milestones.
+Worktrees mode shows tracked worktrees and labels unavailable entries so they
+can be removed explicitly. Repository removal and bulk reconciliation actions
+are out of scope for these milestones.
 
 ## Architecture Boundary
 

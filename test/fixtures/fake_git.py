@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import shutil
 import sys
 
 
@@ -10,6 +11,8 @@ def operation_name(arguments: list[str]) -> str:
     if arguments[0] == "clone":
         return "clone"
     if arguments[0] == "--git-dir" and len(arguments) >= 3:
+        if arguments[2] == "worktree" and len(arguments) >= 4:
+            return f"worktree-{arguments[3]}"
         return arguments[2]
     return arguments[0]
 
@@ -24,7 +27,10 @@ def log_invocation(arguments: list[str]) -> None:
 
 
 def should_fail(operation: str) -> bool:
-    return os.environ.get("MOE_FAKE_GIT_FAIL_OPERATION") == operation
+    configured = os.environ.get("MOE_FAKE_GIT_FAIL_OPERATION")
+    return configured == operation or (
+        configured == "worktree" and operation.startswith("worktree-")
+    )
 
 
 def configured_branches(environment_name: str) -> set[str]:
@@ -74,7 +80,7 @@ def main() -> int:
         print(os.environ.get("MOE_FAKE_GIT_DEFAULT_BRANCH", "refs/heads/main"))
         return 0
 
-    if operation == "worktree":
+    if operation.startswith("worktree-"):
         if len(arguments) >= 6 and arguments[3] == "add":
             bare_directory = pathlib.Path(arguments[1])
             if arguments[4] == "-b" and len(arguments) == 8:
@@ -98,7 +104,22 @@ def main() -> int:
                 f"ref: refs/heads/{branch}\n", encoding="utf-8"
             )
             return 0
-        porcelain = os.environ.get("MOE_FAKE_GIT_WORKTREE_LIST", "")
+        if arguments[3] == "remove" and len(arguments) in {6, 7}:
+            shutil.rmtree(arguments[-1], ignore_errors=True)
+            return 0
+        if arguments[3] == "prune":
+            marker = os.environ.get("MOE_FAKE_GIT_PRUNE_MARKER")
+            if marker:
+                pathlib.Path(marker).touch()
+            return 0
+        marker = os.environ.get("MOE_FAKE_GIT_PRUNE_MARKER")
+        after_prune = marker and pathlib.Path(marker).exists()
+        porcelain = os.environ.get(
+            "MOE_FAKE_GIT_WORKTREE_LIST_AFTER_PRUNE"
+            if after_prune
+            else "MOE_FAKE_GIT_WORKTREE_LIST",
+            "",
+        )
         sys.stdout.buffer.write(porcelain.replace("\n", "\0").encode())
         return 0
 

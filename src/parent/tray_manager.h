@@ -32,7 +32,8 @@ class TrayManager {
   void resize_active(TerminalSize size);
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
   [[nodiscard]] TraySnapshot switch_to_worktree(std::filesystem::path const& path);
-  [[nodiscard]] std::optional<int> try_wait_for_active_exit() noexcept;
+  [[nodiscard]] bool destroy_tray(TrayId const& id);
+  [[nodiscard]] bool destroy_exited_trays();
   [[nodiscard]] base::FileDescriptor active_content_file_descriptor() const;
   [[nodiscard]] TrayId active_id() const;
   [[nodiscard]] TraySnapshot active_snapshot() const;
@@ -61,6 +62,7 @@ class TrayManager {
   [[nodiscard]] Tray const& worktree_tray(std::filesystem::path const& root) const;
   [[nodiscard]] Tray& mutable_worktree_tray(std::filesystem::path const& root);
   void refresh_active_overlay_session_trays();
+  void activate_anonymous_tray_one();
   [[nodiscard]] static std::size_t tray_index(TrayNumber number);
 
   TrayConfig config;

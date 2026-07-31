@@ -181,6 +181,10 @@ std::string browser_client_js() {
     sendCommand("3", "");
   }
 
+  function sendWorktreePickerCommand(command) {
+    sendCommand("6", command);
+  }
+
   function fitAndSendSize() {
     fitAddon.fit();
     sendCommand("1", JSON.stringify({ columns: terminal.cols, rows: terminal.rows }));
@@ -226,6 +230,30 @@ std::string browser_client_js() {
       (event.code === "KeyW" || event.key === "W");
   }
 
+  function isShiftCKey(event) {
+    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
+      (event.code === "KeyC" || event.key === "C");
+  }
+
+  function isShiftRKey(event) {
+    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
+      (event.code === "KeyR" || event.key === "R");
+  }
+
+  function removalConfirmationFromKey(event) {
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return null;
+    }
+    if (event.key === "Enter" || event.code === "Enter") {
+      return "n";
+    }
+    const key = event.key || "";
+    if (key.toLowerCase() === "y" || key.toLowerCase() === "n") {
+      return key.toLowerCase();
+    }
+    return null;
+  }
+
   function handleTabKey(event) {
     if (isTabKey(event) && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
@@ -259,6 +287,19 @@ std::string browser_client_js() {
     }
     if (isShiftWKey(event)) {
       toggleWorktreeManager();
+      return true;
+    }
+    if (isShiftCKey(event)) {
+      sendWorktreePickerCommand("c");
+      return true;
+    }
+    if (isShiftRKey(event)) {
+      sendWorktreePickerCommand("r");
+      return true;
+    }
+    const removalConfirmation = removalConfirmationFromKey(event);
+    if (removalConfirmation !== null) {
+      sendWorktreePickerCommand(removalConfirmation);
       return true;
     }
 

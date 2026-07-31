@@ -130,7 +130,17 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             self.assertIn(os.environ["TEST_TMPDIR"], pwd)
 
             os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
+            time.sleep(0.2)
+            os.write(master_fd, shell_pid_marker_command())
+            replacement_output = read_until(master_fd, "__moe_pid_done__")
+            replacement = re.search(
+                r"__moe_shell_pid_(\d+)_parent_(\d+)__moe_pid_done__",
+                replacement_output,
+            )
+            self.assertIsNotNone(replacement, replacement_output)
+            self.assertNotEqual(int(replacement.group(1)), shell_pid)
+            self.assertEqual(int(replacement.group(2)), process.pid)
+            self.assertIsNone(process.poll())
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -157,8 +167,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             output = read_until(master_fd, "__moe_resize_done__")
             self.assertIn("31 103", output)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -205,8 +213,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             tray_one_output = read_until(master_fd, "__moe_tray1_tray_one__")
             self.assertIn("__moe_tray1_tray_one__", tray_one_output)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -239,8 +245,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             self.assertIn("__moe_line_01__", redraw_output)
             self.assertIn("__moe_line_40__", redraw_output)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -267,8 +271,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             terminal_type = read_until(master_fd, "xterm-256color")
             self.assertIn("xterm-256color", terminal_type)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -333,8 +335,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             shell_output = read_until(master_fd, "__moe_after_worktree_overlay__")
             self.assertIn("__moe_after_worktree_overlay__", shell_output)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -374,8 +374,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
 
             os.write(master_fd, b"\x18w")
             read_until(master_fd, "\x1b[H\x1b[2J")
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -452,8 +450,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
                 invocations = git_log.read()
             self.assertIn('"worktree", "add", "-b", "feature/terminal"', invocations)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -506,8 +502,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             read_until(master_fd, "> tray-one-input")
             os.write(master_fd, b"\x18w")
             read_until(master_fd, "\x1b[H\x1b[2J")
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -601,8 +595,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             reused = read_until(master_fd, "__moe_reused_reused__")
             self.assertIn("__moe_reused_reused__", reused)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -646,8 +638,6 @@ class WorkspaceParentPtyTest(unittest.TestCase):
             shell_output = read_until(master_fd, "__moe_after_picker_cancel__")
             self.assertIn("__moe_after_picker_cancel__", shell_output)
 
-            os.write(master_fd, b"exit\n")
-            self.assertEqual(process.wait(timeout=5), 0)
         finally:
             if process.poll() is None:
                 process.terminate()

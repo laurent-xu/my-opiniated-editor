@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -167,8 +168,14 @@ bool WorktreeManagementOverlay::refresh_process_state() {
       return true;
     }
     if (mode == Mode::SWITCH_WORKTREE) {
-      if (!selected_index.has_value() || *selected_index >= switch_candidate_tray_ids.size()) {
+      if (!selected_index.has_value() || *selected_index >= switch_candidate_tray_ids.size() ||
+          *selected_index >= switch_candidate_available.size()) {
         switch_worktree_error_message = "Selected tray is unavailable";
+        return true;
+      }
+      if (!switch_candidate_available[*selected_index]) {
+        start_switch_worktree_picker();
+        set_picker_action_error("Worktree is unavailable; use Shift+R to remove it");
         return true;
       }
       tray_to_open = switch_candidate_tray_ids[*selected_index];
@@ -243,6 +250,63 @@ std::optional<TrayPreviewRequest> WorktreeManagementOverlay::preview_request() c
       .origin = TerminalPosition{.row = 0, .column = 0},
       .size = TerminalSize{.rows = preview_rows, .cols = dialog_terminal_size().cols},
   };
+}
+
+std::optional<TrayId> WorktreeManagementOverlay::highlighted_tray_id() const {
+  if (mode != Mode::SWITCH_WORKTREE || picker == nullptr) {
+    return std::nullopt;
+  }
+  std::optional<std::size_t> const index = picker->highlighted_index();
+  if (!index.has_value() || *index >= switch_candidate_tray_ids.size()) {
+    return std::nullopt;
+  }
+  return switch_candidate_tray_ids[*index];
+}
+
+bool WorktreeManagementOverlay::begin_remove_confirmation() {
+  std::optional<TrayId> const highlighted = highlighted_tray_id();
+  if (!highlighted.has_value()) {
+    return false;
+  }
+  remove_confirmation = highlighted;
+  picker_action_error.clear();
+  full_redraw_requested = true;
+  return true;
+}
+
+bool WorktreeManagementOverlay::has_remove_confirmation() const noexcept {
+  return remove_confirmation.has_value();
+}
+
+std::optional<TrayId> WorktreeManagementOverlay::resolve_remove_confirmation(bool const confirmed) {
+  if (!remove_confirmation.has_value()) {
+    return std::nullopt;
+  }
+  std::optional<TrayId> target = std::exchange(remove_confirmation, std::nullopt);
+  full_redraw_requested = true;
+  return confirmed ? target : std::nullopt;
+}
+
+void WorktreeManagementOverlay::cancel_remove_confirmation() {
+  remove_confirmation.reset();
+  full_redraw_requested = true;
+}
+
+void WorktreeManagementOverlay::set_picker_action_error(std::string message) {
+  remove_confirmation.reset();
+  picker_action_error = std::move(message);
+  full_redraw_requested = true;
+}
+
+void WorktreeManagementOverlay::refresh_worktree_picker() {
+  if (mode != Mode::SWITCH_WORKTREE) {
+    return;
+  }
+  remove_confirmation.reset();
+  picker_action_error.clear();
+  picker = nullptr;
+  start_switch_worktree_picker();
+  full_redraw_requested = true;
 }
 
 void WorktreeManagementOverlay::update_session_trays(
@@ -373,6 +437,8 @@ void WorktreeManagementOverlay::reset_mode_state() {
   process_escape_sequence = false;
   process_control_sequence = false;
   result_succeeded = false;
+  remove_confirmation.reset();
+  picker_action_error.clear();
   load_repositories();
 }
 
@@ -414,12 +480,21 @@ void WorktreeManagementOverlay::activate_mode() {
 
 void WorktreeManagementOverlay::start_switch_worktree_picker() {
   try {
-    std::vector<std::filesystem::path> candidates =
+    std::vector<std::filesystem::path> const available =
         WorktreeCandidateFinder(git_executable).find_available(registry_path);
+    std::set<std::filesystem::path> const available_paths(available.begin(), available.end());
+    persistence::WorktreeRegistry const registry = WorktreeRegistryStore(registry_path).load();
+    std::vector<std::filesystem::path> candidates;
     switch_candidate_tray_ids.clear();
-    switch_candidate_tray_ids.reserve(candidates.size() + session_tray_ids.size());
-    for (std::filesystem::path const& candidate : candidates) {
-      switch_candidate_tray_ids.push_back(TrayId::worktree(candidate));
+    switch_candidate_available.clear();
+    for (persistence::Repository const& repository : registry.repositories()) {
+      for (persistence::Worktree const& worktree : repository.worktrees()) {
+        std::filesystem::path const path(worktree.path());
+        bool const is_available = available_paths.contains(path);
+        candidates.emplace_back(is_available ? path.string() : path.string() + " [unavailable]");
+        switch_candidate_tray_ids.push_back(TrayId::worktree(path));
+        switch_candidate_available.push_back(is_available);
+      }
     }
     for (TrayId const& tray_id : session_tray_ids) {
       if (tray_id.kind() != TrayIdKind::ANONYMOUS) {
@@ -427,6 +502,7 @@ void WorktreeManagementOverlay::start_switch_worktree_picker() {
       }
       candidates.emplace_back("/anonymous/" + std::to_string(tray_id.anonymous_number().value()));
       switch_candidate_tray_ids.push_back(tray_id);
+      switch_candidate_available.push_back(true);
     }
     if (candidates.empty()) {
       switch_worktree_error_message = "No available tracked worktrees";
@@ -506,7 +582,47 @@ void WorktreeManagementOverlay::write_mode_switch_input(unsigned char const byte
 std::string WorktreeManagementOverlay::redraw_output() const {
   std::string output = footer_output();
   output += picker != nullptr ? picker->redraw_output() : dialog_redraw_output();
+  output += picker_action_output();
   return output;
+}
+
+std::string WorktreeManagementOverlay::picker_action_output() const {
+  if (!remove_confirmation.has_value() && picker_action_error.empty()) {
+    return {};
+  }
+
+  std::string message;
+  std::string background = "\x1b[48;5;52m";
+  if (remove_confirmation.has_value()) {
+    std::string const target =
+        remove_confirmation->kind() == TrayIdKind::ANONYMOUS
+            ? "/anonymous/" + std::to_string(remove_confirmation->anonymous_number().value())
+            : remove_confirmation->worktree_root().string();
+    constexpr std::string_view PREFIX = "Remove ";
+    constexpr std::string_view SUFFIX = "? [y/N]";
+    std::size_t const width = static_cast<std::size_t>(std::max(size.cols, 1));
+    if (PREFIX.size() + target.size() + SUFFIX.size() <= width) {
+      message = std::string(PREFIX) + target + std::string(SUFFIX);
+    } else if (width > PREFIX.size() + SUFFIX.size() + 3U) {
+      std::size_t const target_width = width - PREFIX.size() - SUFFIX.size() - 3U;
+      message = std::string(PREFIX) + "..." + target.substr(target.size() - target_width) +
+                std::string(SUFFIX);
+    } else {
+      message = "Remove? [y/N]";
+    }
+  } else {
+    message = picker_action_error;
+    background = "\x1b[48;5;88m";
+  }
+
+  int const columns = std::max(size.cols, 1);
+  auto const width = static_cast<std::size_t>(columns);
+  if (message.size() > width) {
+    message = visible_tail(message, width);
+  }
+  message.resize(width, ' ');
+  int const row = std::max(size.rows - OVERLAY_FOOTER_HEIGHT, 1);
+  return position_cursor(row, 1) + background + "\x1b[38;5;255m" + message + "\x1b[0m";
 }
 
 std::string WorktreeManagementOverlay::dialog_redraw_output() const {

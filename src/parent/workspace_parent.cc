@@ -29,6 +29,7 @@
 #include "src/parent/worktree_management_overlay.h"
 #include "src/parent/worktree_provisioner.h"
 #include "src/parent/worktree_registry_store.h"
+#include "src/parent/worktree_remover.h"
 #include "src/parent/worktree_repository_registrar.h"
 
 namespace moe::parent {
@@ -231,14 +232,72 @@ bool toggle_worktree_management_overlay(TrayManager& trays,
   return false;
 }
 
-void handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
+bool clear_highlighted_tray(TrayManager& trays) {
+  WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
+  if (overlay == nullptr) {
+    return false;
+  }
+  std::optional<TrayId> const highlighted = overlay->highlighted_tray_id();
+  if (!highlighted.has_value()) {
+    return false;
+  }
+  bool const destroyed = trays.destroy_tray(*highlighted);
+  if (!destroyed) {
+    overlay->set_picker_action_error("Tray has no in-session content");
+  }
+  return destroyed;
+}
+
+bool resolve_remove_confirmation(TrayManager& trays, bool const confirmed) {
+  WorktreeManagementOverlay* overlay = trays.active_worktree_management_overlay();
+  if (overlay == nullptr || !overlay->has_remove_confirmation()) {
+    return false;
+  }
+  std::optional<TrayId> const target = overlay->resolve_remove_confirmation(confirmed);
+  if (!target.has_value()) {
+    return false;
+  }
+
+  bool const target_is_active = *target == trays.active_id();
+  if (target->kind() == TrayIdKind::WORKTREE) {
+    try {
+      WorktreeRemover(configured_git_executable())
+          .remove(WorktreeRemovalRequest{
+              .registry_path = WorktreeRegistryStore::default_registry_path(),
+              .worktree_path = target->worktree_root(),
+          });
+    } catch (std::exception const& error) {
+      overlay->set_picker_action_error("Remove failed: " + std::string(error.what()));
+      return false;
+    }
+  }
+
+  bool const destroyed = trays.destroy_tray(*target);
+  if (!target_is_active) {
+    overlay = trays.active_worktree_management_overlay();
+    if (overlay != nullptr) {
+      overlay->refresh_worktree_picker();
+    }
+  }
+  return destroyed;
+}
+
+bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
                               std::filesystem::path const& parent_executable,
                               TerminalSize const size, bool& command_mode,
                               std::optional<base::FileDescriptor> const status_descriptor) {
   if (byte == TOGGLE_COMMAND_MODE_COMMAND) {
+    WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
+    bool const canceled_removal = overlay != nullptr && overlay->has_remove_confirmation();
+    if (canceled_removal) {
+      overlay->cancel_remove_confirmation();
+    }
     command_mode = !command_mode;
     publish_parent_status(trays, command_mode, status_descriptor);
-    return;
+    if (canceled_removal) {
+      redraw_active_surface(trays);
+    }
+    return false;
   }
   if (is_anonymous_tray_command(byte)) {
     std::optional<TrayNumber> const number = TrayNumber::from_int(static_cast<int>(byte - '0'));
@@ -246,7 +305,7 @@ void handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
       static_cast<void>(trays.switch_to(*number));
       publish_parent_status(trays, command_mode, status_descriptor);
       redraw_active_surface(trays);
-      return;
+      return false;
     }
   }
   if (byte == 'w') {
@@ -256,16 +315,36 @@ void handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
     }
     publish_parent_status(trays, command_mode, status_descriptor);
     redraw_active_surface(trays);
-    return;
+    return false;
+  }
+  if (byte == 'c' || byte == 'r' || byte == 'y' || byte == 'n') {
+    if (!command_mode) {
+      return false;
+    }
+    bool trays_destroyed = false;
+    if (byte == 'c') {
+      trays_destroyed = clear_highlighted_tray(trays);
+    } else if (byte == 'r') {
+      WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
+      if (overlay != nullptr) {
+        static_cast<void>(overlay->begin_remove_confirmation());
+      }
+    } else {
+      trays_destroyed = resolve_remove_confirmation(trays, byte == 'y');
+    }
+    publish_parent_status(trays, command_mode, status_descriptor);
+    redraw_active_surface(trays);
+    return trays_destroyed;
   }
 
   if (!command_mode) {
     write_active_surface_input_byte(trays, TRAY_COMMAND_PREFIX);
     write_active_surface_input_byte(trays, byte);
   }
+  return false;
 }
 
-void route_parent_input_to_active_tray(
+bool route_parent_input_to_active_tray(
     TrayManager& trays, std::string_view const bytes, ParentInputMode& input_mode,
     std::filesystem::path const& parent_executable, TerminalSize const size, bool& command_mode,
     std::optional<base::FileDescriptor> const status_descriptor) {
@@ -279,6 +358,7 @@ void route_parent_input_to_active_tray(
     }
   };
 
+  bool trays_destroyed = false;
   for (unsigned char const byte : bytes) {
     if (input_mode == ParentInputMode::NORMAL) {
       if (byte == TRAY_COMMAND_PREFIX) {
@@ -292,7 +372,9 @@ void route_parent_input_to_active_tray(
       continue;
     }
 
-    handle_tray_command_byte(trays, byte, parent_executable, size, command_mode, status_descriptor);
+    trays_destroyed = handle_tray_command_byte(trays, byte, parent_executable, size, command_mode,
+                                               status_descriptor) ||
+                      trays_destroyed;
     input_mode = ParentInputMode::NORMAL;
   }
 
@@ -305,9 +387,10 @@ void route_parent_input_to_active_tray(
       write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_worktree_management_overlay_redraw_output());
     }
   }
+  return trays_destroyed;
 }
 
-void forward_parent_input_to_active_tray(
+bool forward_parent_input_to_active_tray(
     TrayManager& trays, ParentInputMode& input_mode, std::filesystem::path const& parent_executable,
     TerminalSize const size, bool& command_mode,
     std::optional<base::FileDescriptor> const status_descriptor) {
@@ -315,12 +398,12 @@ void forward_parent_input_to_active_tray(
   ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
   if (read_count <= 0) {
     if (read_count == 0 || errno == EINTR || errno == EIO) {
-      return;
+      return false;
     }
     throw std::runtime_error(std::string("read parent input failed: ") + std::strerror(errno));
   }
 
-  route_parent_input_to_active_tray(
+  return route_parent_input_to_active_tray(
       trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode,
       parent_executable, size, command_mode, status_descriptor);
 }
@@ -450,9 +533,9 @@ int run_workspace_parent() {
   publish_parent_status(*trays, command_mode, parent_status_descriptor);
 
   while (stop_requested == 0) {
-    if (std::optional<int> const exit_code = trays->try_wait_for_active_exit();
-        exit_code.has_value()) {
-      return *exit_code;
+    if (trays->destroy_exited_trays()) {
+      publish_parent_status(*trays, command_mode, parent_status_descriptor);
+      redraw_active_surface(*trays);
     }
 
     synchronize_active_tray_size_if_changed(*trays, last_size);
@@ -488,8 +571,10 @@ int run_workspace_parent() {
     synchronize_active_tray_size_if_changed(*trays, last_size);
 
     if ((descriptors[0].revents & POLLIN) != 0) {
-      forward_parent_input_to_active_tray(*trays, input_mode, parent_executable, last_size,
-                                          command_mode, parent_status_descriptor);
+      if (forward_parent_input_to_active_tray(*trays, input_mode, parent_executable, last_size,
+                                              command_mode, parent_status_descriptor)) {
+        continue;
+      }
     }
 
     for (std::size_t index = 0; index < overlay_sources.size(); ++index) {

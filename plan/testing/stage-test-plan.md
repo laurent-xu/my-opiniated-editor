@@ -70,6 +70,9 @@ Current coverage:
   client assets and that the JS includes xterm.js setup and `/ws` connection.
 - The same integration test verifies token-protected HTTP/WebSocket attach and
   rejects non-loopback binds without a token or explicit unsafe override.
+- Tray lifecycle coverage verifies command-mode clear/remove actions, atomic
+  worktree unregistration, and fallback to a fresh anonymous tray 1 when an
+  active content shell exits or is destroyed.
 - Manual browser testing confirmed the network page loads, status reaches
   connected, two tabs show the same parent content, and refresh works.
 - Clipboard is parked until HTTPS/reverse-proxy support exists.

@@ -111,6 +111,16 @@ void toggle_parent_command_mode(ParentPtySession const& session) {
   session.write(std::string_view(command.data(), command.size()));
 }
 
+void send_parent_worktree_picker_command(ParentPtySession const& session,
+                                         std::string_view const command) {
+  if (command.size() != 1U || (command.front() != 'c' && command.front() != 'r' &&
+                               command.front() != 'y' && command.front() != 'n')) {
+    throw std::runtime_error("worktree picker command requires c, r, y, or n");
+  }
+  std::array<char, 2> const parent_command{TRAY_COMMAND_PREFIX, command.front()};
+  session.write(std::string_view(parent_command.data(), parent_command.size()));
+}
+
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
   if (payload.empty()) {
     return;
@@ -136,6 +146,10 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
   }
   if (command == '5') {
     toggle_parent_command_mode(session);
+    return;
+  }
+  if (command == '6') {
+    send_parent_worktree_picker_command(session, data);
   }
 }
 

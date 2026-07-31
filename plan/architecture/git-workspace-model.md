@@ -31,6 +31,15 @@ temporary file in the destination directory, rename it over the registry, then
 `fsync` the directory. A failed update must leave the previous registry intact,
 and invalid registry data must not be silently overwritten.
 
+Clearing an in-session tray is a process-lifecycle action and does not change
+Git or this registry. Removing a tracked worktree is a separate parent-owned
+workflow: force-remove it through the registered repository's bare Git
+directory, prune stale Git metadata when its directory is already missing,
+atomically unregister it, then destroy any in-session tray. If Git already no
+longer lists the worktree, unregistering it is idempotent. If Git still lists
+the worktree after a failed removal, preserve both the registry entry and the
+in-session tray so the operation can be retried.
+
 See [Worktree Tray Plan](../implementation/worktree-tray-plan.md) for the
 milestone order and interaction details.
 
