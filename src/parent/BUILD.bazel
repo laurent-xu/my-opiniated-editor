@@ -66,6 +66,18 @@ cc_library(
 )
 
 cc_library(
+    name = "worktree_provisioner",
+    srcs = ["worktree_provisioner.cc"],
+    hdrs = ["worktree_provisioner.h"],
+    deps = [
+        ":worktree_registry_store",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
@@ -78,7 +90,6 @@ cc_library(
         "tray_manager.cc",
         "tray_number.cc",
         "worktree_management_overlay.cc",
-        "worktree_provisioner.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
@@ -99,7 +110,6 @@ cc_library(
         "tray_preview_request.h",
         "tray_snapshot.h",
         "worktree_management_overlay.h",
-        "worktree_provisioner.h",
         "workspace_parent.h",
     ],
     deps = [
@@ -110,6 +120,7 @@ cc_library(
         ":worktree_repository_registrar",
         ":worktree_candidate_finder",
         ":worktree_remover",
+        ":worktree_provisioner",
         "//third_party/system:libvterm_neovim",
         "//third_party/system:libutil",
     ],
@@ -141,7 +152,7 @@ cc_test(
     srcs = ["worktree_provisioner_test.cc"],
     data = ["//test/fixtures:fake_git"],
     deps = [
-        ":parent_lib",
+        ":worktree_provisioner",
         "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
