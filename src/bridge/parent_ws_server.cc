@@ -34,6 +34,7 @@ namespace moe::bridge {
 namespace {
 
 using base::FileDescriptor;
+using base::NetworkPort;
 using base::OwnedFileDescriptor;
 
 constexpr int DEFAULT_ROWS = 24;
@@ -431,7 +432,7 @@ void handle_client(OwnedFileDescriptor client, ParentPtySession const& session,
   }
 }
 
-OwnedFileDescriptor listen_on(std::string const& interface, int const port) {
+OwnedFileDescriptor listen_on(std::string const& interface, NetworkPort const port) {
   OwnedFileDescriptor listener(FileDescriptor(::socket(AF_INET, SOCK_STREAM, 0)));
   if (!listener.valid()) {
     throw errno_error("socket failed");
@@ -445,7 +446,7 @@ OwnedFileDescriptor listen_on(std::string const& interface, int const port) {
 
   sockaddr_in address{};
   address.sin_family = AF_INET;
-  address.sin_port = htons(static_cast<std::uint16_t>(port));
+  address.sin_port = htons(port.value());
   if (inet_pton(AF_INET, interface.c_str(), &address.sin_addr) != 1) {
     throw std::runtime_error("invalid IPv4 interface: " + interface);
   }
@@ -459,13 +460,17 @@ OwnedFileDescriptor listen_on(std::string const& interface, int const port) {
   return listener;
 }
 
-int bound_port(OwnedFileDescriptor const& listener) {
+NetworkPort bound_port(OwnedFileDescriptor const& listener) {
   sockaddr_in address{};
   socklen_t length = sizeof(address);
   if (getsockname(listener.get().value(), reinterpret_cast<sockaddr*>(&address), &length) != 0) {
     throw errno_error("getsockname failed");
   }
-  return ntohs(address.sin_port);
+  std::optional<NetworkPort> const port = NetworkPort::from_int(ntohs(address.sin_port));
+  if (!port.has_value()) {
+    throw std::runtime_error("listener has invalid bound port");
+  }
+  return *port;
 }
 
 OwnedFileDescriptor accept_client(OwnedFileDescriptor const& listener) {
@@ -515,10 +520,12 @@ ServerConfig parse_args(int const argc, char** argv) {
       int parsed_port = 0;
       std::from_chars_result const result =
           std::from_chars(value.data(), value.data() + value.size(), parsed_port);
-      if (result.ec != std::errc{}) {
+      std::optional<NetworkPort> const port = NetworkPort::from_int(parsed_port);
+      if (result.ec != std::errc{} || result.ptr != value.data() + value.size() ||
+          !port.has_value()) {
         throw std::runtime_error("invalid port: " + value);
       }
-      config.port = parsed_port;
+      config.port = *port;
     } else if (arg == "--token") {
       config.auth_token = require_value(arg);
       if (config.auth_token.empty()) {
@@ -561,7 +568,8 @@ void run_server(ServerConfig const& config) {
 
   OwnedFileDescriptor const listener = listen_on(config.interface, config.port);
   std::cout << "parent-ws-bridge listening interface=" << config.interface << " port="
-            << bound_port(listener) << " parent_pid=" << session->child_pid().value() << '\n';
+            << bound_port(listener).value() << " parent_pid=" << session->child_pid().value()
+            << '\n';
   std::cout.flush();
 
   PtyWebsocketHub hub(*session);

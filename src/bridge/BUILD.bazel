@@ -64,6 +64,7 @@ cc_library(
         ":socket_io",
         ":websocket_protocol",
         "//src/base:file_descriptor",
+        "//src/base:network_port",
         "//src/base:owned_file_descriptor",
     ],
 )

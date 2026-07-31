@@ -21,3 +21,18 @@ cc_library(
     hdrs = ["process_id.h"],
     visibility = [":src_packages"],
 )
+
+cc_library(
+    name = "network_port",
+    hdrs = ["network_port.h"],
+    visibility = [":src_packages"],
+)
+
+cc_test(
+    name = "network_port_test",
+    srcs = ["network_port_test.cc"],
+    deps = [
+        ":network_port",
+        "@googletest//:gtest_main",
+    ],
+)
