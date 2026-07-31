@@ -122,6 +122,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('sendWorktreePickerCommand("r")', client_js)
     test_case.assertIn('ArrowUp: "up"', client_js)
     test_case.assertIn('ArrowDown: "down"', client_js)
+    test_case.assertIn('return "enter"', client_js)
     test_case.assertIn('return event.shiftKey ? "backtab" : "tab"', client_js)
     test_case.assertNotIn('sendCommand("4", "")', client_js)
     test_case.assertNotIn("toggleWorktreePicker()", client_js)
@@ -466,11 +467,16 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             first_client.read_parent_status_until({"trayKey": "anonymous:1"})
             second_client.read_parent_status_until({"trayKey": "anonymous:1"})
             first_client.open_worktree_manager()
+            first_client.read_parent_status_until(
+                {"commandMode": False, "overlay": "worktreeManagement"}
+            )
             first_client.read_terminal_output_until("Worktree> ")
-            first_client.send_terminal_input(b"\r")
+            first_client.toggle_command_mode()
+            first_client.read_parent_status_until({"commandMode": True})
+            first_client.send_worktree_overlay_navigation("enter")
 
             expected = {
-                "commandMode": False,
+                "commandMode": True,
                 "trayKey": f"worktree:{worktree}",
                 "trayLabel": f"worktree {worktree}",
             }
@@ -525,7 +531,7 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             client.read_parent_status_until({"commandMode": True})
             client.send_worktree_picker_command("c")
             client.read_terminal_output_until("Clear /anonymous/1? [y/N]")
-            client.send_worktree_picker_command("n")
+            client.send_worktree_overlay_navigation("enter")
             client.read_terminal_output_until("Worktree> ")
             client.send_worktree_picker_command("c")
             client.read_terminal_output_until("Clear /anonymous/1? [y/N]")

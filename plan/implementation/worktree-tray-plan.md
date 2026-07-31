@@ -48,9 +48,9 @@ anonymous tray used in the current session as `/anonymous/N`. Its highlighted
 tray is previewed above fzf; a registered worktree without an in-session tray
 has a dark preview. Opening the overlay leaves command mode so typing, arrows,
 and Enter are routed to it. `Esc` continues to toggle command mode without
-closing the overlay. Arrows, `Tab`, and `Shift+Tab` continue navigating the
-overlay while command mode is active. From command mode, `Shift+W` closes the
-overlay and leaves command mode active.
+closing the overlay. Arrows, `Tab`, `Shift+Tab`, and `Enter` continue navigating
+or selecting from the overlay while command mode is active. From command mode,
+`Shift+W` closes the overlay and leaves command mode active.
 
 Each tray owns its worktree-management overlay state. Switching trays hides the
 previous tray's overlay without destroying it; switching back redraws the tray

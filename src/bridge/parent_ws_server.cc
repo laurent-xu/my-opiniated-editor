@@ -137,6 +137,8 @@ void send_parent_worktree_overlay_navigation(ParentPtySession const& session,
     parent_command_byte = 'I';
   } else if (navigation == "backtab") {
     parent_command_byte = 'Z';
+  } else if (navigation == "enter") {
+    parent_command_byte = 'M';
   } else {
     throw std::runtime_error("worktree overlay navigation is invalid");
   }

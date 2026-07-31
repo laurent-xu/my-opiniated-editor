@@ -248,9 +248,6 @@ std::string browser_client_js() {
     if (event.altKey || event.ctrlKey || event.metaKey) {
       return null;
     }
-    if (event.key === "Enter" || event.code === "Enter") {
-      return "n";
-    }
     const key = event.key || "";
     if (key.toLowerCase() === "y" || key.toLowerCase() === "n") {
       return key.toLowerCase();
@@ -261,6 +258,9 @@ std::string browser_client_js() {
   function worktreeOverlayNavigationFromKey(event) {
     if (event.altKey || event.ctrlKey || event.metaKey) {
       return null;
+    }
+    if (event.key === "Enter" || event.code === "Enter") {
+      return "enter";
     }
     if (isTabKey(event)) {
       return event.shiftKey ? "backtab" : "tab";

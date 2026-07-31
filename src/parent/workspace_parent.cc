@@ -46,6 +46,7 @@ constexpr unsigned char OVERLAY_NAVIGATION_RIGHT_COMMAND = 'C';
 constexpr unsigned char OVERLAY_NAVIGATION_LEFT_COMMAND = 'D';
 constexpr unsigned char OVERLAY_NAVIGATION_TAB_COMMAND = 'I';
 constexpr unsigned char OVERLAY_NAVIGATION_BACKTAB_COMMAND = 'Z';
+constexpr unsigned char OVERLAY_NAVIGATION_ENTER_COMMAND = 'M';
 constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
@@ -291,6 +292,8 @@ std::optional<std::string_view> overlay_navigation_sequence(unsigned char const 
       return "\t";
     case OVERLAY_NAVIGATION_BACKTAB_COMMAND:
       return "\x1b[Z";
+    case OVERLAY_NAVIGATION_ENTER_COMMAND:
+      return "\r";
     default:
       return std::nullopt;
   }
@@ -334,8 +337,16 @@ bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
   std::optional<std::string_view> const navigation = overlay_navigation_sequence(byte);
   if (navigation.has_value()) {
     WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
-    if (command_mode && overlay != nullptr && !overlay->has_tray_action_confirmation()) {
-      overlay->write_input(*navigation);
+    if (command_mode && overlay != nullptr) {
+      if (overlay->has_tray_action_confirmation()) {
+        if (byte == OVERLAY_NAVIGATION_ENTER_COMMAND) {
+          static_cast<void>(overlay->resolve_tray_action_confirmation(false));
+          publish_parent_status(trays, command_mode, status_descriptor);
+          redraw_active_surface(trays);
+        }
+      } else {
+        overlay->write_input(*navigation);
+      }
     }
     return false;
   }
