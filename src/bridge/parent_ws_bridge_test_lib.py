@@ -24,6 +24,12 @@ def shell_marker_command(marker: str) -> bytes:
     return f"printf '{escaped}\\012'\n".encode()
 
 
+def bridge_state_directory(port: int) -> str:
+    return os.path.join(
+        os.environ["TEST_TMPDIR"], f"bridge-state-{port}", "my-opiniated-editor"
+    )
+
+
 class WebSocketClient:
     def __init__(self, port: int, token: str | None = None):
         self.sock = socket.create_connection(("127.0.0.1", port), timeout=5)
@@ -235,7 +241,7 @@ def start_bridge(
 ) -> subprocess.Popen:
     environment = dict(os.environ)
     environment["XDG_STATE_HOME"] = os.path.join(
-        os.environ["TEST_TMPDIR"], f"bridge-state-{port}"
+        os.environ["TEST_TMPDIR"], "shared-bridge-xdg-state"
     )
     environment["MOE_FZF_EXECUTABLE"] = runfile_path("test/fixtures/fake_fzf")
     if extra_environment is not None:
@@ -250,6 +256,8 @@ def start_bridge(
         runfile_path("src/parent/workspace_parent"),
         "--cwd",
         os.environ["TEST_TMPDIR"],
+        "--state-directory",
+        bridge_state_directory(port),
     ]
     if extra_args is not None:
         command.extend(extra_args)

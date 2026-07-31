@@ -42,6 +42,7 @@ constexpr int POLL_TIMEOUT_MILLISECONDS = 250;
 constexpr char TRAY_COMMAND_PREFIX = '\x18';
 constexpr int MIN_ANONYMOUS_TRAY = 1;
 constexpr int MAX_ANONYMOUS_TRAY = 9;
+constexpr char const* PARENT_STATE_DIRECTORY_ENVIRONMENT = "MOE_STATE_DIRECTORY";
 
 std::sig_atomic_t volatile keep_running = 1;
 
@@ -483,7 +484,7 @@ void request_server_stop() { keep_running = 0; }
 
 void print_usage(std::ostream& output) {
   output << "usage: parent_ws_bridge --parent <path> [--cwd <path>] "
-            "[--interface <addr>] [--port <port>] [--token <secret>] "
+            "--state-directory <path> [--interface <addr>] [--port <port>] [--token <secret>] "
             "[--allow-unauthenticated-network]\n";
 }
 
@@ -503,6 +504,8 @@ ServerConfig parse_args(int const argc, char** argv) {
       config.parent_binary = require_value(arg);
     } else if (arg == "--cwd") {
       config.working_directory = require_value(arg);
+    } else if (arg == "--state-directory") {
+      config.state_directory = require_value(arg);
     } else if (arg == "--interface") {
       config.interface = require_value(arg);
     } else if (arg == "--port") {
@@ -535,10 +538,19 @@ void run_server(ServerConfig const& config) {
   if (config.parent_binary.empty()) {
     throw std::runtime_error("--parent is required");
   }
+  if (config.state_directory.empty()) {
+    throw std::runtime_error("--state-directory is required");
+  }
+  if (!config.state_directory.is_absolute()) {
+    throw std::runtime_error("--state-directory must be absolute");
+  }
   if (!is_loopback_interface(config.interface) && config.auth_token.empty() &&
       !config.allow_unauthenticated_network) {
     throw std::runtime_error(
         "network bind requires --token <secret> or --allow-unauthenticated-network");
+  }
+  if (::setenv(PARENT_STATE_DIRECTORY_ENVIRONMENT, config.state_directory.c_str(), 1) != 0) {
+    throw errno_error("set parent state directory failed");
   }
 
   std::vector<std::string> const command{config.parent_binary.string()};

@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(__file__))
 
 from parent_ws_bridge_test_lib import (
     WebSocketClient,
+    bridge_state_directory,
     fetch_text,
     free_loopback_port,
     runfile_path,
@@ -19,12 +20,7 @@ from parent_ws_bridge_test_lib import (
 
 
 def register_worktree_repository(port: int, repository: Path, porcelain: str) -> None:
-    registry_path = (
-        Path(os.environ["TEST_TMPDIR"])
-        / f"bridge-state-{port}"
-        / "my-opiniated-editor"
-        / "worktrees.pb"
-    )
+    registry_path = Path(bridge_state_directory(port)) / "worktrees.pb"
     subprocess.run(
         [
             runfile_path("src/parent/workspace_parent"),
@@ -147,6 +143,73 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
 
 
 class ParentWsBridgeIntegrationTest(unittest.TestCase):
+    def test_bridge_instances_do_not_share_worktree_registry_state(self):
+        first_port = free_loopback_port()
+        second_port = free_loopback_port()
+        while second_port == first_port:
+            second_port = free_loopback_port()
+        repository = (
+            Path(os.environ["TEST_TMPDIR"]) / f"isolated-repository-{first_port}"
+        )
+        worktree = repository / "topic"
+        (repository / ".bare").mkdir(parents=True)
+        (repository / ".git").write_text("gitdir: ./.bare\n", encoding="utf-8")
+        worktree.mkdir()
+        (worktree / ".git").touch()
+        repository = repository.resolve()
+        worktree = worktree.resolve()
+        porcelain = (
+            f"worktree {repository / '.bare'}\n"
+            "HEAD 111\n"
+            "bare\n\n"
+            f"worktree {worktree}\n"
+            "HEAD 222\n"
+            "branch refs/heads/topic\n\n"
+        )
+        register_worktree_repository(first_port, repository, porcelain)
+        environment = {
+            "MOE_GIT_EXECUTABLE": runfile_path("test/fixtures/fake_git"),
+            "MOE_FAKE_GIT_WORKTREE_LIST": porcelain,
+        }
+        first_process = start_bridge(first_port, extra_environment=environment)
+        second_process = start_bridge(second_port, extra_environment=environment)
+
+        first_client = None
+        second_client = None
+        try:
+            wait_for_health(first_port, first_process)
+            wait_for_health(second_port, second_process)
+            first_client = WebSocketClient(first_port)
+            second_client = WebSocketClient(second_port)
+            first_client.read_parent_status_until({"trayKey": "anonymous:1"})
+            second_client.read_parent_status_until({"trayKey": "anonymous:1"})
+
+            first_client.toggle_command_mode()
+            first_client.read_parent_status_until({"commandMode": True})
+            first_client.open_worktree_manager()
+            first_client.read_parent_status_until(
+                {"commandMode": False, "overlay": "worktreeManagement"}
+            )
+            first_output = first_client.read_terminal_output_until("/anonymous/1")
+            worktree_suffix = f"{repository.name}/topic"
+            self.assertIn(worktree_suffix, first_output)
+
+            second_client.toggle_command_mode()
+            second_client.read_parent_status_until({"commandMode": True})
+            second_client.open_worktree_manager()
+            second_client.read_parent_status_until(
+                {"commandMode": False, "overlay": "worktreeManagement"}
+            )
+            second_output = second_client.read_terminal_output_until("/anonymous/1")
+            self.assertNotIn(worktree_suffix, second_output)
+        finally:
+            if first_client is not None:
+                first_client.close()
+            if second_client is not None:
+                second_client.close()
+            stop_bridge(first_process)
+            stop_bridge(second_process)
+
     def test_parent_status_is_shared_and_replayed_to_all_clients(self):
         port = free_loopback_port()
         process = start_bridge(port)
@@ -693,6 +756,8 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
                 runfile_path("src/parent/workspace_parent"),
                 "--cwd",
                 os.environ["TEST_TMPDIR"],
+                "--state-directory",
+                str(Path(os.environ["TEST_TMPDIR"]) / "network-bind-state"),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -21,6 +21,8 @@
 namespace moe::parent {
 namespace {
 
+constexpr char const* STATE_DIRECTORY_ENVIRONMENT = "MOE_STATE_DIRECTORY";
+
 struct NormalizedRepository {
   std::string root_path;
   std::vector<std::string> worktree_paths;
@@ -174,6 +176,15 @@ WorktreeRegistryStore::WorktreeRegistryStore(std::filesystem::path path)
 }
 
 std::filesystem::path WorktreeRegistryStore::default_registry_path() {
+  char const* state_directory = std::getenv(STATE_DIRECTORY_ENVIRONMENT);
+  if (state_directory != nullptr && state_directory[0] != '\0') {
+    std::filesystem::path const state_path(state_directory);
+    if (!state_path.is_absolute()) {
+      throw std::runtime_error("MOE_STATE_DIRECTORY must be an absolute path");
+    }
+    return state_path / "worktrees.pb";
+  }
+
   char const* xdg_state_home = std::getenv("XDG_STATE_HOME");
   if (xdg_state_home != nullptr && xdg_state_home[0] != '\0') {
     std::filesystem::path const state_home(xdg_state_home);

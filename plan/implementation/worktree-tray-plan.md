@@ -59,17 +59,22 @@ inactive overlays continue being drained.
 
 ## Persistent Registry
 
-Persist a global per-user protobuf registry at:
+Persist one protobuf registry per bridge instance at:
 
 ```text
-$XDG_STATE_HOME/my-opiniated-editor/worktrees.pb
+$XDG_STATE_HOME/my-opiniated-editor/instances/port-<port>/worktrees.pb
 ```
 
 When `XDG_STATE_HOME` is unset, use:
 
 ```text
-$HOME/.local/state/my-opiniated-editor/worktrees.pb
+$HOME/.local/state/my-opiniated-editor/instances/port-<port>/worktrees.pb
 ```
+
+The bridge passes the instance state directory explicitly to its C++ parent.
+The standard runner requires a port argument and uses that port as the stable
+instance identity, so a manual-testing bridge cannot modify another port's
+registry.
 
 The registry stores only stable identity:
 

@@ -3,7 +3,7 @@ py_test(
     srcs = ["service_scripts_test.py"],
     data = [
         "bridge.env.example",
-        "my-opiniated-editor-bridge.service",
+        "my-opiniated-editor-bridge@.service",
         "restart_bridge.sh",
         "run_bridge.sh",
     ],

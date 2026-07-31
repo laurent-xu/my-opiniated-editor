@@ -29,15 +29,10 @@ class ServiceScriptsTest(unittest.TestCase):
     def test_runner_requires_token_before_starting(self):
         env = dict(os.environ)
         env.pop("MOE_BRIDGE_TOKEN", None)
-        env.update(
-            {
-                "MOE_BRIDGE_INTERFACE": "0.0.0.0",
-                "MOE_BRIDGE_PORT": "7682",
-            }
-        )
+        env["MOE_BRIDGE_INTERFACE"] = "0.0.0.0"
 
         result = subprocess.run(
-            [self.bash, runfile_path("tools/bridge/run_bridge.sh")],
+            [self.bash, runfile_path("tools/bridge/run_bridge.sh"), "7682"],
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -48,6 +43,23 @@ class ServiceScriptsTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
         self.assertIn("MOE_BRIDGE_TOKEN is required", result.stderr)
+
+    def test_bridge_scripts_require_a_port_argument(self):
+        for script in [
+            "tools/bridge/run_bridge.sh",
+            "tools/bridge/restart_bridge.sh",
+        ]:
+            with self.subTest(script=script):
+                result = subprocess.run(
+                    [self.bash, runfile_path(script)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    check=False,
+                )
+
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("usage:", result.stderr)
 
     def test_runner_executes_prebuilt_bridge_without_bazel(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -72,12 +84,12 @@ class ServiceScriptsTest(unittest.TestCase):
 
             log_path = repo_root / "runner.log"
             subprocess.run(
-                [self.bash, runner],
+                [self.bash, runner, "8765"],
                 env={
                     **os.environ,
                     "MOE_BRIDGE_INTERFACE": "127.0.0.1",
-                    "MOE_BRIDGE_PORT": "8765",
                     "MOE_BRIDGE_TOKEN": "test-token",
+                    "XDG_STATE_HOME": str(repo_root / "state"),
                     "MOE_TEST_LOG": str(log_path),
                 },
                 check=True,
@@ -97,17 +109,19 @@ class ServiceScriptsTest(unittest.TestCase):
                     "arg=bazel-bin/src/parent/workspace_parent",
                     "arg=--cwd",
                     f"arg={repo_root}",
+                    "arg=--state-directory",
+                    f"arg={repo_root / 'state' / 'my-opiniated-editor' / 'instances' / 'port-8765'}",
                 ],
             )
 
     def test_service_uses_main_worktree(self):
         service = Path(
-            runfile_path("tools/bridge/my-opiniated-editor-bridge.service")
+            runfile_path("tools/bridge/my-opiniated-editor-bridge@.service")
         ).read_text(encoding="utf-8")
 
         self.assertIn("WorkingDirectory=%h/my-opiniated-editor/main\n", service)
         self.assertIn(
-            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh\n",
+            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh %i\n",
             service,
         )
 
@@ -125,7 +139,7 @@ class ServiceScriptsTest(unittest.TestCase):
                 script.chmod(0o755)
 
             subprocess.run(
-                [self.bash, runfile_path("tools/bridge/restart_bridge.sh")],
+                [self.bash, runfile_path("tools/bridge/restart_bridge.sh"), "8765"],
                 env={
                     **os.environ,
                     "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
@@ -138,7 +152,7 @@ class ServiceScriptsTest(unittest.TestCase):
                 [
                     "bazel --batch build //src/bridge:parent_ws_bridge //src/parent:workspace_parent",
                     "systemctl --user daemon-reload",
-                    "systemctl --user restart my-opiniated-editor-bridge.service",
+                    "systemctl --user restart my-opiniated-editor-bridge@8765.service",
                 ],
             )
 

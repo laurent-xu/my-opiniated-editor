@@ -29,7 +29,7 @@ bazel run //tools/python:pyformat -- --check .
 Run once from a shell:
 
 ```bash
-tools/bridge/run_bridge.sh
+tools/bridge/run_bridge.sh 7682
 ```
 
 For boot startup and manual restart, see [tools/bridge/README.md](tools/bridge/README.md).

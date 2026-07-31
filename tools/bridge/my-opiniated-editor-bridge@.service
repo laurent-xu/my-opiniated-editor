@@ -1,5 +1,5 @@
 [Unit]
-Description=My Opiniated Editor parent PTY browser bridge
+Description=My Opiniated Editor parent PTY browser bridge on port %i
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=%h/my-opiniated-editor/main
 EnvironmentFile=%h/.config/my-opiniated-editor/bridge.env
-ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh
+ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh %i
 Restart=on-failure
 RestartSec=2
 

@@ -8,15 +8,17 @@ self-hosting work.
 
 ## Repository And Worktree Registry
 
-The C++ parent owns a global per-user registry of repositories and worktrees
-tracked by the editor. Persist it as protobuf at:
+Each C++ parent instance owns a registry of repositories and worktrees tracked
+by that editor instance. The bridge gives the parent an explicit state
+directory. The standard port-keyed runner persists its protobuf at:
 
 ```text
-$XDG_STATE_HOME/my-opiniated-editor/worktrees.pb
+$XDG_STATE_HOME/my-opiniated-editor/instances/port-<port>/worktrees.pb
 ```
 
 When `XDG_STATE_HOME` is unset, use
-`$HOME/.local/state/my-opiniated-editor/worktrees.pb`.
+`$HOME/.local/state/my-opiniated-editor/instances/port-<port>/worktrees.pb`.
+Different bridge ports therefore do not share repository registrations.
 
 The registry stores canonical absolute repository-root and worktree paths.
 Mutable metadata such as branch names, HEAD, remotes, and availability comes
