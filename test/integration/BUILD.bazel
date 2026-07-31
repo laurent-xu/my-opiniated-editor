@@ -13,5 +13,6 @@ py_test(
         "//test/fixtures:fake_fzf",
         "//test/fixtures:fake_git",
     ],
+    deps = ["//test/integration/support:workspace_parent_pty"],
     tags = ["integration"],
 )

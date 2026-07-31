@@ -1,0 +1,5 @@
+py_library(
+    name = "workspace_parent_pty",
+    srcs = ["workspace_parent_pty.py"],
+    visibility = ["//test/integration:__pkg__"],
+)
