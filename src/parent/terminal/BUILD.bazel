@@ -101,9 +101,17 @@ cc_library(
         ":terminal_line_fill_tracker",
         ":terminal_position",
         ":terminal_snapshot_line",
+        ":utf8_complete_prefix",
         "//src/base:terminal_size",
         "//third_party/system:libvterm_neovim",
     ],
+)
+
+cc_library(
+    name = "utf8_complete_prefix",
+    srcs = ["utf8_complete_prefix.cc"],
+    hdrs = ["utf8_complete_prefix.h"],
+    visibility = ["//src/parent/terminal:__pkg__"],
 )
 
 cc_test(
@@ -144,6 +152,16 @@ cc_test(
         ":terminal_cell_style",
         ":terminal_row_fill_styles",
         ":terminal_snapshot_line",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_test(
+    name = "utf8_complete_prefix_test",
+    srcs = ["utf8_complete_prefix_test.cc"],
+    deps = [
+        ":utf8_complete_prefix",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
