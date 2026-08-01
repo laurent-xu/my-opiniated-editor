@@ -31,3 +31,13 @@ cc_library(
         "//src/parent/terminal:terminal_position",
     ],
 )
+
+cc_test(
+    name = "tray_identity_test",
+    srcs = ["tray_identity_test.cc"],
+    deps = [
+        ":tray_identity",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
