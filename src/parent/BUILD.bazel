@@ -1,7 +1,19 @@
 cc_library(
+    name = "content_pty_session",
+    srcs = ["content_pty_session.cc"],
+    hdrs = ["content_pty_session.h"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+        "//src/base:terminal_size",
+        "//third_party/system:libutil",
+    ],
+)
+
+cc_library(
     name = "parent_lib",
     srcs = [
-        "content_pty_session.cc",
         "overlay_footer.cc",
         "path_picker_overlay.cc",
         "parent_status.cc",
@@ -13,7 +25,6 @@ cc_library(
         "workspace_parent.cc",
     ],
     hdrs = [
-        "content_pty_session.h",
         "overlay.h",
         "overlay_footer.h",
         "path_picker_overlay.h",
@@ -31,6 +42,7 @@ cc_library(
         "workspace_parent.h",
     ],
     deps = [
+        ":content_pty_session",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
