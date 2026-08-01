@@ -80,12 +80,23 @@ cc_library(
         ":tray_contracts",
         ":tray_identity",
         ":tray_output_source",
+        ":tray_preview_renderer",
         ":tray_runtime",
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
-        "//src/parent/terminal:terminal_position",
-        "//src/parent/terminal:terminal_screen",
         "//src/parent/worktree/overlay:worktree_management_overlay",
+    ],
+)
+
+cc_library(
+    name = "tray_preview_renderer",
+    srcs = ["tray_preview_renderer.cc"],
+    hdrs = ["tray_preview_renderer.h"],
+    deps = [
+        ":tray_contracts",
+        ":tray_identity",
+        ":tray_runtime",
+        "//src/parent/terminal:terminal_screen",
     ],
 )
 
@@ -94,6 +105,20 @@ cc_test(
     srcs = ["tray_identity_test.cc"],
     deps = [
         ":tray_identity",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_test(
+    name = "tray_preview_renderer_test",
+    srcs = ["tray_preview_renderer_test.cc"],
+    deps = [
+        ":tray_contracts",
+        ":tray_identity",
+        ":tray_preview_renderer",
+        "//src/base:terminal_size",
+        "//src/parent/terminal:terminal_position",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],

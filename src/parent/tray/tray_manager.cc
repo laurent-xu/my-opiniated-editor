@@ -1,6 +1,5 @@
 #include "src/parent/tray/tray_manager.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <stdexcept>
 #include <string>
@@ -9,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "src/parent/tray/tray_id_kind.h"
+#include "src/parent/tray/tray_preview_renderer.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 namespace moe::parent {
@@ -50,35 +49,6 @@ std::filesystem::path worktree_root_for(std::filesystem::path const& path) {
   }
 
   throw std::invalid_argument("path is not inside a git worktree: " + path.string());
-}
-
-std::string preview_target(TrayId const& id) {
-  if (id.kind() == TrayIdKind::ANONYMOUS) {
-    return "/anonymous/" + std::to_string(id.anonymous_number().value());
-  }
-  return id.worktree_root().string();
-}
-
-std::string render_preview_header(TrayPreviewRequest const& preview) {
-  std::size_t const width = static_cast<std::size_t>(std::max(preview.size.cols, 0));
-  if (width == 0U || preview.size.rows <= 0) {
-    return {};
-  }
-
-  constexpr std::string_view PREFIX = "Preview: ";
-  std::string const target = preview_target(preview.tray_id);
-  std::string title(PREFIX);
-  if (title.size() + target.size() <= width) {
-    title += target;
-  } else if (width > title.size() + 3U) {
-    std::size_t const target_width = width - title.size() - 3U;
-    title += "..." + target.substr(target.size() - target_width);
-  }
-  title.resize(width, ' ');
-
-  return "\x1b[?25l\x1b[" + std::to_string(preview.origin.row + 1) + ";" +
-         std::to_string(preview.origin.column + 1) + "H\x1b[48;5;236m\x1b[38;5;252m" + title +
-         "\x1b[0m";
 }
 
 }  // namespace
@@ -267,25 +237,8 @@ std::string TrayManager::active_worktree_management_overlay_redraw_output() cons
   std::string output;
   std::optional<TrayPreviewRequest> const preview = overlay->preview_request();
   if (preview.has_value()) {
-    TrayPreviewRequest const content_preview{
-        .tray_id = preview->tray_id,
-        .origin =
-            TerminalPosition{
-                .row = preview->origin.row + 1,
-                .column = preview->origin.column,
-            },
-        .size =
-            base::TerminalSize{
-                .rows = std::max(preview->size.rows - 1, 0),
-                .cols = preview->size.cols,
-            },
-    };
     Tray const* const previewed_tray = find_tray(preview->tray_id);
-    output = previewed_tray == nullptr
-                 ? TerminalScreen::render_blank_region_snapshot(content_preview.origin,
-                                                                content_preview.size)
-                 : previewed_tray->preview_output(content_preview.origin, content_preview.size);
-    output += render_preview_header(*preview);
+    output = render_tray_preview(*preview, previewed_tray);
   }
   output += overlay->redraw_output();
   return output;
