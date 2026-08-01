@@ -46,6 +46,7 @@ cc_library(
     hdrs = ["terminal_position.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/overlay:__pkg__",
         "//src/parent/tray:__pkg__",
     ],
 )
@@ -73,7 +74,10 @@ cc_library(
     name = "terminal_screen",
     srcs = ["terminal_screen.cc"],
     hdrs = ["terminal_screen.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/overlay:__pkg__",
+    ],
     deps = [
         ":terminal_cell_style",
         ":terminal_line_fill_tracker",

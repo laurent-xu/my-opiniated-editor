@@ -1,4 +1,4 @@
-#include "src/parent/path_picker_overlay.h"
+#include "src/parent/overlay/path_picker_overlay.h"
 
 #include <cstdlib>
 #include <filesystem>

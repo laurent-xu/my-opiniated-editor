@@ -12,7 +12,7 @@
 
 #include "gtest/gtest.h"
 #include "src/base/process_id.h"
-#include "src/parent/overlay_footer.h"
+#include "src/parent/overlay/overlay_footer.h"
 #include "src/parent/tray/tray_action_kind.h"
 #include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/worktree/worktree_registry_store.h"
@@ -24,14 +24,6 @@ constexpr std::array<std::string_view, 3> MODE_LABELS{
     "Add worktree",
     "Add repository",
 };
-
-TEST(OverlayFooterTest, HighlightsSelectionWithoutChangingLabelText) {
-  constexpr std::array<std::string_view, 2> LABELS{"One", "Two"};
-
-  EXPECT_EQ(moe::parent::render_overlay_footer(LABELS, 1, {.rows = 3, .cols = 12}),
-            "\x1b[3;1H\x1b[48;5;236m\x1b[38;5;252mOne  \x1b[48;5;244mTwo"
-            "\x1b[48;5;236m    \x1b[0m");
-}
 
 std::filesystem::path required_environment_path(char const* name) {
   char const* value = std::getenv(name);

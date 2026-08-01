@@ -1,8 +1,6 @@
 cc_library(
     name = "parent_lib",
     srcs = [
-        "overlay_footer.cc",
-        "path_picker_overlay.cc",
         "parent_status.cc",
         "tray.cc",
         "tray_manager.cc",
@@ -10,9 +8,6 @@ cc_library(
         "workspace_parent.cc",
     ],
     hdrs = [
-        "overlay.h",
-        "overlay_footer.h",
-        "path_picker_overlay.h",
         "parent_status.h",
         "tray.h",
         "tray_config.h",
@@ -23,11 +18,12 @@ cc_library(
     ],
     deps = [
         "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
-        "//src/base:process_id",
         "//src/base:terminal_size",
         "//src/parent/input:parent_input_commands",
         "//src/parent/input:parent_input_decoder",
+        "//src/parent/overlay:overlay_core",
+        "//src/parent/overlay:overlay_footer",
+        "//src/parent/overlay:path_picker_overlay",
         "//src/parent/runtime:raw_terminal_mode_guard",
         "//src/parent/terminal:content_pty_session",
         "//src/parent/terminal:terminal_position",
@@ -44,7 +40,6 @@ cc_library(
         "//src/parent/worktree:worktree_remover",
         "//src/parent/worktree:worktree_repository_registrar",
         "//src/process:process_exit_status",
-        "//third_party/system:libutil",
     ],
 )
 
@@ -71,15 +66,9 @@ cc_test(
     tags = ["integration"],
 )
 
-cc_test(
+test_suite(
     name = "path_picker_overlay_test",
-    srcs = ["path_picker_overlay_test.cc"],
-    data = ["//test/fixtures:fake_fzf"],
-    deps = [
-        ":parent_lib",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["integration"],
+    tests = ["//src/parent/overlay:path_picker_overlay_test"],
 )
 
 cc_test(
