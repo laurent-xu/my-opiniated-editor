@@ -12,7 +12,7 @@
 #include "src/base/process_id.h"
 #include "src/base/terminal_size.h"
 #include "src/parent/overlay.h"
-#include "src/parent/terminal_screen.h"
+#include "src/parent/terminal/terminal_screen.h"
 
 namespace moe::parent {
 

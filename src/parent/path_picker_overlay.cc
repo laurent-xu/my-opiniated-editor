@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "src/base/file_descriptor.h"
-#include "src/parent/terminal_position.h"
+#include "src/parent/terminal/terminal_position.h"
 
 namespace moe::parent {
 namespace {

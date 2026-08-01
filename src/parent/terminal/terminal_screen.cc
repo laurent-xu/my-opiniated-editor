@@ -1,4 +1,4 @@
-#include "src/parent/terminal_screen.h"
+#include "src/parent/terminal/terminal_screen.h"
 
 #include <algorithm>
 #include <cstdint>

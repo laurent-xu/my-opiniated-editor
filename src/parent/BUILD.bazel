@@ -1,17 +1,4 @@
 cc_library(
-    name = "terminal_screen",
-    srcs = ["terminal_screen.cc"],
-    hdrs = [
-        "terminal_position.h",
-        "terminal_screen.h",
-    ],
-    deps = [
-        "//src/base:terminal_size",
-        "//third_party/system:libvterm_neovim",
-    ],
-)
-
-cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
@@ -48,8 +35,12 @@ cc_library(
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
         "//src/base:terminal_size",
-        ":terminal_screen",
+        "//src/parent/terminal:terminal_screen",
+        "//src/parent/worktree:repository_registration_request",
+        "//src/parent/worktree:repository_root_state",
         "//src/parent/worktree:worktree_candidate_finder",
+        "//src/parent/worktree:worktree_provision_request",
+        "//src/parent/worktree:worktree_provision_result",
         "//src/parent/worktree:worktree_provisioner",
         "//src/parent/worktree:worktree_registry_store",
         "//src/parent/worktree:worktree_remover",
@@ -94,16 +85,6 @@ cc_test(
     srcs = ["workspace_parent_test.cc"],
     deps = [
         ":parent_lib",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["unit"],
-)
-
-cc_test(
-    name = "terminal_screen_test",
-    srcs = ["terminal_screen_test.cc"],
-    deps = [
-        ":terminal_screen",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],

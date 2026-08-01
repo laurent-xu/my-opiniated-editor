@@ -1,0 +1,23 @@
+cc_library(
+    name = "terminal_screen",
+    srcs = ["terminal_screen.cc"],
+    hdrs = [
+        "terminal_position.h",
+        "terminal_screen.h",
+    ],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        "//src/base:terminal_size",
+        "//third_party/system:libvterm_neovim",
+    ],
+)
+
+cc_test(
+    name = "terminal_screen_test",
+    srcs = ["terminal_screen_test.cc"],
+    deps = [
+        ":terminal_screen",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
