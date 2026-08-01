@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "src/parent/terminal/content_pty_session.h"
+#include "src/parent/terminal/screen/terminal_screen.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 namespace moe::parent {
@@ -21,7 +22,7 @@ Tray::Tray(TrayId id, std::filesystem::path working_directory,
       tray_label(tray_id.label()),
       cwd(std::move(working_directory)),
       content(std::move(content_pty)),
-      terminal_screen(size) {
+      terminal_screen(std::make_unique<TerminalScreen>(size)) {
   if (content == nullptr) {
     throw std::invalid_argument("tray requires a content pty");
   }
@@ -34,21 +35,21 @@ void Tray::write_input(std::string_view const bytes) const { content->write(byte
 std::optional<std::string> Tray::read_output() {
   std::optional<std::string> output = content->read_available();
   if (output.has_value()) {
-    terminal_screen.ingest(*output);
+    terminal_screen->ingest(*output);
   }
   return output;
 }
 
-std::string Tray::redraw_output() const { return terminal_screen.render_snapshot(); }
+std::string Tray::redraw_output() const { return terminal_screen->render_snapshot(); }
 
 std::string Tray::preview_output(TerminalPosition const origin,
                                  base::TerminalSize const region_size) const {
-  return terminal_screen.render_region_snapshot(origin, region_size);
+  return terminal_screen->render_region_snapshot(origin, region_size);
 }
 
 void Tray::resize(base::TerminalSize const size) {
   content->resize(size);
-  terminal_screen.resize(size);
+  terminal_screen->resize(size);
   if (worktree_overlay != nullptr) {
     worktree_overlay->resize(size);
   }

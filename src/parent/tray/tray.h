@@ -8,7 +8,7 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
-#include "src/parent/terminal/screen/terminal_screen.h"
+#include "src/parent/terminal/screen/terminal_position.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray/tray_snapshot.h"
@@ -17,6 +17,7 @@
 namespace moe::parent {
 
 class ContentPtySession;
+class TerminalScreen;
 class WorktreeManagementOverlay;
 
 class Tray {
@@ -50,7 +51,7 @@ class Tray {
   std::string tray_label;
   std::filesystem::path cwd;
   std::unique_ptr<ContentPtySession> content;
-  TerminalScreen terminal_screen;
+  std::unique_ptr<TerminalScreen> terminal_screen;
   std::unique_ptr<WorktreeManagementOverlay> worktree_overlay;
 };
 
