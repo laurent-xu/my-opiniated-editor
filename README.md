@@ -24,6 +24,14 @@ tools/bazel/refresh_compile_commands.sh
 bazel run //tools/python:pyformat -- --check .
 ```
 
+## Bazel Cache
+
+The checked-in `.bazelrc` stores compiled actions in
+`~/.cache/my-opiniated-editor/bazel/disk`. Bazel shares this content-addressed
+cache across all worktrees while keeping each worktree's output base separate,
+so concurrent builds remain independent. Bazel garbage-collects the cache in
+the background when it grows beyond 10 GiB.
+
 ## Browser Bridge
 
 Run once from a shell:
