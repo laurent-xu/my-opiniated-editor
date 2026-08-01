@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/parent/terminal/terminal_color_kind.h"
+#include "src/parent/terminal/snapshot/terminal_color_kind.h"
 
 namespace moe::parent {
 

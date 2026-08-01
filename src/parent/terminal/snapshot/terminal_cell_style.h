@@ -4,7 +4,7 @@
 
 #include <string>
 
-#include "src/parent/terminal/terminal_color.h"
+#include "src/parent/terminal/snapshot/terminal_color.h"
 
 namespace moe::parent {
 

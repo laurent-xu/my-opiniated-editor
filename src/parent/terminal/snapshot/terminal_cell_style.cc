@@ -1,4 +1,4 @@
-#include "src/parent/terminal/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_cell_style.h"
 
 #include <cstddef>
 #include <string>

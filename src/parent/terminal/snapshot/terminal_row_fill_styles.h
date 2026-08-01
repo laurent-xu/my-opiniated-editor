@@ -3,7 +3,7 @@
 #include <optional>
 #include <vector>
 
-#include "src/parent/terminal/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_cell_style.h"
 
 namespace moe::parent {
 

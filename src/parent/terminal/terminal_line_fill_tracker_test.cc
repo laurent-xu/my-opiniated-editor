@@ -6,9 +6,9 @@
 
 #include "gtest/gtest.h"
 #include "src/base/terminal_size.h"
-#include "src/parent/terminal/terminal_cell_style.h"
-#include "src/parent/terminal/terminal_color.h"
-#include "src/parent/terminal/terminal_color_kind.h"
+#include "src/parent/terminal/snapshot/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_color.h"
+#include "src/parent/terminal/snapshot/terminal_color_kind.h"
 #include "src/parent/terminal/terminal_rect_move.h"
 
 namespace {

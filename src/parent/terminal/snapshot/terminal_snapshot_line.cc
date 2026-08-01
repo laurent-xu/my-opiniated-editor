@@ -1,4 +1,4 @@
-#include "src/parent/terminal/terminal_snapshot_line.h"
+#include "src/parent/terminal/snapshot/terminal_snapshot_line.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-#include "src/parent/terminal/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_cell_style.h"
 
 namespace moe::parent {
 namespace {

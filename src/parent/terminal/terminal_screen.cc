@@ -8,10 +8,10 @@
 #include <vector>
 
 #include "src/parent/terminal/control_sequence/control_sequence_introducer_parser.h"
-#include "src/parent/terminal/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_snapshot_line.h"
 #include "src/parent/terminal/terminal_line_fill_tracker.h"
 #include "src/parent/terminal/terminal_rect_move.h"
-#include "src/parent/terminal/terminal_snapshot_line.h"
 #include "src/parent/terminal/utf8_complete_prefix.h"
 
 namespace moe::parent {

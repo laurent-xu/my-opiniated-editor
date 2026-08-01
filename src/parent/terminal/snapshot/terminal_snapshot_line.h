@@ -4,7 +4,7 @@
 
 #include <string>
 
-#include "src/parent/terminal/terminal_row_fill_styles.h"
+#include "src/parent/terminal/snapshot/terminal_row_fill_styles.h"
 
 namespace moe::parent {
 

@@ -18,18 +18,6 @@ cc_library(
 )
 
 cc_library(
-    name = "terminal_cell_style",
-    srcs = ["terminal_cell_style.cc"],
-    hdrs = [
-        "terminal_cell_style.h",
-        "terminal_color.h",
-        "terminal_color_kind.h",
-    ],
-    visibility = ["//src/parent/terminal:__pkg__"],
-    deps = ["//third_party/system:libvterm_neovim"],
-)
-
-cc_library(
     name = "terminal_line_fill_tracker",
     srcs = ["terminal_line_fill_tracker.cc"],
     hdrs = [
@@ -38,9 +26,9 @@ cc_library(
     ],
     visibility = ["//src/parent/terminal:__pkg__"],
     deps = [
-        ":terminal_cell_style",
-        ":terminal_row_fill_styles",
         "//src/base:terminal_size",
+        "//src/parent/terminal/snapshot:terminal_cell_style",
+        "//src/parent/terminal/snapshot:terminal_row_fill_styles",
         "//third_party/system:libvterm_neovim",
     ],
 )
@@ -56,25 +44,6 @@ cc_library(
 )
 
 cc_library(
-    name = "terminal_row_fill_styles",
-    hdrs = ["terminal_row_fill_styles.h"],
-    visibility = ["//src/parent/terminal:__pkg__"],
-    deps = [":terminal_cell_style"],
-)
-
-cc_library(
-    name = "terminal_snapshot_line",
-    srcs = ["terminal_snapshot_line.cc"],
-    hdrs = ["terminal_snapshot_line.h"],
-    visibility = ["//src/parent/terminal:__pkg__"],
-    deps = [
-        ":terminal_cell_style",
-        ":terminal_row_fill_styles",
-        "//third_party/system:libvterm_neovim",
-    ],
-)
-
-cc_library(
     name = "terminal_screen",
     srcs = ["terminal_screen.cc"],
     hdrs = ["terminal_screen.h"],
@@ -84,13 +53,13 @@ cc_library(
         "//src/parent/tray:__pkg__",
     ],
     deps = [
-        ":terminal_cell_style",
         ":terminal_line_fill_tracker",
         ":terminal_position",
-        ":terminal_snapshot_line",
         ":utf8_complete_prefix",
         "//src/base:terminal_size",
         "//src/parent/terminal/control_sequence:control_sequence_introducer_parser",
+        "//src/parent/terminal/snapshot:terminal_cell_style",
+        "//src/parent/terminal/snapshot:terminal_snapshot_line",
         "//third_party/system:libvterm_neovim",
     ],
 )
@@ -114,8 +83,8 @@ cc_test(
     name = "terminal_line_fill_tracker_test",
     srcs = ["terminal_line_fill_tracker_test.cc"],
     deps = [
-        ":terminal_cell_style",
         ":terminal_line_fill_tracker",
+        "//src/parent/terminal/snapshot:terminal_cell_style",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
@@ -131,14 +100,10 @@ cc_test(
     tags = ["unit"],
 )
 
-cc_test(
+test_suite(
     name = "terminal_snapshot_line_test",
-    srcs = ["terminal_snapshot_line_test.cc"],
-    deps = [
-        ":terminal_cell_style",
-        ":terminal_row_fill_styles",
-        ":terminal_snapshot_line",
-        "@googletest//:gtest_main",
+    tests = [
+        "//src/parent/terminal/snapshot:terminal_snapshot_line_test",
     ],
     tags = ["unit"],
 )

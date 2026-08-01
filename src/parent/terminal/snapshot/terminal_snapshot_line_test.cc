@@ -1,13 +1,13 @@
-#include "src/parent/terminal/terminal_snapshot_line.h"
+#include "src/parent/terminal/snapshot/terminal_snapshot_line.h"
 
 #include <array>
 #include <cstdint>
 
 #include "gtest/gtest.h"
-#include "src/parent/terminal/terminal_cell_style.h"
-#include "src/parent/terminal/terminal_color.h"
-#include "src/parent/terminal/terminal_color_kind.h"
-#include "src/parent/terminal/terminal_row_fill_styles.h"
+#include "src/parent/terminal/snapshot/terminal_cell_style.h"
+#include "src/parent/terminal/snapshot/terminal_color.h"
+#include "src/parent/terminal/snapshot/terminal_color_kind.h"
+#include "src/parent/terminal/snapshot/terminal_row_fill_styles.h"
 
 namespace {
 
