@@ -35,7 +35,7 @@ cc_library(
     visibility = ["//src/parent/terminal:__pkg__"],
     deps = [
         ":terminal_cell_style",
-        ":terminal_snapshot_line",
+        ":terminal_row_fill_styles",
         "//src/base:terminal_size",
         "//third_party/system:libvterm_neovim",
     ],
@@ -51,15 +51,20 @@ cc_library(
 )
 
 cc_library(
+    name = "terminal_row_fill_styles",
+    hdrs = ["terminal_row_fill_styles.h"],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [":terminal_cell_style"],
+)
+
+cc_library(
     name = "terminal_snapshot_line",
     srcs = ["terminal_snapshot_line.cc"],
-    hdrs = [
-        "terminal_row_fill_styles.h",
-        "terminal_snapshot_line.h",
-    ],
+    hdrs = ["terminal_snapshot_line.h"],
     visibility = ["//src/parent/terminal:__pkg__"],
     deps = [
         ":terminal_cell_style",
+        ":terminal_row_fill_styles",
         "//third_party/system:libvterm_neovim",
     ],
 )
@@ -105,6 +110,7 @@ cc_test(
     srcs = ["terminal_snapshot_line_test.cc"],
     deps = [
         ":terminal_cell_style",
+        ":terminal_row_fill_styles",
         ":terminal_snapshot_line",
         "@googletest//:gtest_main",
     ],
