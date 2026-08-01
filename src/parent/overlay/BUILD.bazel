@@ -24,6 +24,21 @@ cc_library(
 )
 
 cc_library(
+    name = "path_picker_process",
+    srcs = ["path_picker_process.cc"],
+    hdrs = ["path_picker_process.h"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+        "//src/base:terminal_size",
+        "//src/process:process_exit_status",
+        "//src/process:process_wait_status",
+        "//third_party/system:libutil",
+    ],
+)
+
+cc_library(
     name = "path_picker_overlay",
     srcs = ["path_picker_overlay.cc"],
     hdrs = ["path_picker_overlay.h"],
@@ -33,14 +48,11 @@ cc_library(
     ],
     deps = [
         ":overlay_core",
+        ":path_picker_process",
         "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
-        "//src/base:process_id",
         "//src/base:terminal_size",
         "//src/parent/terminal:terminal_position",
         "//src/parent/terminal:terminal_screen",
-        "//src/process:process_exit_status",
-        "//third_party/system:libutil",
     ],
 )
 
@@ -61,6 +73,18 @@ cc_test(
     deps = [
         ":path_picker_overlay",
         "//src/base:terminal_size",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "path_picker_process_test",
+    srcs = ["path_picker_process_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":path_picker_process",
+        "//src/base:file_descriptor",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],

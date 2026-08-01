@@ -8,13 +8,13 @@
 #include <string_view>
 #include <vector>
 
-#include "src/base/owned_file_descriptor.h"
-#include "src/base/process_id.h"
 #include "src/base/terminal_size.h"
 #include "src/parent/overlay/overlay.h"
 #include "src/parent/terminal/terminal_screen.h"
 
 namespace moe::parent {
+
+class PathPickerProcess;
 
 [[nodiscard]] std::string configured_fzf_executable();
 
@@ -42,31 +42,19 @@ class PathPickerOverlay : public Overlay {
   [[nodiscard]] base::TerminalSize available_region_above() const noexcept;
 
  private:
-  struct Handles {
-    base::OwnedFileDescriptor terminal_master;
-    base::OwnedFileDescriptor candidate_input;
-    base::OwnedFileDescriptor result_output;
-    base::ProcessId child_pid;
-  };
-
-  PathPickerOverlay(Handles handles, std::vector<std::filesystem::path> candidates,
-                    base::TerminalSize parent_size);
+  PathPickerOverlay(std::unique_ptr<PathPickerProcess> process,
+                    std::vector<std::filesystem::path> candidates, base::TerminalSize parent_size);
 
   void write_candidates();
   void ingest_focus_notifications(std::string_view bytes);
   void read_selection();
-  void reset_process() noexcept;
   [[nodiscard]] static base::TerminalSize picker_size_for(base::TerminalSize parent_size);
 
-  base::OwnedFileDescriptor terminal_master;
-  base::OwnedFileDescriptor candidate_input;
-  base::OwnedFileDescriptor result_output;
-  base::ProcessId child_process_id;
+  std::unique_ptr<PathPickerProcess> process;
   std::vector<std::filesystem::path> candidate_paths;
   base::TerminalSize parent_terminal_size;
   base::TerminalSize picker_terminal_size;
   TerminalScreen terminal_screen;
-  bool process_finished = false;
   std::optional<std::filesystem::path> selection;
   std::optional<std::size_t> selection_index;
   std::optional<std::size_t> highlighted_candidate_index;

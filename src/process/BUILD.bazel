@@ -1,6 +1,7 @@
 cc_library(
     name = "process_wait_status",
     hdrs = ["process_wait_status.h"],
+    visibility = ["//src/parent/overlay:__pkg__"],
 )
 
 cc_library(
