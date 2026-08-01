@@ -1,7 +1,130 @@
 cc_library(
+    name = "parent_command_dispatcher_contracts",
+    hdrs = [
+        "parent_command_dispatch_effects.h",
+        "parent_command_dispatcher_config.h",
+    ],
+    visibility = ["//src/parent:__pkg__"],
+)
+
+cc_library(
+    name = "parent_command_dispatcher",
+    srcs = ["parent_command_dispatcher.cc"],
+    hdrs = ["parent_command_dispatcher.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":parent_command_dispatcher_contracts",
+        "//src/base:terminal_size",
+        "//src/parent/input:parent_input_commands",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/tray:tray_manager",
+        "//src/parent/worktree/overlay:worktree_management_overlay",
+        "//src/parent/worktree:worktree_remover",
+    ],
+)
+
+cc_library(
     name = "raw_terminal_mode_guard",
     srcs = ["raw_terminal_mode_guard.cc"],
     hdrs = ["raw_terminal_mode_guard.h"],
     visibility = ["//src/parent:__pkg__"],
     deps = ["//src/base:file_descriptor"],
+)
+
+cc_library(
+    name = "parent_command_dispatcher_test_support",
+    testonly = True,
+    srcs = ["parent_command_dispatcher_test_support.cc"],
+    hdrs = ["parent_command_dispatcher_test_support.h"],
+    deps = [
+        ":parent_command_dispatcher_contracts",
+        "//src/base:terminal_size",
+        "//src/parent/test/support:test_paths",
+    ],
+)
+
+cc_test(
+    name = "parent_command_dispatcher_mode_test",
+    srcs = ["parent_command_dispatcher_mode_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":parent_command_dispatcher",
+        ":parent_command_dispatcher_test_support",
+        "//src/parent/input:parent_input_commands",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_manager",
+        "//src/parent/tray:tray_manager_test_support",
+        "//src/parent/worktree/overlay:worktree_management_overlay",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "parent_command_dispatcher_overlay_test",
+    srcs = ["parent_command_dispatcher_overlay_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":parent_command_dispatcher",
+        ":parent_command_dispatcher_test_support",
+        "//src/parent/input:parent_input_commands",
+        "//src/parent/overlay:overlay_footer",
+        "//src/parent/tray:tray_manager",
+        "//src/parent/tray:tray_manager_test_support",
+        "//src/parent/worktree/overlay:worktree_management_overlay",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "parent_command_dispatcher_removal_test",
+    srcs = ["parent_command_dispatcher_removal_test.cc"],
+    data = [
+        "//test/fixtures:fake_fzf",
+        "//test/fixtures:fake_git",
+    ],
+    deps = [
+        ":parent_command_dispatcher",
+        ":parent_command_dispatcher_contracts",
+        ":parent_command_dispatcher_test_support",
+        "//src/parent/input:parent_input_commands",
+        "//src/parent/test/support:environment_guard",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/tray:tray_manager",
+        "//src/parent/tray:tray_manager_test_support",
+        "//src/parent/worktree/overlay:worktree_management_overlay",
+        "//src/parent/worktree:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "parent_command_dispatcher_tray_test",
+    srcs = ["parent_command_dispatcher_tray_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":parent_command_dispatcher",
+        ":parent_command_dispatcher_test_support",
+        "//src/base:process_id",
+        "//src/parent/input:parent_input_commands",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/tray:tray_manager",
+        "//src/parent/tray:tray_manager_test_support",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+test_suite(
+    name = "parent_command_dispatcher_test",
+    tests = [
+        ":parent_command_dispatcher_mode_test",
+        ":parent_command_dispatcher_overlay_test",
+        ":parent_command_dispatcher_removal_test",
+        ":parent_command_dispatcher_tray_test",
+    ],
+    tags = ["integration"],
 )

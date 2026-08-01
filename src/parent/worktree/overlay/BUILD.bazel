@@ -51,6 +51,7 @@ cc_library(
     hdrs = ["worktree_management_overlay.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
         "//src/parent/tray:__pkg__",
     ],
     deps = [

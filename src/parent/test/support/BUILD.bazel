@@ -3,6 +3,7 @@ cc_library(
     hdrs = ["environment_guard.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
         "//src/parent/worktree:__pkg__",
     ],
 )
@@ -11,6 +12,7 @@ cc_library(
     name = "test_paths",
     hdrs = ["test_paths.h"],
     visibility = [
+        "//src/parent/runtime:__pkg__",
         "//src/parent/worktree:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],

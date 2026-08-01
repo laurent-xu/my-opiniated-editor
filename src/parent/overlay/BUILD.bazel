@@ -17,6 +17,7 @@ cc_library(
     hdrs = ["overlay_footer.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
     deps = ["//src/base:terminal_size"],

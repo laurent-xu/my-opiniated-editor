@@ -8,6 +8,8 @@ cc_library(
         "//src/parent/input:parent_input_commands",
         "//src/parent/input:parent_input_decoder",
         "//src/parent/overlay:path_picker_overlay",
+        "//src/parent/runtime:parent_command_dispatcher",
+        "//src/parent/runtime:parent_command_dispatcher_contracts",
         "//src/parent/runtime:raw_terminal_mode_guard",
         "//src/parent/shell:shell_configuration",
         "//src/parent/status:parent_status",
@@ -18,7 +20,6 @@ cc_library(
         "//src/parent/worktree/overlay:worktree_management_overlay",
         "//src/parent/worktree:worktree_helper_commands",
         "//src/parent/worktree:worktree_registry_store",
-        "//src/parent/worktree:worktree_remover",
         "//src/parent/worktree:worktree_repository_registrar",
     ],
 )

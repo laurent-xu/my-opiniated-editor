@@ -12,6 +12,7 @@ cc_library(
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/input:__pkg__",
+        "//src/parent/runtime:__pkg__",
         "//src/parent/status:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
@@ -27,6 +28,7 @@ cc_library(
     ],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
     deps = [
@@ -74,7 +76,10 @@ cc_library(
     name = "tray_manager",
     srcs = ["tray_manager.cc"],
     hdrs = ["tray_manager.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
+    ],
     deps = [
         ":tray_configuration",
         ":tray_contracts",
@@ -129,6 +134,7 @@ cc_library(
     testonly = True,
     srcs = ["tray_manager_test_support.cc"],
     hdrs = ["tray_manager_test_support.h"],
+    visibility = ["//src/parent/runtime:__pkg__"],
     deps = [
         ":tray_manager",
         "//src/base:process_id",
