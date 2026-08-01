@@ -22,12 +22,12 @@
 #include <vector>
 
 #include "src/base/owned_file_descriptor.h"
+#include "src/base/terminal_size.h"
 #include "src/bridge/browser/browser_assets.h"
 #include "src/bridge/http_protocol.h"
 #include "src/bridge/parent_pty_session.h"
 #include "src/bridge/protocol/browser_application_message.h"
 #include "src/bridge/protocol/browser_application_message_parser.h"
-#include "src/bridge/pty_size.h"
 #include "src/bridge/server/pty_websocket_hub.h"
 #include "src/bridge/socket_io.h"
 #include "src/bridge/websocket_protocol.h"
@@ -251,8 +251,9 @@ void run_server(ServerConfig const& config) {
   }
 
   std::vector<std::string> const command{config.parent_binary.string()};
-  std::unique_ptr<ParentPtySession> session = ParentPtySession::start(
-      command, config.working_directory, PtySize{.rows = DEFAULT_ROWS, .cols = DEFAULT_COLS});
+  std::unique_ptr<ParentPtySession> session =
+      ParentPtySession::start(command, config.working_directory,
+                              base::TerminalSize{.rows = DEFAULT_ROWS, .cols = DEFAULT_COLS});
 
   OwnedFileDescriptor const listener = listen_on(config.interface, config.port);
   std::cout << "parent-ws-bridge listening interface=" << config.interface << " port="

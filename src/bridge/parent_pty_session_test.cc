@@ -30,7 +30,7 @@ std::filesystem::path runfile_path(std::filesystem::path const& path) {
   return required_env_path("TEST_SRCDIR") / required_env_path("TEST_WORKSPACE") / path;
 }
 
-std::unique_ptr<moe::bridge::ParentPtySession> start_parent(moe::bridge::PtySize const size = {
+std::unique_ptr<moe::bridge::ParentPtySession> start_parent(moe::base::TerminalSize const size = {
                                                                 .rows = 24, .cols = 80}) {
   std::filesystem::path const test_directory = required_env_path("TEST_TMPDIR");
   std::string const state_directory = (test_directory / "state").string();
@@ -101,8 +101,9 @@ TEST(ParentPtySessionTest, InvalidSizeReportsBoundsAndActualValues) {
   std::vector<std::string> const command{runfile_path("src/parent/workspace_parent").string()};
 
   try {
-    static_cast<void>(moe::bridge::ParentPtySession::start(
-        command, required_env_path("TEST_TMPDIR"), moe::bridge::PtySize{.rows = 0, .cols = 70000}));
+    static_cast<void>(
+        moe::bridge::ParentPtySession::start(command, required_env_path("TEST_TMPDIR"),
+                                             moe::base::TerminalSize{.rows = 0, .cols = 70000}));
     FAIL() << "expected invalid pty size";
   } catch (std::invalid_argument const& error) {
     std::string const message = error.what();

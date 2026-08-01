@@ -19,7 +19,7 @@ cc_library(
     visibility = ["//src/bridge:__pkg__"],
     deps = [
         ":application_message_codec",
-        "//src/bridge:pty_size",
+        "//src/base:terminal_size",
         "//src/parent/input:parent_input_commands",
     ],
 )

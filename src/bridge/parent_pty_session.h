@@ -10,7 +10,7 @@
 #include "src/base/file_descriptor.h"
 #include "src/base/owned_file_descriptor.h"
 #include "src/base/process_id.h"
-#include "src/bridge/pty_size.h"
+#include "src/base/terminal_size.h"
 
 namespace moe::bridge {
 
@@ -18,7 +18,7 @@ class ParentPtySession {
  public:
   static std::unique_ptr<ParentPtySession> start(std::vector<std::string> const& command,
                                                  std::filesystem::path const& working_directory,
-                                                 PtySize size);
+                                                 base::TerminalSize size);
 
   ParentPtySession(ParentPtySession const&) = delete;
   ParentPtySession& operator=(ParentPtySession const&) = delete;
@@ -32,7 +32,7 @@ class ParentPtySession {
   void write(std::string_view bytes) const;
   [[nodiscard]] std::string read_until(std::string_view needle,
                                        std::chrono::milliseconds timeout) const;
-  void resize(PtySize size) const;
+  void resize(base::TerminalSize size) const;
 
  private:
   struct Handles {

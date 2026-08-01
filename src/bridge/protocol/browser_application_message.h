@@ -3,7 +3,7 @@
 #include <string_view>
 #include <variant>
 
-#include "src/bridge/pty_size.h"
+#include "src/base/terminal_size.h"
 #include "src/parent/input/parent_input_command.h"
 
 namespace moe::bridge::protocol {
@@ -13,7 +13,7 @@ struct BrowserTerminalInput {
 };
 
 struct BrowserTerminalResize {
-  PtySize size;
+  base::TerminalSize size;
 };
 
 using BrowserApplicationMessage =

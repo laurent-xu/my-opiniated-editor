@@ -1,10 +1,4 @@
 cc_library(
-    name = "pty_size",
-    hdrs = ["pty_size.h"],
-    visibility = ["//src/bridge/protocol:__pkg__"],
-)
-
-cc_library(
     name = "socket_io",
     srcs = ["socket_io.cc"],
     hdrs = ["socket_io.h"],
@@ -42,10 +36,10 @@ cc_library(
     hdrs = ["parent_pty_session.h"],
     visibility = ["//src/bridge/server:__pkg__"],
     deps = [
-        ":pty_size",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
+        "//src/base:terminal_size",
         "//third_party/system:libutil",
     ],
 )
@@ -57,12 +51,12 @@ cc_library(
     deps = [
         ":http_protocol",
         ":parent_pty_session",
-        ":pty_size",
         ":socket_io",
         ":websocket_protocol",
         "//src/base:file_descriptor",
         "//src/base:network_port",
         "//src/base:owned_file_descriptor",
+        "//src/base:terminal_size",
         "//src/bridge/browser:browser_assets",
         "//src/bridge/protocol:browser_application_message_parser",
         "//src/bridge/server:pty_websocket_hub",
