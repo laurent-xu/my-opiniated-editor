@@ -32,12 +32,34 @@ py_test(
 )
 
 py_test(
-    name = "browser_lifecycle_integration_test",
-    srcs = ["browser_lifecycle_integration_test.py"],
+    name = "browser_parent_status_integration_test",
+    srcs = ["browser_parent_status_integration_test.py"],
     size = BRIDGE_TEST_SIZE,
     tags = BRIDGE_TEST_TAGS,
     visibility = BRIDGE_SUITE_VISIBILITY,
     deps = BRIDGE_TEST_DEPS,
+)
+
+py_test(
+    name = "browser_reconnect_integration_test",
+    srcs = [
+        "browser_asset_assertions.py",
+        "browser_reconnect_integration_test.py",
+    ],
+    size = BRIDGE_TEST_SIZE,
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
+    deps = BRIDGE_TEST_DEPS,
+)
+
+test_suite(
+    name = "browser_lifecycle_integration_test",
+    tests = [
+        ":browser_parent_status_integration_test",
+        ":browser_reconnect_integration_test",
+    ],
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
 )
 
 py_test(
