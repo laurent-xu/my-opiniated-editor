@@ -1,13 +1,23 @@
 cc_library(
+    name = "tray_identity",
+    srcs = [
+        "tray_id.cc",
+        "tray_number.cc",
+    ],
+    hdrs = [
+        "tray_id.h",
+        "tray_number.h",
+    ],
+)
+
+cc_library(
     name = "parent_lib",
     srcs = [
         "overlay_footer.cc",
         "path_picker_overlay.cc",
         "parent_status.cc",
         "tray.cc",
-        "tray_id.cc",
         "tray_manager.cc",
-        "tray_number.cc",
         "worktree_management_overlay.cc",
         "workspace_parent.cc",
     ],
@@ -19,9 +29,7 @@ cc_library(
         "tray.h",
         "tray_action_request.h",
         "tray_config.h",
-        "tray_id.h",
         "tray_manager.h",
-        "tray_number.h",
         "tray_output_source.h",
         "tray_preview_request.h",
         "tray_snapshot.h",
@@ -29,6 +37,7 @@ cc_library(
         "workspace_parent.h",
     ],
     deps = [
+        ":tray_identity",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
