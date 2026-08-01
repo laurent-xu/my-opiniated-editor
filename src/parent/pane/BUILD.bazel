@@ -11,7 +11,10 @@ cc_library(
         "pane_id.h",
         "pane_node_id.h",
     ],
-    visibility = ["//src/parent/pane/test:__pkg__"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
 )
 
 cc_library(
@@ -21,14 +24,20 @@ cc_library(
         "pane_percentage.h",
         "pane_split_axis.h",
     ],
-    visibility = ["//src/parent/pane/test:__pkg__"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
 )
 
 cc_library(
     name = "pane_layout",
     srcs = ["pane_layout.cc"],
     hdrs = ["pane_layout.h"],
-    visibility = ["//src/parent/pane/test:__pkg__"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
     deps = [
         ":pane_identity",
         ":pane_layout_types",
@@ -39,7 +48,10 @@ cc_library(
     name = "pane_geometry",
     srcs = ["pane_geometry.cc"],
     hdrs = ["pane_geometry.h"],
-    visibility = ["//src/parent/pane/test:__pkg__"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
     deps = [
         ":pane_layout",
         "//src/base:terminal_size",

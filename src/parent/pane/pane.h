@@ -28,6 +28,7 @@ class Pane {
   void write_input(std::string_view bytes) const;
   [[nodiscard]] std::optional<std::string> read_output();
   [[nodiscard]] std::string redraw_output() const;
+  [[nodiscard]] std::string redraw_output_at(TerminalPosition origin) const;
   [[nodiscard]] std::string preview_output(TerminalPosition origin,
                                            base::TerminalSize region_size) const;
   void resize(base::TerminalSize size);

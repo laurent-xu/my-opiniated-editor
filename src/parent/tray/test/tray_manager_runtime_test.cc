@@ -46,12 +46,56 @@ TEST(TrayManagerTest, ListsOutputSourcesForCreatedTrays) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
   static_cast<void>(manager->switch_to(required_tray_number(2)));
 
-  std::vector<moe::parent::TrayOutputSource> const sources = manager->output_sources();
+  std::vector<moe::parent::TrayPaneOutputSource> const sources = manager->output_sources();
   ASSERT_EQ(sources.size(), 2);
   EXPECT_EQ(sources[0].tray_id.key(), "anonymous:1");
   EXPECT_TRUE(sources[0].file_descriptor.is_valid());
   EXPECT_EQ(sources[1].tray_id.key(), "anonymous:2");
   EXPECT_TRUE(sources[1].file_descriptor.is_valid());
+}
+
+TEST(TrayManagerTest, SplitCreatesIndependentPanesAndComposesTheirOutput) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const first_pane = manager->active_focused_pane_id();
+  moe::parent::PaneId const second_pane = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+
+  std::vector<moe::parent::TrayPaneOutputSource> const sources = manager->output_sources();
+  ASSERT_EQ(sources.size(), 2U);
+  EXPECT_EQ(sources[0].pane_id, first_pane);
+  EXPECT_EQ(sources[1].pane_id, second_pane);
+  EXPECT_EQ(manager->active_focused_pane_id(), second_pane);
+
+  manager->write_input("export MOE_PANE_MARKER=pane_two\n");
+  manager->write_input(shell_marker_command("__pane_two_ready__"));
+  static_cast<void>(read_until(*manager, "__pane_two_ready__"));
+
+  ASSERT_TRUE(manager->focus_active_pane(first_pane));
+  manager->write_input("printf '__pane_one_%s__\\n' \"${MOE_PANE_MARKER:-empty}\"\n");
+  std::string const first_output = read_until(*manager, "__pane_one_empty__");
+  EXPECT_NE(first_output.find("__pane_one_empty__"), std::string::npos);
+
+  std::string const redraw = manager->active_redraw_output();
+  EXPECT_NE(redraw.find("__pane_one_empty__"), std::string::npos);
+  EXPECT_NE(redraw.find("__pane_two_ready__"), std::string::npos);
+}
+
+TEST(TrayManagerTest, SplitResizesBothChildPtysToTheirRegions) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const first_pane = manager->active_focused_pane_id();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__second_size_ready__"));
+  std::string const second_output = read_until(*manager, "__second_size_ready__");
+  EXPECT_NE(second_output.find("24 39"), std::string::npos);
+
+  ASSERT_TRUE(manager->focus_active_pane(first_pane));
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__first_size_ready__"));
+  std::string const first_output = read_until(*manager, "__first_size_ready__");
+  EXPECT_NE(first_output.find("24 40"), std::string::npos);
 }
 
 TEST(TrayManagerTest, ResizeAppliesToActiveTray) {

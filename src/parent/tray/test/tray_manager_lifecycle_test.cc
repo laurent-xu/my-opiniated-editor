@@ -112,4 +112,37 @@ TEST(TrayManagerTest, ExitedWorktreeShellFallsBackToAnonymousTrayOne) {
   EXPECT_FALSE(process_exists(worktree.child_pid));
 }
 
+TEST(TrayManagerTest, ClosingFocusedPaneLeavesItsSiblingTrayRunning) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::TraySnapshot const original = manager->active_snapshot();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  moe::parent::TraySnapshot const split = manager->active_snapshot();
+
+  ASSERT_TRUE(manager->close_active_focused_pane());
+
+  EXPECT_FALSE(process_exists(split.child_pid));
+  EXPECT_TRUE(process_exists(original.child_pid));
+  EXPECT_EQ(manager->active_snapshot().id, original.id);
+  EXPECT_EQ(manager->active_snapshot().child_pid.value(), original.child_pid.value());
+  EXPECT_EQ(manager->output_sources().size(), 1U);
+}
+
+TEST(TrayManagerTest, ExitedPaneLeavesItsSiblingTrayRunning) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::TraySnapshot const original = manager->active_snapshot();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  moe::parent::TraySnapshot const split = manager->active_snapshot();
+  manager->write_input("exit\n");
+
+  ASSERT_TRUE(wait_for_exited_tray(*manager));
+
+  EXPECT_FALSE(process_exists(split.child_pid));
+  EXPECT_TRUE(process_exists(original.child_pid));
+  EXPECT_EQ(manager->active_snapshot().id, original.id);
+  EXPECT_EQ(manager->active_snapshot().child_pid.value(), original.child_pid.value());
+  EXPECT_EQ(manager->output_sources().size(), 1U);
+}
+
 }  // namespace

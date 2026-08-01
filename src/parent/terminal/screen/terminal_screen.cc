@@ -162,7 +162,11 @@ void TerminalScreen::resize(TerminalSize const size) {
     return;
   }
   screen_size = size;
+  // Libvterm can abort while reflowing a wrapped cursor line that no longer
+  // fits in the resized screen. The browser xterm owns visible pane reflow.
+  vterm_screen_enable_reflow(screen, false);
   vterm_set_size(terminal.get(), size.rows, size.cols);
+  vterm_screen_enable_reflow(screen, true);
   line_fill_tracker->resize(size);
   vterm_screen_flush_damage(screen);
 }

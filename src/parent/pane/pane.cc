@@ -35,6 +35,10 @@ std::optional<std::string> Pane::read_output() {
 
 std::string Pane::redraw_output() const { return terminal_screen->render_snapshot(); }
 
+std::string Pane::redraw_output_at(TerminalPosition const origin) const {
+  return terminal_screen->render_region_snapshot(origin);
+}
+
 std::string Pane::preview_output(TerminalPosition const origin,
                                  base::TerminalSize const region_size) const {
   return terminal_screen->render_region_snapshot(origin, region_size);

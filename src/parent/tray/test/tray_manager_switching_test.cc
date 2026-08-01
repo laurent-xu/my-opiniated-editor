@@ -61,6 +61,18 @@ TEST(TrayManagerTest, SwitchingBackPreservesShellState) {
   EXPECT_NE(tray_one_output.find("__moe_tray1_tray_one__"), std::string::npos);
 }
 
+TEST(TrayManagerTest, SwitchingBackPreservesFocusedPane) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const second_pane = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+  EXPECT_NE(manager->active_focused_pane_id(), second_pane);
+
+  static_cast<void>(manager->switch_to(moe::parent::TrayNumber::one()));
+  EXPECT_EQ(manager->active_focused_pane_id(), second_pane);
+}
+
 TEST(TrayManagerTest, WorktreeTrayStartsShellInWorktreeRoot) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
   std::filesystem::path const root = create_fake_worktree("cwd-worktree");

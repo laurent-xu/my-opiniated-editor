@@ -233,14 +233,14 @@ bool forward_parent_input_to_active_tray(
       command_dispatcher, size, status_descriptor);
 }
 
-void draw_tray_output(TrayManager& trays, TrayOutputSource const& source) {
-  std::optional<std::string> const output = trays.read_output(source.tray_id);
+void draw_tray_output(TrayManager& trays, TrayPaneOutputSource const& source) {
+  std::optional<std::string> const output = trays.read_output(source.tray_id, source.pane_id);
   if (!output.has_value()) {
     return;
   }
   if (source.tray_id == trays.active_id() &&
       trays.active_worktree_management_overlay() == nullptr) {
-    write_all(PARENT_OUTPUT_DESCRIPTOR, *output);
+    write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_redraw_output());
   } else if (trays.active_worktree_management_overlay_previews(source.tray_id)) {
     write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_worktree_management_overlay_redraw_output());
   }
@@ -300,7 +300,7 @@ int run_workspace_parent() {
 
     std::vector<TrayOutputSource> overlay_sources =
         trays->worktree_management_overlay_output_sources();
-    std::vector<TrayOutputSource> output_sources = trays->output_sources();
+    std::vector<TrayPaneOutputSource> output_sources = trays->output_sources();
     std::vector<pollfd> descriptors;
     descriptors.reserve(overlay_sources.size() + output_sources.size() + 1U);
     descriptors.push_back(readable_descriptor(PARENT_INPUT_DESCRIPTOR));
@@ -309,7 +309,7 @@ int run_workspace_parent() {
       descriptors.push_back(readable_descriptor(source.file_descriptor));
     }
     std::size_t const tray_descriptor_start = descriptors.size();
-    for (TrayOutputSource const& source : output_sources) {
+    for (TrayPaneOutputSource const& source : output_sources) {
       descriptors.push_back(readable_descriptor(source.file_descriptor));
     }
 

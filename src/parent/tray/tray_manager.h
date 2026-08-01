@@ -11,6 +11,7 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
+#include "src/parent/pane/pane_layout.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray/tray_number.h"
@@ -33,8 +34,13 @@ class TrayManager {
   void write_input(std::string_view bytes);
   [[nodiscard]] std::optional<std::string> read_active_output();
   [[nodiscard]] std::optional<std::string> read_output(TrayId const& id);
+  [[nodiscard]] std::optional<std::string> read_output(TrayId const& id, PaneId pane_id);
   [[nodiscard]] std::string active_redraw_output() const;
   void resize_active(base::TerminalSize size);
+  [[nodiscard]] PaneId split_active_focused_pane(PaneSplitAxis axis, PaneInsertion insertion);
+  [[nodiscard]] bool focus_active_pane(PaneId pane_id);
+  [[nodiscard]] bool close_active_focused_pane();
+  [[nodiscard]] PaneId active_focused_pane_id() const;
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
   [[nodiscard]] TraySnapshot switch_to_worktree(std::filesystem::path const& path);
   [[nodiscard]] bool destroy_tray(TrayId const& id);
@@ -43,7 +49,7 @@ class TrayManager {
   [[nodiscard]] TrayId active_id() const;
   [[nodiscard]] TraySnapshot active_snapshot() const;
   [[nodiscard]] std::vector<TraySnapshot> tray_snapshots() const;
-  [[nodiscard]] std::vector<TrayOutputSource> output_sources() const;
+  [[nodiscard]] std::vector<TrayPaneOutputSource> output_sources() const;
   void set_active_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay);
   void clear_active_worktree_management_overlay();
   void clear_worktree_management_overlay(TrayId const& id);

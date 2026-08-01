@@ -46,4 +46,22 @@ TEST(TerminalScreenTest, RedrawDisablesAutowrapAroundSnapshotRows) {
   EXPECT_LT(row_text, enable_autowrap);
 }
 
+TEST(TerminalScreenTest, ResizeToOneRowKeepsTheCursorValid) {
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 4, .cols = 12});
+  screen.ingest("first line\r\nsecond line\r\nthird line");
+
+  screen.resize({.rows = 1, .cols = 6});
+
+  EXPECT_FALSE(screen.render_snapshot().empty());
+}
+
+TEST(TerminalScreenTest, NarrowingLongWrappedLineKeepsTheCursorValid) {
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 24, .cols = 80});
+  screen.ingest(std::string(140, 'x'));
+
+  screen.resize({.rows = 24, .cols = 5});
+
+  EXPECT_FALSE(screen.render_snapshot().empty());
+}
+
 }  // namespace
