@@ -19,6 +19,7 @@ cc_library(
         "//src/parent/worktree/overlay:__pkg__",
         "//src/parent/worktree/provision:__pkg__",
         "//src/parent/worktree/registration:__pkg__",
+        "//src/parent/worktree/removal:__pkg__",
     ],
     deps = [
         ":worktree_registry_cc_proto",

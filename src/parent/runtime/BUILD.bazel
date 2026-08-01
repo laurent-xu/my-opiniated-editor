@@ -20,7 +20,8 @@ cc_library(
         "//src/parent/tray:tray_identity",
         "//src/parent/tray:tray_manager",
         "//src/parent/worktree/overlay:worktree_management_overlay",
-        "//src/parent/worktree:worktree_remover",
+        "//src/parent/worktree/removal:worktree_removal_request",
+        "//src/parent/worktree/removal:worktree_remover",
     ],
 )
 

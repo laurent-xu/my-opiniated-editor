@@ -12,7 +12,8 @@
 #include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/tray/tray_manager.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
-#include "src/parent/worktree/worktree_remover.h"
+#include "src/parent/worktree/removal/worktree_removal_request.h"
+#include "src/parent/worktree/removal/worktree_remover.h"
 
 namespace moe::parent {
 namespace {

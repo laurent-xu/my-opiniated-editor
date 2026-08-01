@@ -26,7 +26,10 @@ cc_library(
     name = "git_worktree_list",
     srcs = ["git_worktree_list.cc"],
     hdrs = ["git_worktree_list.h"],
-    visibility = ["//src/parent/worktree/registration:__pkg__"],
+    visibility = [
+        "//src/parent/worktree/registration:__pkg__",
+        "//src/parent/worktree/removal:__pkg__",
+    ],
 )
 
 cc_library(
@@ -44,22 +47,12 @@ cc_library(
     ],
 )
 
-cc_library(
+alias(
     name = "worktree_remover",
-    srcs = ["worktree_remover.cc"],
-    hdrs = [
-        "worktree_removal_request.h",
-        "worktree_remover.h",
-    ],
+    actual = "//src/parent/worktree/removal:worktree_remover",
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/runtime:__pkg__",
-    ],
-    deps = [
-        ":git_worktree_list",
-        "//src/parent/worktree/registry:worktree_registry_store",
-        "//src/base:process_id",
-        "//src/process:process_exit_status",
     ],
 )
 
@@ -122,18 +115,9 @@ cc_test(
     tags = ["unit"],
 )
 
-cc_test(
+test_suite(
     name = "worktree_remover_test",
-    srcs = ["worktree_remover_test.cc"],
-    data = ["//test/fixtures:fake_git"],
-    deps = [
-        "//src/parent/worktree/registry:worktree_registry_store",
-        ":worktree_remover",
-        "//src/parent/test/support:environment_guard",
-        "//src/parent/test/support:test_paths",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["integration"],
+    tests = ["//src/parent/worktree/removal:worktree_remover_test"],
 )
 
 test_suite(

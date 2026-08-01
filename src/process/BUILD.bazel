@@ -15,6 +15,7 @@ cc_library(
         "//src/parent/tray:__pkg__",
         "//src/parent/worktree:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
+        "//src/parent/worktree/removal:__pkg__",
     ],
     deps = [":process_wait_status"],
 )

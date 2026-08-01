@@ -1,0 +1,37 @@
+cc_library(
+    name = "worktree_removal_request",
+    hdrs = ["worktree_removal_request.h"],
+    visibility = ["//src/parent/runtime:__pkg__"],
+)
+
+cc_library(
+    name = "worktree_remover",
+    srcs = ["worktree_remover.cc"],
+    hdrs = ["worktree_remover.h"],
+    visibility = [
+        "//src/parent/runtime:__pkg__",
+        "//src/parent/worktree:__pkg__",
+    ],
+    deps = [
+        ":worktree_removal_request",
+        "//src/base:process_id",
+        "//src/parent/worktree:git_worktree_list",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "//src/process:process_exit_status",
+    ],
+)
+
+cc_test(
+    name = "worktree_remover_test",
+    srcs = ["worktree_remover_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+    deps = [
+        ":worktree_remover",
+        "//src/parent/test/support:environment_guard",
+        "//src/parent/test/support:test_paths",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)

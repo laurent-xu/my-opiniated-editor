@@ -7,6 +7,7 @@ cc_library(
         "//src/parent/worktree:__pkg__",
         "//src/parent/worktree/provision:__pkg__",
         "//src/parent/worktree/registration:__pkg__",
+        "//src/parent/worktree/removal:__pkg__",
         "//src/parent/worktree/registry:__pkg__",
     ],
 )
@@ -20,6 +21,7 @@ cc_library(
         "//src/parent/worktree/overlay:__pkg__",
         "//src/parent/worktree/provision:__pkg__",
         "//src/parent/worktree/registration:__pkg__",
+        "//src/parent/worktree/removal:__pkg__",
         "//src/parent/worktree/registry:__pkg__",
     ],
 )

@@ -1,4 +1,4 @@
-#include "src/parent/worktree/worktree_remover.h"
+#include "src/parent/worktree/removal/worktree_remover.h"
 
 #include <cstdlib>
 #include <filesystem>
