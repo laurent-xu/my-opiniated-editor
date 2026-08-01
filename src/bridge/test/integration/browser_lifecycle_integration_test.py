@@ -83,18 +83,34 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('event.key === "Escape"', client_js)
     test_case.assertIn('sendCommand("5", "")', client_js)
     test_case.assertIn('event.key === "Shift"', client_js)
-    test_case.assertIn("isModifierOnlyKey(event)", client_js)
+    test_case.assertIn('TERMINAL: "terminal"', client_js)
+    test_case.assertIn('COMMAND: "command"', client_js)
+    test_case.assertIn('PASS_TO_XTERM: "passToXterm"', client_js)
+    test_case.assertIn("const commandModeActionClassifiers = [", client_js)
+    test_case.assertIn("classifyModifierOnlyAction", client_js)
+    test_case.assertIn("classifyTraySwitchAction", client_js)
+    test_case.assertIn("classifyShiftedCommandAction", client_js)
+    test_case.assertIn("classifyTrayConfirmationAction", client_js)
+    test_case.assertIn("classifyOverlayNavigationAction", client_js)
+    test_case.assertIn("function classifyTerminalKey(event, state)", client_js)
+    test_case.assertIn(
+        "const state = commandMode ? KeyboardState.COMMAND : KeyboardState.TERMINAL",
+        client_js,
+    )
+    test_case.assertIn(
+        "return dispatchKeyAction(event, classifyTerminalKey(event, state))", client_js
+    )
     test_case.assertIn('/^Digit([1-9])$/.exec(event.code || "")', client_js)
     test_case.assertNotIn('event.code === "KeyT" || event.key === "T"', client_js)
-    test_case.assertIn('event.code === "KeyW" || event.key === "W"', client_js)
-    test_case.assertIn('event.code === "KeyC" || event.key === "C"', client_js)
-    test_case.assertIn('event.code === "KeyR" || event.key === "R"', client_js)
+    test_case.assertIn('code: "KeyW"', client_js)
+    test_case.assertIn('code: "KeyC"', client_js)
+    test_case.assertIn('code: "KeyR"', client_js)
     test_case.assertIn('sendCommand("3", "")', client_js)
     test_case.assertIn("toggleWorktreeManager()", client_js)
     test_case.assertIn('sendCommand("6", command)', client_js)
     test_case.assertIn('sendCommand("7", navigation)', client_js)
-    test_case.assertIn('sendWorktreePickerCommand("c")', client_js)
-    test_case.assertIn('sendWorktreePickerCommand("r")', client_js)
+    test_case.assertIn('command: "c"', client_js)
+    test_case.assertIn('command: "r"', client_js)
     test_case.assertIn('ArrowUp: "up"', client_js)
     test_case.assertIn('ArrowDown: "down"', client_js)
     test_case.assertIn('return "enter"', client_js)
@@ -107,10 +123,15 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('event.code === "Tab"', client_js)
     test_case.assertIn("event.keyCode === 9", client_js)
     test_case.assertIn("terminalShouldReceiveKey()", client_js)
+    test_case.assertIn(
+        "if (terminalShouldReceiveKey() && handleTerminalKey(event))", client_js
+    )
     test_case.assertIn("event.stopImmediatePropagation()", client_js)
     test_case.assertIn(
-        'sendCommand("0", event.shiftKey ? "\\x1b[Z" : "\\t")', client_js
+        'if (event.type === "keydown" && handleTerminalKey(event))', client_js
     )
+    test_case.assertIn('data: event.shiftKey ? "\\x1b[Z" : "\\t"', client_js)
+    test_case.assertIn('sendCommand("0", action.data)', client_js)
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)

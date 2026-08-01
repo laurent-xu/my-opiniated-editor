@@ -59,6 +59,22 @@ std::string browser_client_js() {
   let activeTrayLabel = "tray 1";
   let commandMode = false;
 
+  const KeyboardState = Object.freeze({
+    TERMINAL: "terminal",
+    COMMAND: "command",
+  });
+  const KeyActionType = Object.freeze({
+    PASS_TO_XTERM: "passToXterm",
+    CONSUME: "consume",
+    REFRESH_STATUS: "refreshStatus",
+    TOGGLE_COMMAND_MODE: "toggleCommandMode",
+    SWITCH_TRAY: "switchTray",
+    TOGGLE_WORKTREE_MANAGER: "toggleWorktreeManager",
+    WORKTREE_PICKER_COMMAND: "worktreePickerCommand",
+    WORKTREE_OVERLAY_NAVIGATION: "worktreeOverlayNavigation",
+    TERMINAL_INPUT: "terminalInput",
+  });
+
   function renderStatus() {
     const parts = [connectionState, activeTrayLabel];
     if (commandMode) {
@@ -147,21 +163,6 @@ std::string browser_client_js() {
     return null;
   }
 
-  function isShiftWKey(event) {
-    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
-      (event.code === "KeyW" || event.key === "W");
-  }
-
-  function isShiftCKey(event) {
-    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
-      (event.code === "KeyC" || event.key === "C");
-  }
-
-  function isShiftRKey(event) {
-    return event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey &&
-      (event.code === "KeyR" || event.key === "R");
-  }
-
   function trayActionConfirmationFromKey(event) {
     if (event.altKey || event.ctrlKey || event.metaKey) {
       return null;
@@ -192,66 +193,117 @@ std::string browser_client_js() {
     return navigationByKey[event.key] || navigationByKey[event.code] || null;
   }
 
-  function handleTabKey(event) {
-    if (isTabKey(event) && !event.altKey && !event.ctrlKey && !event.metaKey) {
-      event.preventDefault();
-      sendCommand("0", event.shiftKey ? "\x1b[Z" : "\t");
-      return true;
-    }
-    return false;
+  const shiftedCommandBindings = [
+    {
+      code: "KeyW",
+      key: "W",
+      action: { type: KeyActionType.TOGGLE_WORKTREE_MANAGER },
+    },
+    {
+      code: "KeyC",
+      key: "C",
+      action: { type: KeyActionType.WORKTREE_PICKER_COMMAND, command: "c" },
+    },
+    {
+      code: "KeyR",
+      key: "R",
+      action: { type: KeyActionType.WORKTREE_PICKER_COMMAND, command: "r" },
+    },
+  ];
+
+  function classifyModifierOnlyAction(event) {
+    return isModifierOnlyKey(event) ? { type: KeyActionType.CONSUME } : null;
   }
 
-  function handleCommandModeKey(event) {
-    if (isEscapeKey(event)) {
-      event.preventDefault();
-      sendCommand("5", "");
-      return true;
-    }
+  function classifyTraySwitchAction(event) {
+    const trayNumber = trayNumberFromShiftDigit(event);
+    return trayNumber === null ? null : { type: KeyActionType.SWITCH_TRAY, trayNumber };
+  }
 
-    if (!commandMode) {
+  function classifyShiftedCommandAction(event) {
+    if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
+      return null;
+    }
+    const binding = shiftedCommandBindings.find(
+      (candidate) => event.code === candidate.code || event.key === candidate.key,
+    );
+    return binding ? binding.action : null;
+  }
+
+  function classifyTrayConfirmationAction(event) {
+    const command = trayActionConfirmationFromKey(event);
+    return command === null ? null : { type: KeyActionType.WORKTREE_PICKER_COMMAND, command };
+  }
+
+  function classifyOverlayNavigationAction(event) {
+    const navigation = worktreeOverlayNavigationFromKey(event);
+    return navigation === null ? null : {
+      type: KeyActionType.WORKTREE_OVERLAY_NAVIGATION,
+      navigation,
+    };
+  }
+
+  const commandModeActionClassifiers = [
+    classifyModifierOnlyAction,
+    classifyTraySwitchAction,
+    classifyShiftedCommandAction,
+    classifyTrayConfirmationAction,
+    classifyOverlayNavigationAction,
+  ];
+
+  function classifyCommandModeAction(event) {
+    for (const classifyAction of commandModeActionClassifiers) {
+      const action = classifyAction(event);
+      if (action !== null) {
+        return action;
+      }
+    }
+    return { type: KeyActionType.REFRESH_STATUS };
+  }
+
+  function classifyTerminalKey(event, state) {
+    if (isEscapeKey(event)) {
+      return { type: KeyActionType.TOGGLE_COMMAND_MODE };
+    }
+    if (state === KeyboardState.COMMAND) {
+      return classifyCommandModeAction(event);
+    }
+    if (isTabKey(event) && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      return {
+        type: KeyActionType.TERMINAL_INPUT,
+        data: event.shiftKey ? "\x1b[Z" : "\t",
+      };
+    }
+    return { type: KeyActionType.PASS_TO_XTERM };
+  }
+
+  function dispatchKeyAction(event, action) {
+    if (action.type === KeyActionType.PASS_TO_XTERM) {
       return false;
     }
 
-    if (isModifierOnlyKey(event)) {
-      event.preventDefault();
-      return true;
-    }
-
     event.preventDefault();
-    const trayNumber = trayNumberFromShiftDigit(event);
-    if (trayNumber !== null) {
-      sendTraySwitch(trayNumber);
-      return true;
-    }
-    if (isShiftWKey(event)) {
+    if (action.type === KeyActionType.TOGGLE_COMMAND_MODE) {
+      sendCommand("5", "");
+    } else if (action.type === KeyActionType.SWITCH_TRAY) {
+      sendTraySwitch(action.trayNumber);
+    } else if (action.type === KeyActionType.TOGGLE_WORKTREE_MANAGER) {
       toggleWorktreeManager();
-      return true;
+    } else if (action.type === KeyActionType.WORKTREE_PICKER_COMMAND) {
+      sendWorktreePickerCommand(action.command);
+    } else if (action.type === KeyActionType.WORKTREE_OVERLAY_NAVIGATION) {
+      sendWorktreeOverlayNavigation(action.navigation);
+    } else if (action.type === KeyActionType.TERMINAL_INPUT) {
+      sendCommand("0", action.data);
+    } else if (action.type === KeyActionType.REFRESH_STATUS) {
+      renderStatus();
     }
-    if (isShiftCKey(event)) {
-      sendWorktreePickerCommand("c");
-      return true;
-    }
-    if (isShiftRKey(event)) {
-      sendWorktreePickerCommand("r");
-      return true;
-    }
-    const trayActionConfirmation = trayActionConfirmationFromKey(event);
-    if (trayActionConfirmation !== null) {
-      sendWorktreePickerCommand(trayActionConfirmation);
-      return true;
-    }
-    const worktreeOverlayNavigation = worktreeOverlayNavigationFromKey(event);
-    if (worktreeOverlayNavigation !== null) {
-      sendWorktreeOverlayNavigation(worktreeOverlayNavigation);
-      return true;
-    }
-
-    renderStatus();
     return true;
   }
 
   function handleTerminalKey(event) {
-    return handleCommandModeKey(event) || handleTabKey(event);
+    const state = commandMode ? KeyboardState.COMMAND : KeyboardState.TERMINAL;
+    return dispatchKeyAction(event, classifyTerminalKey(event, state));
   }
 
   document.addEventListener("keydown", (event) => {
