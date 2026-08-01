@@ -28,6 +28,8 @@
 #include "src/parent/parent_status.h"
 #include "src/parent/path_picker_overlay.h"
 #include "src/parent/runtime/raw_terminal_mode_guard.h"
+#include "src/parent/tray/tray_id_kind.h"
+#include "src/parent/tray_action_kind.h"
 #include "src/parent/tray_manager.h"
 #include "src/parent/worktree/repository_registration_request.h"
 #include "src/parent/worktree/worktree_provision_request.h"

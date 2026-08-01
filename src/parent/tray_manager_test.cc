@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/workspace_parent.h"
 
 namespace {

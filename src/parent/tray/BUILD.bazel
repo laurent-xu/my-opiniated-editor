@@ -6,6 +6,7 @@ cc_library(
     ],
     hdrs = [
         "tray_id.h",
+        "tray_id_kind.h",
         "tray_number.h",
     ],
     visibility = [

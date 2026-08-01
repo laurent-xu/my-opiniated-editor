@@ -15,6 +15,7 @@ cc_library(
         "path_picker_overlay.h",
         "parent_status.h",
         "tray.h",
+        "tray_action_kind.h",
         "tray_action_request.h",
         "tray_config.h",
         "tray_manager.h",
@@ -64,6 +65,7 @@ cc_test(
     data = ["//test/fixtures:fake_fzf"],
     deps = [
         ":parent_lib",
+        "//src/parent/tray:tray_identity",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
@@ -106,6 +108,7 @@ cc_test(
     srcs = ["tray_manager_test.cc"],
     deps = [
         ":parent_lib",
+        "//src/parent/tray:tray_identity",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],

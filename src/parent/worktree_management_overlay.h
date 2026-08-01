@@ -12,6 +12,7 @@
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
 #include "src/parent/overlay.h"
+#include "src/parent/tray_action_kind.h"
 #include "src/parent/tray_action_request.h"
 #include "src/parent/tray_preview_request.h"
 #include "src/parent/tray_snapshot.h"

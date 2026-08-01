@@ -1,15 +1,9 @@
 #pragma once
 
-#include <cstdint>
-
 #include "src/parent/tray/tray_id.h"
+#include "src/parent/tray_action_kind.h"
 
 namespace moe::parent {
-
-enum class TrayActionKind : std::uint8_t {
-  CLEAR,
-  REMOVE,
-};
 
 struct TrayActionRequest {
   TrayActionKind kind;

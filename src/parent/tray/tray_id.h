@@ -1,15 +1,13 @@
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <variant>
 
+#include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/tray/tray_number.h"
 
 namespace moe::parent {
-
-enum class TrayIdKind : std::uint8_t { ANONYMOUS, WORKTREE };
 
 class TrayId {
  public:
