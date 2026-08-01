@@ -14,6 +14,18 @@ cc_library(
 )
 
 cc_library(
+    name = "terminal_cell_style",
+    srcs = ["terminal_cell_style.cc"],
+    hdrs = [
+        "terminal_cell_style.h",
+        "terminal_color.h",
+        "terminal_color_kind.h",
+    ],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = ["//third_party/system:libvterm_neovim"],
+)
+
+cc_library(
     name = "terminal_screen",
     srcs = ["terminal_screen.cc"],
     hdrs = [
@@ -22,6 +34,7 @@ cc_library(
     ],
     visibility = ["//src/parent:__pkg__"],
     deps = [
+        ":terminal_cell_style",
         "//src/base:terminal_size",
         "//third_party/system:libvterm_neovim",
     ],

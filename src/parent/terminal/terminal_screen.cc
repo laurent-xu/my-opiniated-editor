@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "src/parent/terminal/terminal_cell_style.h"
+
 namespace moe::parent {
 
 using base::TerminalSize;
@@ -29,42 +31,6 @@ constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
 constexpr std::size_t MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES = 128;
-
-enum class TerminalColorKind : std::uint8_t { DEFAULT, INDEXED, RGB };
-
-struct TerminalColor {
-  TerminalColorKind kind = TerminalColorKind::DEFAULT;
-  int index = 0;
-  int red = 0;
-  int green = 0;
-  int blue = 0;
-
-  [[nodiscard]] bool operator==(TerminalColor const& other) const {
-    return kind == other.kind && index == other.index && red == other.red && green == other.green &&
-           blue == other.blue;
-  }
-
-  [[nodiscard]] bool is_default() const { return kind == TerminalColorKind::DEFAULT; }
-};
-
-struct CellStyle {
-  bool bold = false;
-  bool italic = false;
-  bool blink = false;
-  bool reverse = false;
-  bool strike = false;
-  int underline = VTERM_UNDERLINE_OFF;
-  TerminalColor foreground;
-  TerminalColor background;
-
-  [[nodiscard]] bool operator==(CellStyle const& other) const {
-    return bold == other.bold && italic == other.italic && blink == other.blink &&
-           reverse == other.reverse && strike == other.strike && underline == other.underline &&
-           foreground == other.foreground && background == other.background;
-  }
-
-  [[nodiscard]] bool is_default() const { return *this == CellStyle{}; }
-};
 
 struct CellRange {
   int first_col = 0;
@@ -138,127 +104,6 @@ void append_utf8(std::string& output, std::uint32_t const codepoint) {
   output.push_back(static_cast<char>(0x80U | ((value >> 12U) & 0x3FU)));
   output.push_back(static_cast<char>(0x80U | ((value >> 6U) & 0x3FU)));
   output.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
-}
-
-TerminalColor terminal_color_from(VTermColor const& color, bool const foreground) {
-  if ((foreground && VTERM_COLOR_IS_DEFAULT_FG(&color)) ||
-      (!foreground && VTERM_COLOR_IS_DEFAULT_BG(&color))) {
-    return TerminalColor{};
-  }
-  if (VTERM_COLOR_IS_INDEXED(&color)) {
-    return TerminalColor{.kind = TerminalColorKind::INDEXED, .index = color.indexed.idx};
-  }
-  return TerminalColor{.kind = TerminalColorKind::RGB,
-                       .red = color.rgb.red,
-                       .green = color.rgb.green,
-                       .blue = color.rgb.blue};
-}
-
-CellStyle cell_style_from(VTermScreenCell const& cell) {
-  return CellStyle{
-      .bold = cell.attrs.bold != 0,
-      .italic = cell.attrs.italic != 0,
-      .blink = cell.attrs.blink != 0,
-      .reverse = cell.attrs.reverse != 0,
-      .strike = cell.attrs.strike != 0,
-      .underline = static_cast<int>(cell.attrs.underline),
-      .foreground = terminal_color_from(cell.fg, true),
-      .background = terminal_color_from(cell.bg, false),
-  };
-}
-
-bool penattr_bool(VTermState const* const state, VTermAttr const attr) {
-  VTermValue value{};
-  return vterm_state_get_penattr(state, attr, &value) != 0 && value.boolean != 0;
-}
-
-int penattr_number(VTermState const* const state, VTermAttr const attr, int const fallback) {
-  VTermValue value{};
-  if (vterm_state_get_penattr(state, attr, &value) == 0) {
-    return fallback;
-  }
-  return value.number;
-}
-
-TerminalColor penattr_color(VTermState const* const state, VTermAttr const attr,
-                            bool const foreground) {
-  VTermValue value{};
-  if (vterm_state_get_penattr(state, attr, &value) == 0) {
-    return TerminalColor{};
-  }
-  return terminal_color_from(value.color, foreground);
-}
-
-CellStyle current_style_from_state(VTermState const* const state) {
-  return CellStyle{
-      .bold = penattr_bool(state, VTERM_ATTR_BOLD),
-      .italic = penattr_bool(state, VTERM_ATTR_ITALIC),
-      .blink = penattr_bool(state, VTERM_ATTR_BLINK),
-      .reverse = penattr_bool(state, VTERM_ATTR_REVERSE),
-      .strike = penattr_bool(state, VTERM_ATTR_STRIKE),
-      .underline = penattr_number(state, VTERM_ATTR_UNDERLINE, VTERM_UNDERLINE_OFF),
-      .foreground = penattr_color(state, VTERM_ATTR_FOREGROUND, true),
-      .background = penattr_color(state, VTERM_ATTR_BACKGROUND, false),
-  };
-}
-
-void append_color_sgr(std::vector<std::string>& parameters, TerminalColor const& color,
-                      bool const foreground) {
-  if (color.kind == TerminalColorKind::DEFAULT) {
-    parameters.emplace_back(foreground ? "39" : "49");
-    return;
-  }
-  std::string const prefix = foreground ? "38" : "48";
-  if (color.kind == TerminalColorKind::INDEXED) {
-    parameters.emplace_back(prefix);
-    parameters.emplace_back("5");
-    parameters.emplace_back(std::to_string(color.index));
-    return;
-  }
-  parameters.emplace_back(prefix);
-  parameters.emplace_back("2");
-  parameters.emplace_back(std::to_string(color.red));
-  parameters.emplace_back(std::to_string(color.green));
-  parameters.emplace_back(std::to_string(color.blue));
-}
-
-std::string sgr_sequence(CellStyle const& style) {
-  if (style.is_default()) {
-    return "\x1b[0m";
-  }
-
-  std::vector<std::string> parameters;
-  parameters.emplace_back("0");
-  if (style.bold) {
-    parameters.emplace_back("1");
-  }
-  if (style.italic) {
-    parameters.emplace_back("3");
-  }
-  if (style.underline != VTERM_UNDERLINE_OFF) {
-    parameters.emplace_back(style.underline == VTERM_UNDERLINE_DOUBLE ? "21" : "4");
-  }
-  if (style.blink) {
-    parameters.emplace_back("5");
-  }
-  if (style.reverse) {
-    parameters.emplace_back("7");
-  }
-  if (style.strike) {
-    parameters.emplace_back("9");
-  }
-  append_color_sgr(parameters, style.foreground, true);
-  append_color_sgr(parameters, style.background, false);
-
-  std::string sequence = "\x1b[";
-  for (std::size_t index = 0; index < parameters.size(); ++index) {
-    if (index > 0) {
-      sequence.push_back(';');
-    }
-    sequence.append(parameters[index]);
-  }
-  sequence.push_back('m');
-  return sequence;
 }
 
 bool cell_has_text(VTermScreenCell const& cell) { return cell.chars[0] != 0; }
