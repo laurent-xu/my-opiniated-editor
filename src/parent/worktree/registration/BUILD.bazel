@@ -1,0 +1,49 @@
+cc_library(
+    name = "repository_registration_request",
+    hdrs = ["repository_registration_request.h"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+)
+
+cc_library(
+    name = "repository_root_state",
+    hdrs = ["repository_root_state.h"],
+    visibility = [
+        "//src/parent/worktree:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "worktree_repository_registrar",
+    srcs = ["worktree_repository_registrar.cc"],
+    hdrs = ["worktree_repository_registrar.h"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
+    deps = [
+        ":repository_registration_request",
+        ":repository_root_state",
+        "//src/base:ascii_whitespace",
+        "//src/parent/worktree:git_worktree_list",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "//src/process:command_runner",
+    ],
+)
+
+cc_test(
+    name = "worktree_repository_registrar_test",
+    srcs = ["worktree_repository_registrar_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+    deps = [
+        ":repository_registration_request",
+        ":worktree_repository_registrar",
+        "//src/parent/test/support:environment_guard",
+        "//src/parent/test/support:test_paths",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)

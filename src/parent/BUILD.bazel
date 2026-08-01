@@ -19,9 +19,9 @@ cc_library(
         "//src/parent/tray:tray_identity",
         "//src/parent/tray:tray_manager",
         "//src/parent/worktree/overlay:worktree_management_overlay",
+        "//src/parent/worktree/registration:worktree_repository_registrar",
         "//src/parent/worktree:worktree_helper_commands",
         "//src/parent/worktree/registry:worktree_registry_store",
-        "//src/parent/worktree:worktree_repository_registrar",
     ],
 )
 

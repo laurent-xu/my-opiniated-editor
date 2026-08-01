@@ -1,4 +1,4 @@
-#include "src/parent/worktree/worktree_repository_registrar.h"
+#include "src/parent/worktree/registration/worktree_repository_registrar.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -16,9 +16,9 @@
 
 #include "src/base/ascii_whitespace.h"
 #include "src/parent/worktree/git_worktree_list.h"
+#include "src/parent/worktree/registration/repository_registration_request.h"
+#include "src/parent/worktree/registration/repository_root_state.h"
 #include "src/parent/worktree/registry/worktree_registry_store.h"
-#include "src/parent/worktree/repository_registration_request.h"
-#include "src/parent/worktree/repository_root_state.h"
 #include "src/process/command_runner.h"
 
 namespace moe::parent {
