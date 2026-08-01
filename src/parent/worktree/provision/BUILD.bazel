@@ -35,20 +35,70 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "worktree_provisioner_test",
-    srcs = ["worktree_provisioner_test.cc"],
-    data = ["//test/fixtures:fake_git"],
-    visibility = ["//src/parent/worktree:__pkg__"],
+cc_library(
+    name = "worktree_provisioner_test_support",
+    testonly = True,
+    srcs = ["worktree_provisioner_test_support.cc"],
+    hdrs = ["worktree_provisioner_test_support.h"],
     deps = [
-        ":worktree_provision_kind",
-        ":worktree_provision_request",
-        ":worktree_provision_result",
         ":worktree_provisioner",
         "//src/parent/test/support:environment_guard",
         "//src/parent/test/support:test_paths",
         "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "worktree_provisioner_branch_creation_test",
+    srcs = ["worktree_provisioner_branch_creation_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_provision_kind",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
+        ":worktree_provisioner_test_support",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_provisioner_existing_worktree_validation_test",
+    srcs = ["worktree_provisioner_existing_worktree_validation_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_provision_kind",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
+        ":worktree_provisioner_test_support",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_provisioner_failure_safety_test",
+    srcs = ["worktree_provisioner_failure_safety_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":worktree_provision_request",
+        ":worktree_provision_result",
+        ":worktree_provisioner_test_support",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+test_suite(
+    name = "worktree_provisioner_test",
+    tests = [
+        ":worktree_provisioner_branch_creation_test",
+        ":worktree_provisioner_existing_worktree_validation_test",
+        ":worktree_provisioner_failure_safety_test",
+    ],
+    visibility = ["//src/parent/worktree:__pkg__"],
 )
