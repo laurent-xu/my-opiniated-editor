@@ -80,6 +80,21 @@ cc_test(
 )
 
 cc_test(
+    name = "parent_command_dispatcher_pane_test",
+    srcs = ["parent_command_dispatcher_pane_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":parent_command_dispatcher",
+        ":parent_command_dispatcher_test_support",
+        "//src/parent/input/command:parent_input_commands",
+        "//src/parent/tray:tray_manager",
+        "//src/parent/tray:tray_manager_test_support",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
     name = "parent_command_dispatcher_removal_test",
     srcs = ["parent_command_dispatcher_removal_test.cc"],
     data = [
@@ -124,6 +139,7 @@ test_suite(
     tests = [
         ":parent_command_dispatcher_mode_test",
         ":parent_command_dispatcher_overlay_test",
+        ":parent_command_dispatcher_pane_test",
         ":parent_command_dispatcher_removal_test",
         ":parent_command_dispatcher_tray_test",
     ],

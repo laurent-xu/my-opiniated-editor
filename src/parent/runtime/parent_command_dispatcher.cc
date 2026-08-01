@@ -117,7 +117,105 @@ ParentCommandDispatchEffects ParentCommandDispatcher::dispatch(ParentInputComman
         resolve_tray_action_confirmation(resolve_action->decision == ConfirmationDecision::CONFIRM);
     return {.publish_status = true, .redraw = true, .trays_destroyed = trays_destroyed};
   }
+  if (PaneCommand const* const pane_command = std::get_if<PaneCommand>(&command);
+      pane_command != nullptr) {
+    if (!command_mode_enabled || trays.active_worktree_management_overlay() != nullptr) {
+      return {};
+    }
+    bool const changed = dispatch_pane_command(pane_command->action);
+    return {.publish_status = changed, .redraw = changed};
+  }
   return {};
+}
+
+bool ParentCommandDispatcher::dispatch_pane_command(PaneCommandAction const action) {
+  switch (action) {
+    case PaneCommandAction::UP:
+    case PaneCommandAction::DOWN:
+    case PaneCommandAction::LEFT:
+    case PaneCommandAction::RIGHT:
+      return dispatch_pane_direction(action);
+    case PaneCommandAction::SPLIT_LEFT_TO_RIGHT:
+      static_cast<void>(
+          trays.split_active_focused_pane(PaneSplitAxis::LEFT_TO_RIGHT, PaneInsertion::AFTER));
+      return true;
+    case PaneCommandAction::SPLIT_ABOVE_BELOW:
+      static_cast<void>(
+          trays.split_active_focused_pane(PaneSplitAxis::TOP_TO_BOTTOM, PaneInsertion::AFTER));
+      return true;
+    case PaneCommandAction::TOGGLE_SELECTION_OR_SWAP:
+      if (trays.active_pane_move_session().has_value()) {
+        return trays.toggle_active_pane_move_swap();
+      }
+      return trays.toggle_active_pane_selection();
+    case PaneCommandAction::PROMOTE:
+      if (trays.active_pane_move_session().has_value()) {
+        return trays.promote_active_pane_move_target();
+      }
+      return trays.promote_active_pane_selection();
+    case PaneCommandAction::DESCEND:
+      if (trays.active_pane_move_session().has_value()) {
+        return trays.descend_active_pane_move_target();
+      }
+      return trays.descend_active_pane_selection();
+    case PaneCommandAction::GROW:
+      return trays.resize_active_pane_selection(5);
+    case PaneCommandAction::SHRINK:
+      return trays.resize_active_pane_selection(-5);
+    case PaneCommandAction::EQUALIZE:
+      return trays.equalize_active_pane_selection();
+    case PaneCommandAction::TOGGLE_MOVE:
+      return trays.toggle_active_pane_move();
+    case PaneCommandAction::CONFIRM_MOVE:
+      return trays.advance_active_pane_move();
+    case PaneCommandAction::ROTATE:
+      return trays.rotate_active_pane_level();
+    case PaneCommandAction::TOGGLE_MAXIMIZE:
+      return trays.toggle_active_focused_pane_maximized();
+    case PaneCommandAction::CLOSE:
+      return trays.close_active_focused_pane();
+  }
+  return false;
+}
+
+bool ParentCommandDispatcher::dispatch_pane_direction(PaneCommandAction const action) {
+  PaneFocusDirection direction;
+  switch (action) {
+    case PaneCommandAction::UP:
+      direction = PaneFocusDirection::UP;
+      break;
+    case PaneCommandAction::DOWN:
+      direction = PaneFocusDirection::DOWN;
+      break;
+    case PaneCommandAction::LEFT:
+      direction = PaneFocusDirection::LEFT;
+      break;
+    case PaneCommandAction::RIGHT:
+      direction = PaneFocusDirection::RIGHT;
+      break;
+    default:
+      return false;
+  }
+  std::optional<PaneMoveSession> const& move = trays.active_pane_move_session();
+  if (move.has_value()) {
+    if (move->stage() == PaneMoveStage::TARGET) {
+      return trays.step_active_pane_move_target(direction);
+    }
+    switch (direction) {
+      case PaneFocusDirection::UP:
+        return trays.set_active_pane_move_drop_direction(PaneDropDirection::UP);
+      case PaneFocusDirection::DOWN:
+        return trays.set_active_pane_move_drop_direction(PaneDropDirection::DOWN);
+      case PaneFocusDirection::LEFT:
+        return trays.set_active_pane_move_drop_direction(PaneDropDirection::LEFT);
+      case PaneFocusDirection::RIGHT:
+        return trays.set_active_pane_move_drop_direction(PaneDropDirection::RIGHT);
+    }
+  }
+  if (trays.active_pane_selection().has_value()) {
+    return trays.step_active_pane_selection(direction);
+  }
+  return trays.focus_active_pane_direction(direction);
 }
 
 bool ParentCommandDispatcher::toggle_worktree_management_overlay(base::TerminalSize const size) {

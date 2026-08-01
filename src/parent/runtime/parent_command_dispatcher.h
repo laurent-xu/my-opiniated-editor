@@ -21,6 +21,8 @@ class ParentCommandDispatcher {
                                                       base::TerminalSize size);
 
  private:
+  [[nodiscard]] bool dispatch_pane_command(PaneCommandAction action);
+  [[nodiscard]] bool dispatch_pane_direction(PaneCommandAction action);
   [[nodiscard]] bool toggle_worktree_management_overlay(base::TerminalSize size);
   [[nodiscard]] bool resolve_tray_action_confirmation(bool confirmed);
 
