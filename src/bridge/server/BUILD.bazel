@@ -1,0 +1,24 @@
+cc_library(
+    name = "websocket_client_connection",
+    srcs = ["websocket_client_connection.cc"],
+    hdrs = ["websocket_client_connection.h"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/bridge:websocket_protocol",
+    ],
+)
+
+cc_library(
+    name = "pty_websocket_hub",
+    srcs = ["pty_websocket_hub.cc"],
+    hdrs = ["pty_websocket_hub.h"],
+    visibility = ["//src/bridge:__pkg__"],
+    deps = [
+        ":websocket_client_connection",
+        "//src/base:owned_file_descriptor",
+        "//src/bridge:parent_pty_session",
+        "//src/bridge:socket_io",
+        "//src/bridge:websocket_protocol",
+    ],
+)

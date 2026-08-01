@@ -7,19 +7,18 @@
 #include <unistd.h>
 
 #include <array>
-#include <atomic>
 #include <cerrno>
 #include <charconv>
+#include <chrono>
 #include <csignal>
 #include <cstdlib>
-#include <cstring>
 #include <iostream>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "src/base/owned_file_descriptor.h"
@@ -27,6 +26,7 @@
 #include "src/bridge/http_protocol.h"
 #include "src/bridge/parent_pty_session.h"
 #include "src/bridge/pty_size.h"
+#include "src/bridge/server/pty_websocket_hub.h"
 #include "src/bridge/socket_io.h"
 #include "src/bridge/websocket_protocol.h"
 
@@ -39,7 +39,7 @@ using base::OwnedFileDescriptor;
 
 constexpr int DEFAULT_ROWS = 24;
 constexpr int DEFAULT_COLS = 80;
-constexpr int POLL_TIMEOUT_MILLISECONDS = 250;
+constexpr std::chrono::milliseconds POLL_TIMEOUT{250};
 constexpr char TRAY_COMMAND_PREFIX = '\x18';
 constexpr int MIN_ANONYMOUS_TRAY = 1;
 constexpr int MAX_ANONYMOUS_TRAY = 9;
@@ -190,214 +190,8 @@ void send_health(OwnedFileDescriptor const& client, ParentPtySession const& sess
   send_http_response(client.get(), "200 OK", "application/json", body);
 }
 
-class WebsocketClientConnection {
- public:
-  explicit WebsocketClientConnection(OwnedFileDescriptor client_descriptor)
-      : client(std::move(client_descriptor)) {}
-
-  [[nodiscard]] FileDescriptor file_descriptor() const { return client.get(); }
-
-  [[nodiscard]] bool send_binary(std::string_view payload) {
-    std::scoped_lock const lock(send_mutex);
-    try {
-      send_websocket_frame(client.get(), WebsocketFrame::Opcode::BINARY, payload);
-      return true;
-    } catch (std::exception const&) {
-      return false;
-    }
-  }
-
- private:
-  OwnedFileDescriptor client;
-  std::mutex send_mutex;
-};
-
-class PtyWebsocketHub {
- public:
-  explicit PtyWebsocketHub(ParentPtySession const& parent_session)
-      : session(parent_session), pty_reader([this] { read_pty_loop(); }) {}
-
-  PtyWebsocketHub(PtyWebsocketHub const&) = delete;
-  PtyWebsocketHub& operator=(PtyWebsocketHub const&) = delete;
-
-  ~PtyWebsocketHub() {
-    stopping = true;
-    if (pty_reader.joinable()) {
-      pty_reader.join();
-    }
-  }
-
-  void serve_client(OwnedFileDescriptor client_descriptor) {
-    auto client = std::make_shared<WebsocketClientConnection>(std::move(client_descriptor));
-    add_client(client);
-
-    while (should_keep_running()) {
-      pollfd descriptor{.fd = client->file_descriptor().value(), .events = POLLIN, .revents = 0};
-      int const result = poll(&descriptor, 1, POLL_TIMEOUT_MILLISECONDS);
-      if (result < 0) {
-        if (errno == EINTR) {
-          continue;
-        }
-        throw errno_error("poll websocket client failed");
-      }
-      if (result == 0) {
-        continue;
-      }
-      if ((descriptor.revents & (POLLIN | POLLHUP | POLLERR)) == 0) {
-        continue;
-      }
-
-      std::optional<WebsocketFrame> frame = read_websocket_frame(client->file_descriptor());
-      if (!frame.has_value() || frame->opcode == WebsocketFrame::Opcode::CLOSE) {
-        break;
-      }
-      if (frame->opcode == WebsocketFrame::Opcode::BINARY ||
-          frame->opcode == WebsocketFrame::Opcode::TEXT) {
-        std::scoped_lock const lock(parent_input_mutex);
-        handle_websocket_payload(session, frame->payload);
-      }
-    }
-
-    remove_client(client);
-  }
-
- private:
-  static constexpr std::size_t MAX_TERMINAL_BACKLOG = static_cast<std::size_t>(64U) * 1024U;
-  static constexpr std::size_t MAX_PARENT_STATUS_BUFFER = static_cast<std::size_t>(64U) * 1024U;
-
-  void add_client(std::shared_ptr<WebsocketClientConnection> const& client) {
-    std::scoped_lock const lock(state_mutex);
-    clients.push_back(client);
-    if (!terminal_backlog.empty()) {
-      std::string payload("0");
-      payload.append(terminal_backlog);
-      static_cast<void>(client->send_binary(payload));
-    }
-    if (!latest_parent_status.empty()) {
-      std::string payload("1");
-      payload.append(latest_parent_status);
-      static_cast<void>(client->send_binary(payload));
-    }
-  }
-
-  void remove_client(std::shared_ptr<WebsocketClientConnection> const& client) {
-    std::scoped_lock const lock(state_mutex);
-    for (auto iterator = clients.begin(); iterator != clients.end();) {
-      if (*iterator == client) {
-        iterator = clients.erase(iterator);
-      } else {
-        ++iterator;
-      }
-    }
-  }
-
-  void broadcast_terminal_output(std::string const& terminal_output) {
-    std::scoped_lock const lock(state_mutex);
-    terminal_backlog.append(terminal_output);
-    if (terminal_backlog.size() > MAX_TERMINAL_BACKLOG) {
-      terminal_backlog.erase(0, terminal_backlog.size() - MAX_TERMINAL_BACKLOG);
-    }
-
-    std::string payload("0");
-    payload.append(terminal_output);
-    send_to_clients(payload);
-  }
-
-  void broadcast_parent_status(std::string status) {
-    std::scoped_lock const lock(state_mutex);
-    latest_parent_status = std::move(status);
-
-    std::string payload("1");
-    payload.append(latest_parent_status);
-    send_to_clients(payload);
-  }
-
-  void send_to_clients(std::string_view payload) {
-    for (auto iterator = clients.begin(); iterator != clients.end();) {
-      if ((*iterator)->send_binary(payload)) {
-        ++iterator;
-      } else {
-        iterator = clients.erase(iterator);
-      }
-    }
-  }
-
-  void read_terminal_output() {
-    std::array<char, 4096> buffer{};
-    ssize_t const read_count =
-        ::read(session.file_descriptor().value(), buffer.data(), buffer.size());
-    if (read_count > 0) {
-      broadcast_terminal_output(std::string(buffer.data(), static_cast<std::size_t>(read_count)));
-    }
-  }
-
-  void read_parent_status() {
-    std::array<char, 4096> buffer{};
-    ssize_t const read_count =
-        ::read(session.status_file_descriptor().value(), buffer.data(), buffer.size());
-    if (read_count <= 0) {
-      return;
-    }
-
-    parent_status_buffer.append(buffer.data(), static_cast<std::size_t>(read_count));
-    for (std::size_t newline = parent_status_buffer.find('\n'); newline != std::string::npos;
-         newline = parent_status_buffer.find('\n')) {
-      std::string status = parent_status_buffer.substr(0, newline);
-      parent_status_buffer.erase(0, newline + 1U);
-      if (!status.empty()) {
-        broadcast_parent_status(std::move(status));
-      }
-    }
-    if (parent_status_buffer.size() > MAX_PARENT_STATUS_BUFFER) {
-      std::cerr << "parent status message exceeded buffer limit\n";
-      parent_status_buffer.clear();
-    }
-  }
-
-  void read_pty_loop() {
-    while (should_keep_running() && !stopping) {
-      std::array<pollfd, 2> descriptors{
-          pollfd{.fd = session.file_descriptor().value(), .events = POLLIN, .revents = 0},
-          pollfd{.fd = session.status_file_descriptor().value(), .events = POLLIN, .revents = 0},
-      };
-      int const result = poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()),
-                              POLL_TIMEOUT_MILLISECONDS);
-      if (result < 0) {
-        if (errno == EINTR) {
-          continue;
-        }
-        std::cerr << "pty reader error: " << std::strerror(errno) << '\n';
-        return;
-      }
-      if (result == 0) {
-        continue;
-      }
-      if ((descriptors[0].revents & POLLIN) != 0) {
-        read_terminal_output();
-      }
-      if ((descriptors[1].revents & POLLIN) != 0) {
-        read_parent_status();
-      }
-    }
-  }
-
-  ParentPtySession const& session;
-  std::atomic<bool> stopping{false};
-  std::thread pty_reader;
-  std::mutex parent_input_mutex;
-  std::mutex state_mutex;
-  std::vector<std::shared_ptr<WebsocketClientConnection>> clients;
-  std::string terminal_backlog;
-  std::string latest_parent_status;
-  std::string parent_status_buffer;
-};
-
-void serve_websocket_client(OwnedFileDescriptor client, PtyWebsocketHub& hub) {
-  hub.serve_client(std::move(client));
-}
-
 void handle_client(OwnedFileDescriptor client, ParentPtySession const& session,
-                   ServerConfig const& config, PtyWebsocketHub& hub) {
+                   ServerConfig const& config, server::PtyWebsocketHub& hub) {
   HttpRequest const request = read_http_request(client.get());
   if (path_requires_authentication(request.path) &&
       !request_has_auth_token(request, config.auth_token)) {
@@ -428,7 +222,7 @@ void handle_client(OwnedFileDescriptor client, ParentPtySession const& session,
   }
 
   if (send_websocket_handshake(client, request)) {
-    serve_websocket_client(std::move(client), hub);
+    hub.serve_client(std::move(client));
   }
 }
 
@@ -572,10 +366,13 @@ void run_server(ServerConfig const& config) {
             << '\n';
   std::cout.flush();
 
-  PtyWebsocketHub hub(*session);
+  server::PtyWebsocketHub hub(*session, POLL_TIMEOUT, should_keep_running,
+                              [parent_session = session.get()](std::string_view const payload) {
+                                handle_websocket_payload(*parent_session, payload);
+                              });
   while (should_keep_running()) {
     pollfd descriptor{.fd = listener.get().value(), .events = POLLIN, .revents = 0};
-    int const result = poll(&descriptor, 1, POLL_TIMEOUT_MILLISECONDS);
+    int const result = poll(&descriptor, 1, static_cast<int>(POLL_TIMEOUT.count()));
     if (result < 0) {
       if (errno == EINTR) {
         continue;

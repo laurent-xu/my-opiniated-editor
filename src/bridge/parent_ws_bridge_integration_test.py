@@ -282,6 +282,10 @@ class ParentWsBridgeIntegrationTest(unittest.TestCase):
             self.assertEqual(health_after_reconnect["parentPid"], expected_pid)
 
             second_client = WebSocketClient(port)
+            replayed_output = second_client.read_terminal_output_until(
+                "__moe_first_client__"
+            )
+            self.assertIn("__moe_first_client__", replayed_output)
             third_client = WebSocketClient(port)
             second_client.send_shell_marker("__moe_broadcast__")
 

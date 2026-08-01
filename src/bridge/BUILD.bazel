@@ -7,6 +7,7 @@ cc_library(
     name = "socket_io",
     srcs = ["socket_io.cc"],
     hdrs = ["socket_io.h"],
+    visibility = ["//src/bridge/server:__pkg__"],
     deps = ["//src/base:file_descriptor"],
 )
 
@@ -31,6 +32,7 @@ cc_library(
     name = "websocket_protocol",
     srcs = ["websocket_protocol.cc"],
     hdrs = ["websocket_protocol.h"],
+    visibility = ["//src/bridge/server:__pkg__"],
     deps = [
         ":http_protocol",
         ":socket_io",
@@ -43,6 +45,7 @@ cc_library(
     name = "parent_pty_session",
     srcs = ["parent_pty_session.cc"],
     hdrs = ["parent_pty_session.h"],
+    visibility = ["//src/bridge/server:__pkg__"],
     deps = [
         ":pty_size",
         "//src/base:file_descriptor",
@@ -66,6 +69,7 @@ cc_library(
         "//src/base:file_descriptor",
         "//src/base:network_port",
         "//src/base:owned_file_descriptor",
+        "//src/bridge/server:pty_websocket_hub",
     ],
 )
 
