@@ -10,8 +10,8 @@
 #include "src/base/terminal_size.h"
 #include "src/parent/terminal/terminal_screen.h"
 #include "src/parent/tray/tray_id.h"
+#include "src/parent/tray/tray_snapshot.h"
 #include "src/parent/tray_config.h"
-#include "src/parent/tray_snapshot.h"
 #include "src/process/process_exit_status.h"
 
 namespace moe::parent {

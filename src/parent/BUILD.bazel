@@ -1,20 +1,4 @@
 cc_library(
-    name = "tray_contracts",
-    hdrs = [
-        "tray_action_kind.h",
-        "tray_action_request.h",
-        "tray_preview_request.h",
-        "tray_snapshot.h",
-    ],
-    deps = [
-        "//src/base:process_id",
-        "//src/base:terminal_size",
-        "//src/parent/terminal:terminal_position",
-        "//src/parent/tray:tray_identity",
-    ],
-)
-
-cc_library(
     name = "parent_lib",
     srcs = [
         "overlay_footer.cc",
@@ -38,7 +22,6 @@ cc_library(
         "workspace_parent.h",
     ],
     deps = [
-        ":tray_contracts",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
@@ -48,6 +31,7 @@ cc_library(
         "//src/parent/terminal:content_pty_session",
         "//src/parent/terminal:terminal_position",
         "//src/parent/terminal:terminal_screen",
+        "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "//src/parent/worktree:repository_registration_request",
         "//src/parent/worktree:repository_root_state",
@@ -79,6 +63,7 @@ cc_test(
     data = ["//test/fixtures:fake_fzf"],
     deps = [
         ":parent_lib",
+        "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "@googletest//:gtest_main",
     ],
