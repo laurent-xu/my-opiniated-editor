@@ -12,6 +12,7 @@ The current implementation already provides:
 - One browser-visible parent rendering PTY.
 - One content PTY and terminal screen model per tray.
 - Nine anonymous trays selected through escape mode.
+- Anonymous tray shells rooted in the configured user's home directory.
 - Worktree tray identities and shells rooted in a selected worktree.
 - A persistent protobuf registry and per-tray repository-management overlays.
 - One parent-owned worktree overlay with fzf selectors for tracked worktrees and
@@ -309,8 +310,8 @@ Deliverables:
   `Shift+R` can still purge stale Git metadata and unregister them.
 - When the active content shell exits or the active tray is explicitly
   destroyed, switch to anonymous tray 1. Destroying anonymous tray 1 starts a
-  fresh anonymous tray 1 with the initial working directory and current
-  terminal size.
+  fresh anonymous tray 1 in the configured user's home directory with the
+  current terminal size.
 - Destroying an inactive anonymous tray 1 leaves it absent. It is recreated
   only when the active tray is later destroyed and needs the fallback.
 - Refresh the Worktrees picker after an inactive tray is cleared or removed;

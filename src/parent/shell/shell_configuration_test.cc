@@ -8,6 +8,13 @@
 
 namespace {
 
+TEST(ShellConfigurationTest, ConfiguredHomeDirectoryIsAbsolutePath) {
+  std::filesystem::path const home = moe::parent::configured_home_directory();
+
+  EXPECT_TRUE(home.is_absolute()) << home;
+  EXPECT_FALSE(home.empty());
+}
+
 TEST(ShellConfigurationTest, ConfiguredLoginShellIsAbsolutePath) {
   std::filesystem::path const shell = moe::parent::configured_login_shell();
 

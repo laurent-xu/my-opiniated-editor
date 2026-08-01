@@ -16,6 +16,20 @@ bool has_value(char const* const value) { return value != nullptr && value[0] !=
 
 }  // namespace
 
+std::filesystem::path configured_home_directory() {
+  passwd const* const user = getpwuid(getuid());
+  if (user != nullptr && has_value(user->pw_dir)) {
+    return user->pw_dir;
+  }
+
+  char const* const home_from_environment = std::getenv("HOME");
+  if (has_value(home_from_environment)) {
+    return home_from_environment;
+  }
+
+  return "/";
+}
+
 std::filesystem::path configured_login_shell() {
   passwd const* const user = getpwuid(getuid());
   if (user != nullptr && has_value(user->pw_shell)) {

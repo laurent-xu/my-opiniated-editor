@@ -1,5 +1,6 @@
 import json
 import os
+import pwd
 import re
 import time
 import unittest
@@ -42,8 +43,9 @@ class WorkspaceParentPtyTest(unittest.TestCase):
         self.assertIn("__moe_shell_ready__", ready)
 
         os.write(master_fd, b"pwd\n")
-        pwd = read_until(master_fd, os.environ["TEST_TMPDIR"])
-        self.assertIn(os.environ["TEST_TMPDIR"], pwd)
+        home_directory = pwd.getpwuid(os.getuid()).pw_dir
+        pwd_output = read_until(master_fd, home_directory)
+        self.assertIn(home_directory, pwd_output)
 
         os.write(master_fd, b"exit\n")
         time.sleep(0.2)
@@ -89,6 +91,11 @@ class WorkspaceParentPtyTest(unittest.TestCase):
         )
         tray_two_output = read_until(master_fd, "__moe_tray2_empty__")
         self.assertIn("__moe_tray2_empty__", tray_two_output)
+
+        home_directory = pwd.getpwuid(os.getuid()).pw_dir
+        os.write(master_fd, b"pwd\n")
+        tray_two_pwd = read_until(master_fd, home_directory)
+        self.assertIn(home_directory, tray_two_pwd)
 
         os.write(master_fd, b"\x181")
         redraw_output = read_until(master_fd, "__moe_export_done__")

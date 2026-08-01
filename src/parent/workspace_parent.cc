@@ -272,11 +272,10 @@ int run_workspace_parent() {
   ParentInputDecoder input_decoder;
   std::optional<base::FileDescriptor> const parent_status_descriptor =
       parent_status_descriptor_from_environment();
-  std::filesystem::path const working_directory = std::filesystem::current_path();
   std::filesystem::path const parent_executable = current_parent_executable();
   std::unique_ptr<TrayManager> trays = TrayManager::start(TrayConfig{
       .command = interactive_shell_command(configured_login_shell()),
-      .working_directory = working_directory,
+      .working_directory = configured_home_directory(),
       .initial_size = last_size,
   });
   ParentCommandDispatcher command_dispatcher(
