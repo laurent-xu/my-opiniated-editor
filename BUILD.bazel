@@ -1,7 +1,10 @@
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 
 exports_files(
-    [".bazelrc"],
+    [
+        ".bazelrc",
+        ".codex/config.toml",
+    ],
     visibility = ["//tools/bazel:__pkg__"],
 )
 

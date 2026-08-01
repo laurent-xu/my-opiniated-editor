@@ -1,0 +1,4 @@
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = ["~/.cache/my-opiniated-editor/bazel/disk"]

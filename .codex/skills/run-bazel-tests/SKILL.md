@@ -7,7 +7,7 @@ description: Run and triage Bazel tests for this repo. Use when Codex needs to v
 
 ## Workflow
 
-Work from the repo root: `/home/notmyfoo/my-opiniated-editor/main`.
+Work from the repo root (the directory containing `MODULE.bazel`).
 
 Use this default confidence gate before claiming implementation work is complete:
 

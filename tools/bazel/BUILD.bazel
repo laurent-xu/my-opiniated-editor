@@ -3,6 +3,9 @@ exports_files(["nix_deps.bzl"])
 py_test(
     name = "bazelrc_test",
     srcs = ["bazelrc_test.py"],
-    data = ["//:.bazelrc"],
+    data = [
+        "//:.bazelrc",
+        "//:.codex/config.toml",
+    ],
     tags = ["unit"],
 )
