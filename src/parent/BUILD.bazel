@@ -4,7 +4,6 @@ cc_library(
         "parent_status.cc",
         "tray.cc",
         "tray_manager.cc",
-        "worktree_management_overlay.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
@@ -13,7 +12,6 @@ cc_library(
         "tray_config.h",
         "tray_manager.h",
         "tray_output_source.h",
-        "worktree_management_overlay.h",
         "workspace_parent.h",
     ],
     deps = [
@@ -21,8 +19,6 @@ cc_library(
         "//src/base:terminal_size",
         "//src/parent/input:parent_input_commands",
         "//src/parent/input:parent_input_decoder",
-        "//src/parent/overlay:overlay_core",
-        "//src/parent/overlay:overlay_footer",
         "//src/parent/overlay:path_picker_overlay",
         "//src/parent/runtime:raw_terminal_mode_guard",
         "//src/parent/terminal:content_pty_session",
@@ -30,9 +26,8 @@ cc_library(
         "//src/parent/terminal:terminal_screen",
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
+        "//src/parent/worktree/overlay:worktree_management_overlay",
         "//src/parent/worktree:repository_registration_request",
-        "//src/parent/worktree:repository_root_state",
-        "//src/parent/worktree:worktree_candidate_finder",
         "//src/parent/worktree:worktree_provision_request",
         "//src/parent/worktree:worktree_provision_result",
         "//src/parent/worktree:worktree_provisioner",
@@ -53,17 +48,9 @@ cc_binary(
     deps = [":parent_lib"],
 )
 
-cc_test(
+test_suite(
     name = "worktree_management_overlay_test",
-    srcs = ["worktree_management_overlay_test.cc"],
-    data = ["//test/fixtures:fake_fzf"],
-    deps = [
-        ":parent_lib",
-        "//src/parent/tray:tray_contracts",
-        "//src/parent/tray:tray_identity",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["integration"],
+    tests = ["//src/parent/worktree/overlay:worktree_management_overlay_test"],
 )
 
 test_suite(

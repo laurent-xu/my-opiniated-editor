@@ -4,7 +4,7 @@
 #include <utility>
 
 #include "src/parent/terminal/content_pty_session.h"
-#include "src/parent/worktree_management_overlay.h"
+#include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 namespace moe::parent {
 

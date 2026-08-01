@@ -1,7 +1,10 @@
 cc_library(
     name = "overlay_core",
     hdrs = ["overlay.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
@@ -12,7 +15,10 @@ cc_library(
     name = "overlay_footer",
     srcs = ["overlay_footer.cc"],
     hdrs = ["overlay_footer.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = ["//src/base:terminal_size"],
 )
 
@@ -20,7 +26,10 @@ cc_library(
     name = "path_picker_overlay",
     srcs = ["path_picker_overlay.cc"],
     hdrs = ["path_picker_overlay.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         ":overlay_core",
         "//src/base:file_descriptor",

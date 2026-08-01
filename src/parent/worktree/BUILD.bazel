@@ -12,7 +12,10 @@ cc_library(
     name = "worktree_registry_store",
     srcs = ["worktree_registry_store.cc"],
     hdrs = ["worktree_registry_store.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         ":worktree_registry_cc_proto",
         "//src/base:file_descriptor",
@@ -29,14 +32,20 @@ cc_library(
 cc_library(
     name = "repository_root_state",
     hdrs = ["repository_root_state.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
 )
 
 cc_library(
     name = "worktree_repository_registrar",
     srcs = ["worktree_repository_registrar.cc"],
     hdrs = ["worktree_repository_registrar.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         ":git_worktree_list",
         ":repository_registration_request",
@@ -56,7 +65,10 @@ cc_library(
     name = "worktree_candidate_finder",
     srcs = ["worktree_candidate_finder.cc"],
     hdrs = ["worktree_candidate_finder.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         ":git_worktree_list",
         ":worktree_registry_store",
@@ -102,7 +114,10 @@ cc_library(
     name = "worktree_provisioner",
     srcs = ["worktree_provisioner.cc"],
     hdrs = ["worktree_provisioner.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         ":worktree_registry_store",
         ":worktree_provision_kind",

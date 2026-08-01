@@ -1,0 +1,38 @@
+cc_library(
+    name = "worktree_management_overlay",
+    srcs = ["worktree_management_overlay.cc"],
+    hdrs = ["worktree_management_overlay.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:terminal_size",
+        "//src/parent/overlay:overlay_core",
+        "//src/parent/overlay:overlay_footer",
+        "//src/parent/overlay:path_picker_overlay",
+        "//src/parent/terminal:content_pty_session",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/worktree:repository_root_state",
+        "//src/parent/worktree:worktree_candidate_finder",
+        "//src/parent/worktree:worktree_provisioner",
+        "//src/parent/worktree:worktree_registry_store",
+        "//src/parent/worktree:worktree_repository_registrar",
+        "//src/process:process_exit_status",
+    ],
+)
+
+cc_test(
+    name = "worktree_management_overlay_test",
+    srcs = ["worktree_management_overlay_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":worktree_management_overlay",
+        "//src/base:process_id",
+        "//src/parent/overlay:overlay_footer",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/worktree:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)

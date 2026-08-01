@@ -14,7 +14,10 @@ cc_library(
     name = "content_pty_session",
     srcs = ["content_pty_session.cc"],
     hdrs = ["content_pty_session.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",

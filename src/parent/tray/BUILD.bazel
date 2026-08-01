@@ -12,6 +12,7 @@ cc_library(
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/input:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
     ],
 )
 
@@ -23,7 +24,10 @@ cc_library(
         "tray_preview_request.h",
         "tray_snapshot.h",
     ],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
     deps = [
         ":tray_identity",
         "//src/base:process_id",

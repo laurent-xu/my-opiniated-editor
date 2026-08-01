@@ -1,4 +1,4 @@
-#include "src/parent/worktree_management_overlay.h"
+#include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 #include <algorithm>
 #include <array>

@@ -31,6 +31,7 @@
 #include "src/parent/tray/tray_action_kind.h"
 #include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/tray_manager.h"
+#include "src/parent/worktree/overlay/worktree_management_overlay.h"
 #include "src/parent/worktree/repository_registration_request.h"
 #include "src/parent/worktree/worktree_provision_request.h"
 #include "src/parent/worktree/worktree_provision_result.h"
@@ -38,7 +39,6 @@
 #include "src/parent/worktree/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_remover.h"
 #include "src/parent/worktree/worktree_repository_registrar.h"
-#include "src/parent/worktree_management_overlay.h"
 
 namespace moe::parent {
 

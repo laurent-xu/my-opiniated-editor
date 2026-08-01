@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "src/parent/tray/tray_id_kind.h"
-#include "src/parent/worktree_management_overlay.h"
+#include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 namespace moe::parent {
 namespace {
