@@ -14,6 +14,7 @@ cc_library(
     ],
     visibility = [
         "//src/bridge:__pkg__",
+        "//src/bridge/protocol:__pkg__",
         "//src/parent:__pkg__",
     ],
     deps = ["//src/parent/tray:tray_identity"],

@@ -6,9 +6,21 @@ cc_library(
         "bridge_to_browser_message.h",
         "browser_to_bridge_message.h",
     ],
-    visibility = [
-        "//src/bridge:__pkg__",
-        "//src/bridge/server:__pkg__",
+    visibility = ["//src/bridge/server:__pkg__"],
+)
+
+cc_library(
+    name = "browser_application_message_parser",
+    srcs = ["browser_application_message_parser.cc"],
+    hdrs = [
+        "browser_application_message.h",
+        "browser_application_message_parser.h",
+    ],
+    visibility = ["//src/bridge:__pkg__"],
+    deps = [
+        ":application_message_codec",
+        "//src/bridge:pty_size",
+        "//src/parent/input:parent_input_commands",
     ],
 )
 
@@ -19,4 +31,14 @@ cc_test(
         ":application_message_codec",
         "@googletest//:gtest_main",
     ],
+)
+
+cc_test(
+    name = "browser_application_message_parser_test",
+    srcs = ["browser_application_message_parser_test.cc"],
+    deps = [
+        ":browser_application_message_parser",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
 )

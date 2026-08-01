@@ -1,6 +1,7 @@
 cc_library(
     name = "pty_size",
     hdrs = ["pty_size.h"],
+    visibility = ["//src/bridge/protocol:__pkg__"],
 )
 
 cc_library(
@@ -63,7 +64,7 @@ cc_library(
         "//src/base:network_port",
         "//src/base:owned_file_descriptor",
         "//src/bridge/browser:browser_assets",
-        "//src/bridge/protocol:application_message_codec",
+        "//src/bridge/protocol:browser_application_message_parser",
         "//src/bridge/server:pty_websocket_hub",
         "//src/parent/input:parent_input_commands",
         "//src/parent/input:parent_input_protocol",

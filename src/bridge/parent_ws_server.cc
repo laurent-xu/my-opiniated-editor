@@ -18,14 +18,15 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "src/base/owned_file_descriptor.h"
 #include "src/bridge/browser/browser_assets.h"
 #include "src/bridge/http_protocol.h"
 #include "src/bridge/parent_pty_session.h"
-#include "src/bridge/protocol/application_message_codec.h"
-#include "src/bridge/protocol/browser_to_bridge_message.h"
+#include "src/bridge/protocol/browser_application_message.h"
+#include "src/bridge/protocol/browser_application_message_parser.h"
 #include "src/bridge/pty_size.h"
 #include "src/bridge/server/pty_websocket_hub.h"
 #include "src/bridge/socket_io.h"
@@ -47,57 +48,10 @@ constexpr char const* PARENT_STATE_DIRECTORY_ENVIRONMENT = "MOE_STATE_DIRECTORY"
 
 std::sig_atomic_t volatile keep_running = 1;
 
-struct JsonKey {
-  std::string_view value;
-};
-
 bool should_keep_running() { return keep_running != 0; }
 
 bool is_loopback_interface(std::string_view const interface) {
   return interface == "127.0.0.1" || interface.starts_with("127.");
-}
-
-std::optional<int> parse_json_int(std::string_view json, JsonKey const key) {
-  std::string const quoted_key = "\"" + std::string(key.value) + "\"";
-  std::size_t const key_position = json.find(quoted_key);
-  if (key_position == std::string_view::npos) {
-    return std::nullopt;
-  }
-  std::size_t const colon_position = json.find(':', key_position + quoted_key.size());
-  if (colon_position == std::string_view::npos) {
-    return std::nullopt;
-  }
-  std::size_t value_start = colon_position + 1U;
-  while (value_start < json.size() && json[value_start] == ' ') {
-    ++value_start;
-  }
-  int value = 0;
-  char const* const begin = json.data() + value_start;
-  char const* const end = json.data() + json.size();
-  std::from_chars_result const result = std::from_chars(begin, end, value);
-  if (result.ec != std::errc{}) {
-    return std::nullopt;
-  }
-  return value;
-}
-
-PtySize parse_resize_payload(std::string_view const payload) {
-  std::optional<int> const columns = parse_json_int(payload, JsonKey{.value = "columns"});
-  std::optional<int> const rows = parse_json_int(payload, JsonKey{.value = "rows"});
-  if (!columns.has_value() || !rows.has_value()) {
-    throw std::runtime_error("resize payload requires columns and rows");
-  }
-  return {.rows = *rows, .cols = *columns};
-}
-
-parent::TrayNumber parse_tray_switch_payload(std::string_view const payload) {
-  std::optional<int> const tray = parse_json_int(payload, JsonKey{.value = "tray"});
-  std::optional<parent::TrayNumber> const tray_number =
-      tray.has_value() ? parent::TrayNumber::from_int(*tray) : std::nullopt;
-  if (!tray_number.has_value()) {
-    throw std::runtime_error("tray switch payload requires tray 1 through 9");
-  }
-  return *tray_number;
 }
 
 void send_parent_input_command(ParentPtySession const& session,
@@ -106,84 +60,22 @@ void send_parent_input_command(ParentPtySession const& session,
   session.write(std::string_view(encoded.data(), encoded.size()));
 }
 
-parent::ParentInputCommand parse_worktree_picker_command(std::string_view const command) {
-  if (command.size() != 1U) {
-    throw std::runtime_error("worktree picker command requires c, r, y, or n");
-  }
-  switch (command.front()) {
-    case 'c':
-      return parent::BeginTrayActionCommand{.action = parent::TrayActionIntent::CLEAR};
-    case 'r':
-      return parent::BeginTrayActionCommand{.action = parent::TrayActionIntent::REMOVE};
-    case 'y':
-      return parent::ResolveTrayActionCommand{.decision = parent::ConfirmationDecision::CONFIRM};
-    case 'n':
-      return parent::ResolveTrayActionCommand{.decision = parent::ConfirmationDecision::CANCEL};
-    default:
-      throw std::runtime_error("worktree picker command requires c, r, y, or n");
-  }
-}
-
-parent::OverlayNavigation parse_worktree_overlay_navigation(std::string_view const navigation) {
-  if (navigation == "up") {
-    return parent::OverlayNavigation::UP;
-  }
-  if (navigation == "down") {
-    return parent::OverlayNavigation::DOWN;
-  }
-  if (navigation == "right") {
-    return parent::OverlayNavigation::RIGHT;
-  }
-  if (navigation == "left") {
-    return parent::OverlayNavigation::LEFT;
-  }
-  if (navigation == "tab") {
-    return parent::OverlayNavigation::TAB;
-  }
-  if (navigation == "backtab") {
-    return parent::OverlayNavigation::BACKTAB;
-  }
-  if (navigation == "enter") {
-    return parent::OverlayNavigation::ENTER;
-  }
-  throw std::runtime_error("worktree overlay navigation is invalid");
-}
-
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
-  std::optional<protocol::BrowserToBridgeMessage> const message =
-      protocol::decode_browser_to_bridge_message(payload);
+  std::optional<protocol::BrowserApplicationMessage> const message =
+      protocol::parse_browser_application_message(payload);
   if (!message.has_value()) {
     return;
   }
 
-  using Type = protocol::BrowserToBridgeMessage::Type;
-  switch (message->type) {
-    case Type::TERMINAL_INPUT:
-      session.write(message->payload);
-      return;
-    case Type::RESIZE:
-      session.resize(parse_resize_payload(message->payload));
-      return;
-    case Type::SWITCH_ANONYMOUS_TRAY:
-      send_parent_input_command(session,
-                                parent::SwitchAnonymousTrayCommand{
-                                    .tray_number = parse_tray_switch_payload(message->payload)});
-      return;
-    case Type::TOGGLE_WORKTREE_OVERLAY:
-      send_parent_input_command(session, parent::ToggleWorktreeOverlayCommand{});
-      return;
-    case Type::TOGGLE_COMMAND_MODE:
-      send_parent_input_command(session, parent::ToggleCommandModeCommand{});
-      return;
-    case Type::WORKTREE_PICKER_ACTION:
-      send_parent_input_command(session, parse_worktree_picker_command(message->payload));
-      return;
-    case Type::OVERLAY_NAVIGATION:
-      send_parent_input_command(
-          session, parent::NavigateOverlayCommand{
-                       .navigation = parse_worktree_overlay_navigation(message->payload)});
-      return;
+  if (auto const* const input = std::get_if<protocol::BrowserTerminalInput>(&*message)) {
+    session.write(input->bytes);
+    return;
   }
+  if (auto const* const resize = std::get_if<protocol::BrowserTerminalResize>(&*message)) {
+    session.resize(resize->size);
+    return;
+  }
+  send_parent_input_command(session, std::get<parent::ParentInputCommand>(*message));
 }
 
 void send_health(OwnedFileDescriptor const& client, ParentPtySession const& session) {
