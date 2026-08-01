@@ -2,6 +2,8 @@ startup --output_user_root=/tmp/my-opiniated-editor-bazel-cache
 
 build --cxxopt=-std=c++23
 build --color=yes
+build --action_env=PATH=/run/wrappers/bin:/nix/profile/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin
+build --host_action_env=PATH=/run/wrappers/bin:/nix/profile/bin:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin
 build --disk_cache=~/.cache/my-opiniated-editor/bazel/disk
 build --experimental_disk_cache_gc_max_size=10G
 build --host_platform=@rules_nixpkgs_core//platforms:host

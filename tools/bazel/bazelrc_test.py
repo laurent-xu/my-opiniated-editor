@@ -24,6 +24,18 @@ class BazelRcTest(unittest.TestCase):
             self.lines,
         )
 
+    def test_action_paths_are_stable_across_launchers(self):
+        self.assertIn(
+            "build --action_env=PATH=/run/wrappers/bin:/nix/profile/bin:"
+            "/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin",
+            self.lines,
+        )
+        self.assertIn(
+            "build --host_action_env=PATH=/run/wrappers/bin:/nix/profile/bin:"
+            "/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin",
+            self.lines,
+        )
+
     def test_codex_can_write_the_shared_disk_cache(self):
         self.assertEqual("workspace-write", self.codex_config["sandbox_mode"])
         self.assertIn(
