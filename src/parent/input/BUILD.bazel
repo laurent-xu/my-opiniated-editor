@@ -1,0 +1,32 @@
+cc_library(
+    name = "parent_input_decoder",
+    srcs = ["parent_input_decoder.cc"],
+    hdrs = [
+        "begin_tray_action_command.h",
+        "command_input_event.h",
+        "confirmation_decision.h",
+        "literal_input_event.h",
+        "navigate_overlay_command.h",
+        "overlay_navigation.h",
+        "parent_input_command.h",
+        "parent_input_decoder.h",
+        "parent_input_event.h",
+        "resolve_tray_action_command.h",
+        "switch_anonymous_tray_command.h",
+        "toggle_command_mode_command.h",
+        "toggle_worktree_overlay_command.h",
+        "tray_action_intent.h",
+    ],
+    visibility = ["//src/parent:__pkg__"],
+    deps = ["//src/parent/tray:tray_identity"],
+)
+
+cc_test(
+    name = "parent_input_decoder_test",
+    srcs = ["parent_input_decoder_test.cc"],
+    deps = [
+        ":parent_input_decoder",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

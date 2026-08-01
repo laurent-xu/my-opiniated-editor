@@ -8,5 +8,8 @@ cc_library(
         "tray_id.h",
         "tray_number.h",
     ],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/input:__pkg__",
+    ],
 )

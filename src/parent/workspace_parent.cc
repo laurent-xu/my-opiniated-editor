@@ -11,7 +11,6 @@
 #include <cerrno>
 #include <charconv>
 #include <csignal>
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -20,9 +19,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "src/base/file_descriptor.h"
+#include "src/parent/input/parent_input_command.h"
+#include "src/parent/input/parent_input_decoder.h"
+#include "src/parent/input/parent_input_event.h"
 #include "src/parent/parent_status.h"
 #include "src/parent/path_picker_overlay.h"
 #include "src/parent/tray_manager.h"
@@ -44,22 +47,11 @@ namespace {
 constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
-constexpr unsigned char TRAY_COMMAND_PREFIX = 0x18;
-constexpr unsigned char TOGGLE_COMMAND_MODE_COMMAND = 'e';
-constexpr unsigned char OVERLAY_NAVIGATION_UP_COMMAND = 'A';
-constexpr unsigned char OVERLAY_NAVIGATION_DOWN_COMMAND = 'B';
-constexpr unsigned char OVERLAY_NAVIGATION_RIGHT_COMMAND = 'C';
-constexpr unsigned char OVERLAY_NAVIGATION_LEFT_COMMAND = 'D';
-constexpr unsigned char OVERLAY_NAVIGATION_TAB_COMMAND = 'I';
-constexpr unsigned char OVERLAY_NAVIGATION_BACKTAB_COMMAND = 'Z';
-constexpr unsigned char OVERLAY_NAVIGATION_ENTER_COMMAND = 'M';
 constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
 constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
 std::sig_atomic_t volatile stop_requested = 0;
-
-enum class ParentInputMode : std::uint8_t { NORMAL, TRAY_COMMAND };
 
 class RawTerminalModeGuard {
  public:
@@ -205,11 +197,6 @@ void write_active_surface_input(TrayManager& trays, std::string_view const bytes
   trays.write_input(bytes);
 }
 
-void write_active_surface_input_byte(TrayManager& trays, unsigned char const byte) {
-  char const value = static_cast<char>(byte);
-  write_active_surface_input(trays, std::string_view(&value, 1));
-}
-
 void redraw_active_surface(TrayManager const& trays) {
   write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_redraw_output());
   WorktreeManagementOverlay const* const overlay = trays.active_worktree_management_overlay();
@@ -217,8 +204,6 @@ void redraw_active_surface(TrayManager const& trays) {
     write_all(PARENT_OUTPUT_DESCRIPTOR, trays.active_worktree_management_overlay_redraw_output());
   }
 }
-
-bool is_anonymous_tray_command(unsigned char const byte) { return byte >= '1' && byte <= '9'; }
 
 std::filesystem::path current_parent_executable() {
   std::error_code error;
@@ -284,32 +269,31 @@ bool resolve_tray_action_confirmation(TrayManager& trays, bool const confirmed) 
   return destroyed;
 }
 
-std::optional<std::string_view> overlay_navigation_sequence(unsigned char const byte) {
-  switch (byte) {
-    case OVERLAY_NAVIGATION_UP_COMMAND:
+std::string_view overlay_navigation_sequence(OverlayNavigation const navigation) {
+  switch (navigation) {
+    case OverlayNavigation::UP:
       return "\x1b[A";
-    case OVERLAY_NAVIGATION_DOWN_COMMAND:
+    case OverlayNavigation::DOWN:
       return "\x1b[B";
-    case OVERLAY_NAVIGATION_RIGHT_COMMAND:
+    case OverlayNavigation::RIGHT:
       return "\x1b[C";
-    case OVERLAY_NAVIGATION_LEFT_COMMAND:
+    case OverlayNavigation::LEFT:
       return "\x1b[D";
-    case OVERLAY_NAVIGATION_TAB_COMMAND:
+    case OverlayNavigation::TAB:
       return "\t";
-    case OVERLAY_NAVIGATION_BACKTAB_COMMAND:
+    case OverlayNavigation::BACKTAB:
       return "\x1b[Z";
-    case OVERLAY_NAVIGATION_ENTER_COMMAND:
+    case OverlayNavigation::ENTER:
       return "\r";
-    default:
-      return std::nullopt;
   }
+  return {};
 }
 
-bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
-                              std::filesystem::path const& parent_executable,
-                              TerminalSize const size, bool& command_mode,
-                              std::optional<base::FileDescriptor> const status_descriptor) {
-  if (byte == TOGGLE_COMMAND_MODE_COMMAND) {
+bool handle_parent_input_command(TrayManager& trays, ParentInputCommand const& command,
+                                 std::filesystem::path const& parent_executable,
+                                 TerminalSize const size, bool& command_mode,
+                                 std::optional<base::FileDescriptor> const status_descriptor) {
+  if (std::holds_alternative<ToggleCommandModeCommand>(command)) {
     WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
     bool const canceled_action = overlay != nullptr && overlay->has_tray_action_confirmation();
     if (canceled_action) {
@@ -322,16 +306,15 @@ bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
     }
     return false;
   }
-  if (is_anonymous_tray_command(byte)) {
-    std::optional<TrayNumber> const number = TrayNumber::from_int(static_cast<int>(byte - '0'));
-    if (number.has_value()) {
-      static_cast<void>(trays.switch_to(*number));
-      publish_parent_status(trays, command_mode, status_descriptor);
-      redraw_active_surface(trays);
-      return false;
-    }
+  if (SwitchAnonymousTrayCommand const* const switch_tray =
+          std::get_if<SwitchAnonymousTrayCommand>(&command);
+      switch_tray != nullptr) {
+    static_cast<void>(trays.switch_to(switch_tray->tray_number));
+    publish_parent_status(trays, command_mode, status_descriptor);
+    redraw_active_surface(trays);
+    return false;
   }
-  if (byte == 'w') {
+  if (std::holds_alternative<ToggleWorktreeOverlayCommand>(command)) {
     bool const closed = toggle_worktree_management_overlay(trays, parent_executable, size);
     if (!closed) {
       command_mode = false;
@@ -340,83 +323,74 @@ bool handle_tray_command_byte(TrayManager& trays, unsigned char const byte,
     redraw_active_surface(trays);
     return false;
   }
-  std::optional<std::string_view> const navigation = overlay_navigation_sequence(byte);
-  if (navigation.has_value()) {
+  if (NavigateOverlayCommand const* const navigate = std::get_if<NavigateOverlayCommand>(&command);
+      navigate != nullptr) {
     WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
     if (command_mode && overlay != nullptr) {
       if (overlay->has_tray_action_confirmation()) {
-        if (byte == OVERLAY_NAVIGATION_ENTER_COMMAND) {
+        if (navigate->navigation == OverlayNavigation::ENTER) {
           static_cast<void>(overlay->resolve_tray_action_confirmation(false));
           publish_parent_status(trays, command_mode, status_descriptor);
           redraw_active_surface(trays);
         }
       } else {
-        overlay->write_input(*navigation);
+        overlay->write_input(overlay_navigation_sequence(navigate->navigation));
       }
     }
     return false;
   }
-  if (byte == 'c' || byte == 'r' || byte == 'y' || byte == 'n') {
+  if (BeginTrayActionCommand const* const begin_action =
+          std::get_if<BeginTrayActionCommand>(&command);
+      begin_action != nullptr) {
     if (!command_mode) {
       return false;
     }
-    bool trays_destroyed = false;
-    if (byte == 'c' || byte == 'r') {
-      WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
-      if (overlay != nullptr) {
-        TrayActionKind const kind = byte == 'c' ? TrayActionKind::CLEAR : TrayActionKind::REMOVE;
-        static_cast<void>(overlay->begin_tray_action_confirmation(kind));
-      }
-    } else {
-      trays_destroyed = resolve_tray_action_confirmation(trays, byte == 'y');
+    WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
+    if (overlay != nullptr) {
+      TrayActionKind const kind = begin_action->action == TrayActionIntent::CLEAR
+                                      ? TrayActionKind::CLEAR
+                                      : TrayActionKind::REMOVE;
+      static_cast<void>(overlay->begin_tray_action_confirmation(kind));
     }
     publish_parent_status(trays, command_mode, status_descriptor);
     redraw_active_surface(trays);
-    return trays_destroyed;
+    return false;
   }
-
-  if (!command_mode) {
-    write_active_surface_input_byte(trays, TRAY_COMMAND_PREFIX);
-    write_active_surface_input_byte(trays, byte);
+  if (ResolveTrayActionCommand const* const resolve_action =
+          std::get_if<ResolveTrayActionCommand>(&command);
+      resolve_action != nullptr) {
+    if (!command_mode) {
+      return false;
+    }
+    bool const trays_destroyed = resolve_tray_action_confirmation(
+        trays, resolve_action->decision == ConfirmationDecision::CONFIRM);
+    publish_parent_status(trays, command_mode, status_descriptor);
+    redraw_active_surface(trays);
+    return trays_destroyed;
   }
   return false;
 }
 
 bool route_parent_input_to_active_tray(
-    TrayManager& trays, std::string_view const bytes, ParentInputMode& input_mode,
+    TrayManager& trays, std::string_view const bytes, ParentInputDecoder& input_decoder,
     std::filesystem::path const& parent_executable, TerminalSize const size, bool& command_mode,
     std::optional<base::FileDescriptor> const status_descriptor) {
-  std::string forwarded;
-  forwarded.reserve(bytes.size());
-
-  auto flush_forwarded = [&]() {
-    if (!forwarded.empty()) {
-      write_active_surface_input(trays, forwarded);
-      forwarded.clear();
-    }
-  };
-
   bool trays_destroyed = false;
-  for (unsigned char const byte : bytes) {
-    if (input_mode == ParentInputMode::NORMAL) {
-      if (byte == TRAY_COMMAND_PREFIX) {
-        flush_forwarded();
-        input_mode = ParentInputMode::TRAY_COMMAND;
-        continue;
-      }
+  for (ParentInputEvent const& event : input_decoder.consume(bytes)) {
+    if (LiteralInputEvent const* const literal = std::get_if<LiteralInputEvent>(&event);
+        literal != nullptr) {
       if (!command_mode) {
-        forwarded.push_back(static_cast<char>(byte));
+        write_active_surface_input(trays, literal->bytes);
       }
       continue;
     }
 
-    trays_destroyed = handle_tray_command_byte(trays, byte, parent_executable, size, command_mode,
-                                               status_descriptor) ||
+    ParentInputCommand const& command = std::get<CommandInputEvent>(event).command;
+    trays_destroyed = handle_parent_input_command(trays, command, parent_executable, size,
+                                                  command_mode, status_descriptor) ||
                       trays_destroyed;
-    input_mode = ParentInputMode::NORMAL;
   }
 
-  flush_forwarded();
   WorktreeManagementOverlay* const overlay = trays.active_worktree_management_overlay();
   if (overlay != nullptr) {
     if (overlay->take_full_redraw_request()) {
@@ -429,8 +403,8 @@ bool route_parent_input_to_active_tray(
 }
 
 bool forward_parent_input_to_active_tray(
-    TrayManager& trays, ParentInputMode& input_mode, std::filesystem::path const& parent_executable,
-    TerminalSize const size, bool& command_mode,
+    TrayManager& trays, ParentInputDecoder& input_decoder,
+    std::filesystem::path const& parent_executable, TerminalSize const size, bool& command_mode,
     std::optional<base::FileDescriptor> const status_descriptor) {
   std::array<char, 4096> buffer{};
   ssize_t const read_count = ::read(PARENT_INPUT_DESCRIPTOR.value(), buffer.data(), buffer.size());
@@ -442,7 +416,7 @@ bool forward_parent_input_to_active_tray(
   }
 
   return route_parent_input_to_active_tray(
-      trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_mode,
+      trays, std::string_view(buffer.data(), static_cast<std::size_t>(read_count)), input_decoder,
       parent_executable, size, command_mode, status_descriptor);
 }
 
@@ -557,7 +531,7 @@ int run_workspace_parent() {
 
   RawTerminalModeGuard const raw_terminal(PARENT_INPUT_DESCRIPTOR);
   TerminalSize last_size = terminal_size_from(PARENT_OUTPUT_DESCRIPTOR);
-  ParentInputMode input_mode = ParentInputMode::NORMAL;
+  ParentInputDecoder input_decoder;
   bool command_mode = false;
   std::optional<base::FileDescriptor> const parent_status_descriptor =
       parent_status_descriptor_from_environment();
@@ -609,7 +583,7 @@ int run_workspace_parent() {
     synchronize_active_tray_size_if_changed(*trays, last_size);
 
     if ((descriptors[0].revents & POLLIN) != 0) {
-      if (forward_parent_input_to_active_tray(*trays, input_mode, parent_executable, last_size,
+      if (forward_parent_input_to_active_tray(*trays, input_decoder, parent_executable, last_size,
                                               command_mode, parent_status_descriptor)) {
         continue;
       }
