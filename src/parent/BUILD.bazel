@@ -1,11 +1,23 @@
 cc_library(
+    name = "terminal_screen",
+    srcs = ["terminal_screen.cc"],
+    hdrs = [
+        "terminal_position.h",
+        "terminal_screen.h",
+    ],
+    deps = [
+        "//src/base:terminal_size",
+        "//third_party/system:libvterm_neovim",
+    ],
+)
+
+cc_library(
     name = "parent_lib",
     srcs = [
         "content_pty_session.cc",
         "overlay_footer.cc",
         "path_picker_overlay.cc",
         "parent_status.cc",
-        "terminal_screen.cc",
         "tray.cc",
         "tray_id.cc",
         "tray_manager.cc",
@@ -19,8 +31,6 @@ cc_library(
         "overlay_footer.h",
         "path_picker_overlay.h",
         "parent_status.h",
-        "terminal_screen.h",
-        "terminal_position.h",
         "tray.h",
         "tray_action_request.h",
         "tray_config.h",
@@ -38,12 +48,12 @@ cc_library(
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
         "//src/base:terminal_size",
+        ":terminal_screen",
         "//src/parent/worktree:worktree_candidate_finder",
         "//src/parent/worktree:worktree_provisioner",
         "//src/parent/worktree:worktree_registry_store",
         "//src/parent/worktree:worktree_remover",
         "//src/parent/worktree:worktree_repository_registrar",
-        "//third_party/system:libvterm_neovim",
         "//third_party/system:libutil",
     ],
 )
@@ -93,7 +103,7 @@ cc_test(
     name = "terminal_screen_test",
     srcs = ["terminal_screen_test.cc"],
     deps = [
-        ":parent_lib",
+        ":terminal_screen",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
