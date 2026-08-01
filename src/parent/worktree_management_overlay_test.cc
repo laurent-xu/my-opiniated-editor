@@ -47,7 +47,7 @@ std::filesystem::path runfile_path(std::filesystem::path const& path) {
 TEST(WorktreeManagementOverlayTest, CyclesThreeModesAndResetsRepositoryInput) {
   std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "overlay";
   std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
-  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::base::TerminalSize const size{.rows = 24, .cols = 100};
 
   moe::parent::persistence::WorktreeRegistry registry =
       moe::parent::WorktreeRegistryStore::empty_registry();
@@ -89,7 +89,7 @@ TEST(WorktreeManagementOverlayTest, AddWorktreeModeShowsAllRepositoriesInPathPic
   std::filesystem::create_directories(first_repository);
   std::filesystem::create_directories(second_repository);
   std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
-  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::base::TerminalSize const size{.rows = 24, .cols = 100};
 
   moe::parent::persistence::WorktreeRegistry registry =
       moe::parent::WorktreeRegistryStore::empty_registry();
@@ -128,7 +128,7 @@ TEST(WorktreeManagementOverlayTest, AddWorktreeModeShowsAllRepositoriesInPathPic
 TEST(WorktreeManagementOverlayTest, WorktreePickerIncludesAndPreviewsUsedAnonymousTray) {
   std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "anonymous-picker";
   std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
-  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::base::TerminalSize const size{.rows = 24, .cols = 100};
   moe::parent::WorktreeRegistryStore(registry_path)
       .save(moe::parent::WorktreeRegistryStore::empty_registry());
   std::vector<moe::parent::TraySnapshot> const session_trays{
@@ -168,7 +168,7 @@ TEST(WorktreeManagementOverlayTest, WorktreePickerIncludesAndPreviewsUsedAnonymo
 TEST(WorktreeManagementOverlayTest, ConfirmsRemovalOfHighlightedWorktreePickerTray) {
   std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "remove-picker";
   std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
-  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::base::TerminalSize const size{.rows = 24, .cols = 100};
   moe::parent::WorktreeRegistryStore(registry_path)
       .save(moe::parent::WorktreeRegistryStore::empty_registry());
   std::vector<moe::parent::TraySnapshot> const session_trays{
@@ -202,7 +202,7 @@ TEST(WorktreeManagementOverlayTest, ConfirmsRemovalOfHighlightedWorktreePickerTr
 TEST(WorktreeManagementOverlayTest, CancelsRemovalAndRejectsItOutsideWorktreePicker) {
   std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "cancel-remove";
   std::filesystem::path const registry_path = root / "state" / "worktrees.pb";
-  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::base::TerminalSize const size{.rows = 24, .cols = 100};
   moe::parent::WorktreeRegistryStore(registry_path)
       .save(moe::parent::WorktreeRegistryStore::empty_registry());
   std::vector<moe::parent::TraySnapshot> const session_trays{
@@ -239,7 +239,7 @@ TEST(WorktreeManagementOverlayTest, MissingTrackedWorktreeRemainsSelectableForRe
   entry->set_root_path(std::filesystem::weakly_canonical(repository).string());
   entry->add_worktrees()->set_path(std::filesystem::weakly_canonical(missing_worktree).string());
   moe::parent::WorktreeRegistryStore(registry_path).save(registry);
-  moe::parent::TerminalSize const size{.rows = 24, .cols = 100};
+  moe::base::TerminalSize const size{.rows = 24, .cols = 100};
 
   std::unique_ptr<moe::parent::WorktreeManagementOverlay> overlay =
       moe::parent::WorktreeManagementOverlay::start("/unused/workspace_parent", registry_path, root,

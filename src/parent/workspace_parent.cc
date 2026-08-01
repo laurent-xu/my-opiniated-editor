@@ -33,6 +33,9 @@
 #include "src/parent/worktree_management_overlay.h"
 
 namespace moe::parent {
+
+using base::TerminalSize;
+
 namespace {
 
 constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";

@@ -110,7 +110,7 @@ std::optional<std::string> TrayManager::read_output(TrayId const& id) {
 
 std::string TrayManager::active_redraw_output() const { return active_tray().redraw_output(); }
 
-void TrayManager::resize_active(TerminalSize const size) {
+void TrayManager::resize_active(base::TerminalSize const size) {
   current_size = size;
   mutable_active_tray().resize(size);
 }
@@ -274,7 +274,7 @@ std::string TrayManager::active_worktree_management_overlay_redraw_output() cons
                 .column = preview->origin.column,
             },
         .size =
-            TerminalSize{
+            base::TerminalSize{
                 .rows = std::max(preview->size.rows - 1, 0),
                 .cols = preview->size.cols,
             },

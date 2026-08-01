@@ -10,6 +10,9 @@
 #include <vector>
 
 namespace moe::parent {
+
+using base::TerminalSize;
+
 namespace {
 
 constexpr std::size_t MAX_SCROLLBACK_LINES = 10000;

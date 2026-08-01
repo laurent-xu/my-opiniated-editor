@@ -34,7 +34,7 @@ std::runtime_error errno_error(std::string const& action) {
   return std::runtime_error(action + ": " + std::strerror(errno));
 }
 
-void validate_size(TerminalSize const size) {
+void validate_size(base::TerminalSize const size) {
   int constexpr MAX_UNSIGNED_SHORT = std::numeric_limits<unsigned short>::max();
   if (size.rows <= 0 || size.cols <= 0 || size.rows > MAX_UNSIGNED_SHORT ||
       size.cols > MAX_UNSIGNED_SHORT) {
@@ -42,7 +42,7 @@ void validate_size(TerminalSize const size) {
   }
 }
 
-winsize to_winsize(TerminalSize const size) {
+winsize to_winsize(base::TerminalSize const size) {
   validate_size(size);
   winsize window_size{};
   window_size.ws_row = static_cast<unsigned short>(size.rows);
@@ -96,11 +96,11 @@ std::string configured_fzf_executable() {
 
 std::unique_ptr<PathPickerOverlay> PathPickerOverlay::start(
     std::string fzf_executable, std::vector<std::filesystem::path> const& candidates,
-    std::string prompt, TerminalSize const parent_size) {
+    std::string prompt, base::TerminalSize const parent_size) {
   if (fzf_executable.empty()) {
     throw std::invalid_argument("fzf executable must not be empty");
   }
-  TerminalSize const picker_size = picker_size_for(parent_size);
+  base::TerminalSize const picker_size = picker_size_for(parent_size);
 
   std::array<int, 2> raw_candidates{-1, -1};
   if (::pipe(raw_candidates.data()) != 0) {
@@ -164,7 +164,7 @@ std::unique_ptr<PathPickerOverlay> PathPickerOverlay::start(
 }
 
 PathPickerOverlay::PathPickerOverlay(Handles handles, std::vector<std::filesystem::path> candidates,
-                                     TerminalSize const parent_size)
+                                     base::TerminalSize const parent_size)
     : terminal_master(std::move(handles.terminal_master)),
       candidate_input(std::move(handles.candidate_input)),
       result_output(std::move(handles.result_output)),
@@ -229,9 +229,9 @@ bool PathPickerOverlay::refresh_process_state() {
   return true;
 }
 
-void PathPickerOverlay::resize(TerminalSize const size) {
+void PathPickerOverlay::resize(base::TerminalSize const size) {
   parent_terminal_size = size;
-  TerminalSize const next_picker_size = picker_size_for(size);
+  base::TerminalSize const next_picker_size = picker_size_for(size);
   if (next_picker_size.rows == picker_terminal_size.rows &&
       next_picker_size.cols == picker_terminal_size.cols) {
     return;
@@ -366,7 +366,7 @@ void PathPickerOverlay::reset_process() noexcept {
   child_process_id = base::ProcessId{};
 }
 
-TerminalSize PathPickerOverlay::picker_size_for(TerminalSize const parent_size) {
+base::TerminalSize PathPickerOverlay::picker_size_for(base::TerminalSize const parent_size) {
   validate_size(parent_size);
   int const preferred_rows = std::max(MIN_PICKER_ROWS, parent_size.rows / 2);
   return {

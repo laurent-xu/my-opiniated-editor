@@ -28,6 +28,12 @@ cc_library(
     visibility = [":src_packages"],
 )
 
+cc_library(
+    name = "terminal_size",
+    hdrs = ["terminal_size.h"],
+    visibility = [":src_packages"],
+)
+
 cc_test(
     name = "network_port_test",
     srcs = ["network_port_test.cc"],

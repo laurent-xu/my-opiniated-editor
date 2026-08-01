@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "src/base/file_descriptor.h"
-#include "src/parent/content_pty_session.h"
+#include "src/base/terminal_size.h"
 #include "src/parent/overlay.h"
 #include "src/parent/path_picker_overlay.h"
 #include "src/parent/tray_action_request.h"
@@ -19,13 +19,15 @@
 
 namespace moe::parent {
 
+class ContentPtySession;
+
 class WorktreeManagementOverlay : public Overlay {
  public:
   static std::unique_ptr<WorktreeManagementOverlay> start(
       std::filesystem::path parent_executable, std::filesystem::path registry_path,
       std::filesystem::path working_directory, std::string git_executable,
       std::string fzf_executable, std::vector<TraySnapshot> const& session_trays,
-      TerminalSize size);
+      base::TerminalSize size);
 
   WorktreeManagementOverlay(WorktreeManagementOverlay const&) = delete;
   WorktreeManagementOverlay& operator=(WorktreeManagementOverlay const&) = delete;
@@ -34,7 +36,7 @@ class WorktreeManagementOverlay : public Overlay {
   void write_input(std::string_view bytes) override;
   [[nodiscard]] bool read_process_output() override;
   [[nodiscard]] bool refresh_process_state() override;
-  void resize(TerminalSize size) override;
+  void resize(base::TerminalSize size) override;
 
   [[nodiscard]] std::optional<base::FileDescriptor> process_file_descriptor() const override;
   [[nodiscard]] std::string redraw_output() const override;
@@ -82,7 +84,8 @@ class WorktreeManagementOverlay : public Overlay {
                             std::filesystem::path registry_path,
                             std::filesystem::path working_directory, std::string git_executable,
                             std::string fzf_executable,
-                            std::vector<TraySnapshot> const& session_trays, TerminalSize size);
+                            std::vector<TraySnapshot> const& session_trays,
+                            base::TerminalSize size);
 
   [[nodiscard]] Stage current_stage() const;
   [[nodiscard]] Stage& mutable_current_stage();
@@ -91,7 +94,7 @@ class WorktreeManagementOverlay : public Overlay {
   [[nodiscard]] std::string& active_error_message();
   [[nodiscard]] std::string const& active_error_message() const;
   [[nodiscard]] std::string footer_output() const;
-  [[nodiscard]] TerminalSize dialog_terminal_size() const;
+  [[nodiscard]] base::TerminalSize dialog_terminal_size() const;
   [[nodiscard]] std::string dialog_redraw_output() const;
   [[nodiscard]] std::string picker_action_output() const;
   [[nodiscard]] std::optional<std::filesystem::path> selected_repository_root() const;
@@ -126,7 +129,7 @@ class WorktreeManagementOverlay : public Overlay {
   std::filesystem::path working_directory;
   std::string git_executable;
   std::string fzf_executable;
-  TerminalSize size;
+  base::TerminalSize size;
   Mode mode = Mode::SWITCH_WORKTREE;
   Stage worktree_stage = Stage::WORKTREE_REPOSITORY;
   Stage repository_stage = Stage::REPOSITORY_ROOT;

@@ -17,7 +17,7 @@ constexpr std::string_view SELECTED_BACKGROUND = "\x1b[48;5;244m";
 
 std::string render_overlay_footer(std::span<std::string_view const> const labels,
                                   std::size_t const selected_index,
-                                  TerminalSize const parent_size) {
+                                  base::TerminalSize const parent_size) {
   int const row = std::max(parent_size.rows, 1);
   std::size_t const width = static_cast<std::size_t>(std::max(parent_size.cols, 1));
   std::size_t remaining_width = width;

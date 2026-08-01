@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
+#include "src/parent/content_pty_session.h"
 #include "src/parent/worktree_management_overlay.h"
 
 namespace moe::parent {
@@ -15,7 +16,7 @@ std::unique_ptr<Tray> Tray::start(TrayId id, TrayConfig const& config) {
 }
 
 Tray::Tray(TrayId id, std::filesystem::path working_directory,
-           std::unique_ptr<ContentPtySession> content_pty, TerminalSize const size)
+           std::unique_ptr<ContentPtySession> content_pty, base::TerminalSize const size)
     : tray_id(std::move(id)),
       tray_label(tray_id.label()),
       cwd(std::move(working_directory)),
@@ -41,11 +42,11 @@ std::optional<std::string> Tray::read_output() {
 std::string Tray::redraw_output() const { return terminal_screen.render_snapshot(); }
 
 std::string Tray::preview_output(TerminalPosition const origin,
-                                 TerminalSize const region_size) const {
+                                 base::TerminalSize const region_size) const {
   return terminal_screen.render_region_snapshot(origin, region_size);
 }
 
-void Tray::resize(TerminalSize const size) {
+void Tray::resize(base::TerminalSize const size) {
   content->resize(size);
   terminal_screen.resize(size);
   if (worktree_overlay != nullptr) {

@@ -10,19 +10,15 @@
 #include "src/base/file_descriptor.h"
 #include "src/base/owned_file_descriptor.h"
 #include "src/base/process_id.h"
+#include "src/base/terminal_size.h"
 
 namespace moe::parent {
-
-struct TerminalSize {
-  int rows;
-  int cols;
-};
 
 class ContentPtySession {
  public:
   static std::unique_ptr<ContentPtySession> start(std::vector<std::string> const& command,
                                                   std::filesystem::path const& working_directory,
-                                                  TerminalSize size);
+                                                  base::TerminalSize size);
 
   ContentPtySession(ContentPtySession const&) = delete;
   ContentPtySession& operator=(ContentPtySession const&) = delete;
@@ -34,7 +30,7 @@ class ContentPtySession {
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
   void write(std::string_view bytes) const;
   [[nodiscard]] std::optional<std::string> read_available() const;
-  void resize(TerminalSize size) const;
+  void resize(base::TerminalSize size) const;
   [[nodiscard]] std::optional<int> try_wait_for_exit() noexcept;
 
  private:

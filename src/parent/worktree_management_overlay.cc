@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/parent/content_pty_session.h"
 #include "src/parent/overlay_footer.h"
 #include "src/parent/worktree/worktree_candidate_finder.h"
 #include "src/parent/worktree/worktree_provisioner.h"
@@ -19,6 +20,9 @@
 #include "src/parent/worktree/worktree_repository_registrar.h"
 
 namespace moe::parent {
+
+using base::TerminalSize;
+
 namespace {
 
 constexpr unsigned char ESCAPE = 0x1B;

@@ -21,7 +21,7 @@ std::runtime_error errno_error(std::string const& action) {
   return std::runtime_error(action + ": " + std::strerror(errno));
 }
 
-void validate_size(TerminalSize const size) {
+void validate_size(base::TerminalSize const size) {
   int constexpr MAX_UNSIGNED_SHORT = std::numeric_limits<unsigned short>::max();
   if (size.rows <= 0 || size.cols <= 0 || size.rows > MAX_UNSIGNED_SHORT ||
       size.cols > MAX_UNSIGNED_SHORT) {
@@ -31,7 +31,7 @@ void validate_size(TerminalSize const size) {
   }
 }
 
-winsize to_winsize(TerminalSize const size) {
+winsize to_winsize(base::TerminalSize const size) {
   validate_size(size);
   winsize window_size{};
   window_size.ws_row = static_cast<unsigned short>(size.rows);
@@ -62,7 +62,7 @@ int exit_code_from_status(int const status) {
 
 std::unique_ptr<ContentPtySession> ContentPtySession::start(
     std::vector<std::string> const& command, std::filesystem::path const& working_directory,
-    TerminalSize const size) {
+    base::TerminalSize const size) {
   if (command.empty()) {
     throw std::invalid_argument("content pty command must not be empty");
   }
@@ -146,7 +146,7 @@ std::optional<std::string> ContentPtySession::read_available() const {
   throw errno_error("read from content pty failed");
 }
 
-void ContentPtySession::resize(TerminalSize const size) const {
+void ContentPtySession::resize(base::TerminalSize const size) const {
   winsize window_size = to_winsize(size);
   if (ioctl(master_file_descriptor.get().value(), TIOCSWINSZ, &window_size) != 0) {
     throw errno_error("resize content pty failed");

@@ -8,14 +8,14 @@
 #include <string>
 #include <string_view>
 
-#include "src/parent/content_pty_session.h"
+#include "src/base/terminal_size.h"
 #include "src/parent/terminal_position.h"
 
 namespace moe::parent {
 
 class TerminalScreen {
  public:
-  explicit TerminalScreen(TerminalSize size);
+  explicit TerminalScreen(base::TerminalSize size);
 
   TerminalScreen(TerminalScreen const&) = delete;
   TerminalScreen& operator=(TerminalScreen const&) = delete;
@@ -24,13 +24,13 @@ class TerminalScreen {
   ~TerminalScreen();
 
   void ingest(std::string_view bytes);
-  void resize(TerminalSize size);
+  void resize(base::TerminalSize size);
   [[nodiscard]] std::string render_snapshot() const;
   [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin) const;
   [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin,
-                                                   TerminalSize region_size) const;
+                                                   base::TerminalSize region_size) const;
   [[nodiscard]] static std::string render_blank_region_snapshot(TerminalPosition origin,
-                                                                TerminalSize region_size);
+                                                                base::TerminalSize region_size);
 
  private:
   struct VTermDeleter {
@@ -46,10 +46,10 @@ class TerminalScreen {
   [[nodiscard]] std::string screen_row_snapshot_line(int row, bool allow_erase_to_end_of_line,
                                                      int columns) const;
   [[nodiscard]] std::string render_region_snapshot(TerminalPosition origin,
-                                                   TerminalSize region_size,
+                                                   base::TerminalSize region_size,
                                                    bool restore_cursor) const;
   static void append_blank_region(std::string& output, TerminalPosition origin,
-                                  TerminalSize region_size);
+                                  base::TerminalSize region_size);
   [[nodiscard]] static std::string cursor_position_sequence(int row, int col);
   [[nodiscard]] static VTermScreenCallbacks const& screen_callbacks();
   static int move_rect_callback(VTermRect dest, VTermRect src, void* user);
@@ -57,7 +57,7 @@ class TerminalScreen {
   static int push_scrollback_line_callback(int cols, VTermScreenCell const* cells, void* user);
   static int clear_scrollback_callback(void* user);
 
-  TerminalSize screen_size;
+  base::TerminalSize screen_size;
   std::unique_ptr<VTerm, VTermDeleter> terminal;
   VTermScreen* screen = nullptr;
   VTermState* state = nullptr;

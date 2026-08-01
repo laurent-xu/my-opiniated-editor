@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "src/base/file_descriptor.h"
+#include "src/base/terminal_size.h"
 #include "src/parent/tray.h"
 #include "src/parent/tray_output_source.h"
 
@@ -29,7 +30,7 @@ class TrayManager {
   [[nodiscard]] std::optional<std::string> read_active_output();
   [[nodiscard]] std::optional<std::string> read_output(TrayId const& id);
   [[nodiscard]] std::string active_redraw_output() const;
-  void resize_active(TerminalSize size);
+  void resize_active(base::TerminalSize size);
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
   [[nodiscard]] TraySnapshot switch_to_worktree(std::filesystem::path const& path);
   [[nodiscard]] bool destroy_tray(TrayId const& id);
@@ -66,7 +67,7 @@ class TrayManager {
   [[nodiscard]] static std::size_t tray_index(TrayNumber number);
 
   TrayConfig config;
-  TerminalSize current_size;
+  base::TerminalSize current_size;
   TrayId active_tray_id;
   std::array<std::unique_ptr<Tray>, TrayNumber::MAX_VALUE> anonymous_trays;
   std::map<std::filesystem::path, std::unique_ptr<Tray>> worktree_trays;

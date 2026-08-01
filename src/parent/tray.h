@@ -7,7 +7,7 @@
 #include <string_view>
 
 #include "src/base/file_descriptor.h"
-#include "src/parent/content_pty_session.h"
+#include "src/base/terminal_size.h"
 #include "src/parent/terminal_screen.h"
 #include "src/parent/tray_config.h"
 #include "src/parent/tray_id.h"
@@ -15,6 +15,7 @@
 
 namespace moe::parent {
 
+class ContentPtySession;
 class WorktreeManagementOverlay;
 
 class Tray {
@@ -28,8 +29,9 @@ class Tray {
   void write_input(std::string_view bytes) const;
   [[nodiscard]] std::optional<std::string> read_output();
   [[nodiscard]] std::string redraw_output() const;
-  [[nodiscard]] std::string preview_output(TerminalPosition origin, TerminalSize region_size) const;
-  void resize(TerminalSize size);
+  [[nodiscard]] std::string preview_output(TerminalPosition origin,
+                                           base::TerminalSize region_size) const;
+  void resize(base::TerminalSize size);
   [[nodiscard]] std::optional<int> try_wait_for_exit() noexcept;
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
   [[nodiscard]] TrayId const& id() const;
@@ -41,7 +43,7 @@ class Tray {
 
  private:
   Tray(TrayId id, std::filesystem::path working_directory,
-       std::unique_ptr<ContentPtySession> content, TerminalSize size);
+       std::unique_ptr<ContentPtySession> content, base::TerminalSize size);
 
   TrayId tray_id;
   std::string tray_label;

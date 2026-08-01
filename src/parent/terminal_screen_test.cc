@@ -7,7 +7,7 @@
 namespace {
 
 TEST(TerminalScreenTest, RedrawIncludesScrollbackAndVisibleScreen) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest("one\r\ntwo\r\nthree\r\nfour");
 
@@ -20,7 +20,7 @@ TEST(TerminalScreenTest, RedrawIncludesScrollbackAndVisibleScreen) {
 }
 
 TEST(TerminalScreenTest, RedrawUsesTerminalStateInsteadOfRawByteReplay) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest("old text");
   screen.ingest("\x1b[2J\x1b[Hnew text");
@@ -31,7 +31,7 @@ TEST(TerminalScreenTest, RedrawUsesTerminalStateInsteadOfRawByteReplay) {
 }
 
 TEST(TerminalScreenTest, RedrawDisablesAutowrapAroundSnapshotRows) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 2, .cols = 5});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 2, .cols = 5});
 
   screen.ingest("abcde");
 
@@ -48,7 +48,7 @@ TEST(TerminalScreenTest, RedrawDisablesAutowrapAroundSnapshotRows) {
 }
 
 TEST(TerminalScreenTest, RedrawPreservesUtf8SplitAcrossInputChunks) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest(std::string("\xE2\x94", 2));
   screen.ingest(std::string("\x80", 1));
@@ -59,7 +59,7 @@ TEST(TerminalScreenTest, RedrawPreservesUtf8SplitAcrossInputChunks) {
 }
 
 TEST(TerminalScreenTest, RedrawDoesNotEmitReplacementGlyphForInvalidUtf8) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest(std::string("\xED\xA0\x80", 3));
 
@@ -68,7 +68,7 @@ TEST(TerminalScreenTest, RedrawDoesNotEmitReplacementGlyphForInvalidUtf8) {
 }
 
 TEST(TerminalScreenTest, RedrawPreservesIndexedBackgroundColor) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest("\x1b[48;5;42mcolored\x1b[0m");
 
@@ -77,7 +77,7 @@ TEST(TerminalScreenTest, RedrawPreservesIndexedBackgroundColor) {
 }
 
 TEST(TerminalScreenTest, RedrawKeepsTrailingColoredBackgroundCells) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 5});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 5});
 
   screen.ingest("\x1b[48;5;42m     \x1b[0m");
 
@@ -86,7 +86,7 @@ TEST(TerminalScreenTest, RedrawKeepsTrailingColoredBackgroundCells) {
 }
 
 TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseToEndOfLine) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 10});
 
   screen.ingest("\x1b[48;5;242m>\x1b[K\x1b[0m");
 
@@ -95,7 +95,7 @@ TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseToEndOfLine) {
 }
 
 TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseWholeLine) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 10});
 
   screen.ingest("plain\x1b[48;5;242m\x1b[2K>\x1b[0m");
 
@@ -105,7 +105,7 @@ TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseWholeLine) {
 }
 
 TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseBeforePromptText) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 12});
 
   screen.ingest(
       "\x1b[2;1H\x1b[48;5;242m\x1b[2K\x1b[0m\x1b[5G"
@@ -116,17 +116,17 @@ TEST(TerminalScreenTest, RedrawKeepsBackgroundFromEraseBeforePromptText) {
 }
 
 TEST(TerminalScreenTest, RedrawKeepsEraseBackgroundAfterSameSizeResize) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 12});
 
   screen.ingest("\x1b[2;1H\x1b[48;5;235m>\x1b[K\x1b[0m");
-  screen.resize(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+  screen.resize(moe::base::TerminalSize{.rows = 3, .cols = 12});
 
   std::string const redraw = screen.render_snapshot();
   EXPECT_NE(redraw.find("48;5;235m>\x1b[K\x1b[0m"), std::string::npos);
 }
 
 TEST(TerminalScreenTest, RedrawInheritsEraseBackgroundUnderPromptText) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 12});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 12});
 
   screen.ingest(
       "\x1b[2;1H\x1b[48;5;242m\x1b[2K\x1b[0m\x1b[5G"
@@ -139,7 +139,7 @@ TEST(TerminalScreenTest, RedrawInheritsEraseBackgroundUnderPromptText) {
 }
 
 TEST(TerminalScreenTest, RedrawKeepsBackgroundFromSplitEraseToEndOfLine) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 10});
 
   screen.ingest("\x1b[48;5;242m>");
   screen.ingest("\x1b[");
@@ -150,7 +150,7 @@ TEST(TerminalScreenTest, RedrawKeepsBackgroundFromSplitEraseToEndOfLine) {
 }
 
 TEST(TerminalScreenTest, DefaultEraseClearsRememberedBackgroundFill) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 10});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 10});
 
   screen.ingest("\x1b[48;5;242m\x1b[2K\x1b[0m");
   screen.ingest("\x1b[H\x1b[2K");
@@ -160,7 +160,7 @@ TEST(TerminalScreenTest, DefaultEraseClearsRememberedBackgroundFill) {
 }
 
 TEST(TerminalScreenTest, RedrawMovesRememberedEraseBackgroundWhenScrollRegionScrolls) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 4, .cols = 8});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 4, .cols = 8});
 
   screen.ingest("\x1b[3;1H\x1b[48;5;242mx\x1b[K\x1b[0m");
   screen.ingest("\x1b[2;4r\x1b[4;1H\n\x1b[r");
@@ -171,7 +171,7 @@ TEST(TerminalScreenTest, RedrawMovesRememberedEraseBackgroundWhenScrollRegionScr
 }
 
 TEST(TerminalScreenTest, RedrawPreservesAlternateScreenMode) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest("\x1b[?1049h\x1b[48;5;42malt screen\x1b[0m");
 
@@ -186,7 +186,7 @@ TEST(TerminalScreenTest, RedrawPreservesAlternateScreenMode) {
 }
 
 TEST(TerminalScreenTest, RedrawPreservesReverseScreenAndCursorVisibility) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 3, .cols = 20});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 3, .cols = 20});
 
   screen.ingest("\x1b[?5h\x1b[?25lreverse");
 
@@ -203,7 +203,7 @@ TEST(TerminalScreenTest, RedrawPreservesReverseScreenAndCursorVisibility) {
 }
 
 TEST(TerminalScreenTest, RegionRedrawOffsetsRowsAndDoesNotEraseOutsideRegion) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 2, .cols = 5});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 2, .cols = 5});
   screen.ingest("\x1b[48;5;42m>\x1b[K\x1b[0m");
 
   std::string const redraw =
@@ -216,12 +216,12 @@ TEST(TerminalScreenTest, RegionRedrawOffsetsRowsAndDoesNotEraseOutsideRegion) {
 }
 
 TEST(TerminalScreenTest, ClippedRegionRedrawShowsTopRows) {
-  moe::parent::TerminalScreen screen(moe::parent::TerminalSize{.rows = 4, .cols = 8});
+  moe::parent::TerminalScreen screen(moe::base::TerminalSize{.rows = 4, .cols = 8});
   screen.ingest("\x1b[1;1Htop\x1b[4;1Hbottom");
 
   std::string const redraw =
       screen.render_region_snapshot(moe::parent::TerminalPosition{.row = 4, .column = 0},
-                                    moe::parent::TerminalSize{.rows = 2, .cols = 8});
+                                    moe::base::TerminalSize{.rows = 2, .cols = 8});
 
   EXPECT_NE(redraw.find("\x1b[5;1Htop"), std::string::npos);
   EXPECT_EQ(redraw.find("bottom"), std::string::npos);
@@ -231,7 +231,7 @@ TEST(TerminalScreenTest, ClippedRegionRedrawShowsTopRows) {
 TEST(TerminalScreenTest, BlankRegionRedrawIsCompletelyDark) {
   std::string const redraw = moe::parent::TerminalScreen::render_blank_region_snapshot(
       moe::parent::TerminalPosition{.row = 2, .column = 1},
-      moe::parent::TerminalSize{.rows = 2, .cols = 4});
+      moe::base::TerminalSize{.rows = 2, .cols = 4});
 
   EXPECT_NE(redraw.find("\x1b[3;2H\x1b[0;48;5;232m    "), std::string::npos);
   EXPECT_NE(redraw.find("\x1b[4;2H\x1b[0;48;5;232m    "), std::string::npos);

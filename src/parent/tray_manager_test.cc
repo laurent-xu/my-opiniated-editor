@@ -214,7 +214,7 @@ TEST(TrayManagerTest, ListsOutputSourcesForCreatedTrays) {
 TEST(TrayManagerTest, ResizeAppliesToActiveTray) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
 
-  manager->resize_active(moe::parent::TerminalSize{.rows = 33, .cols = 111});
+  manager->resize_active(moe::base::TerminalSize{.rows = 33, .cols = 111});
   manager->write_input("stty size\n");
   manager->write_input(shell_marker_command("__moe_resize_done__"));
 
@@ -226,7 +226,7 @@ TEST(TrayManagerTest, LazyTrayStartsAtLatestActiveSize) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
   moe::parent::TrayNumber const tray_two = required_tray_number(2);
 
-  manager->resize_active(moe::parent::TerminalSize{.rows = 33, .cols = 111});
+  manager->resize_active(moe::base::TerminalSize{.rows = 33, .cols = 111});
   static_cast<void>(manager->switch_to(tray_two));
   manager->write_input("stty size\n");
   manager->write_input(shell_marker_command("__moe_lazy_resize_done__"));
