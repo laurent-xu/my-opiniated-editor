@@ -99,16 +99,60 @@ cc_test(
     tags = ["unit"],
 )
 
-cc_test(
-    name = "tray_manager_test",
-    srcs = ["tray_manager_test.cc"],
-    visibility = ["//src/parent:__pkg__"],
+cc_library(
+    name = "tray_manager_test_support",
+    testonly = True,
+    srcs = ["tray_manager_test_support.cc"],
+    hdrs = ["tray_manager_test_support.h"],
     deps = [
-        ":tray_identity",
         ":tray_manager",
         "//src/base:process_id",
         "//src/parent/shell:shell_configuration",
+    ],
+)
+
+cc_test(
+    name = "tray_manager_runtime_test",
+    srcs = ["tray_manager_runtime_test.cc"],
+    deps = [
+        ":tray_manager",
+        ":tray_manager_test_support",
+        "//src/base:terminal_size",
         "@googletest//:gtest_main",
     ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "tray_manager_switching_test",
+    srcs = ["tray_manager_switching_test.cc"],
+    deps = [
+        ":tray_identity",
+        ":tray_manager",
+        ":tray_manager_test_support",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "tray_manager_lifecycle_test",
+    srcs = ["tray_manager_lifecycle_test.cc"],
+    deps = [
+        ":tray_manager",
+        ":tray_manager_test_support",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+test_suite(
+    name = "tray_manager_test",
+    tests = [
+        ":tray_manager_lifecycle_test",
+        ":tray_manager_runtime_test",
+        ":tray_manager_switching_test",
+    ],
+    visibility = ["//src/parent:__pkg__"],
     tags = ["integration"],
 )
