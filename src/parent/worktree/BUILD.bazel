@@ -111,6 +111,23 @@ cc_library(
 )
 
 cc_library(
+    name = "worktree_helper_commands",
+    srcs = ["worktree_helper_commands.cc"],
+    hdrs = [
+        "worktree_command_streams.h",
+        "worktree_helper_commands.h",
+    ],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":repository_registration_request",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
+        ":worktree_provisioner",
+        ":worktree_repository_registrar",
+    ],
+)
+
+cc_library(
     name = "worktree_provisioner",
     srcs = ["worktree_provisioner.cc"],
     hdrs = ["worktree_provisioner.h"],
@@ -141,6 +158,16 @@ cc_test(
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_helper_commands_test",
+    srcs = ["worktree_helper_commands_test.cc"],
+    deps = [
+        ":worktree_helper_commands",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
 )
 
 cc_test(

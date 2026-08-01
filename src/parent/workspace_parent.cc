@@ -33,10 +33,7 @@
 #include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/tray/tray_manager.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
-#include "src/parent/worktree/repository_registration_request.h"
-#include "src/parent/worktree/worktree_provision_request.h"
-#include "src/parent/worktree/worktree_provision_result.h"
-#include "src/parent/worktree/worktree_provisioner.h"
+#include "src/parent/worktree/worktree_helper_commands.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_remover.h"
 #include "src/parent/worktree/worktree_repository_registrar.h"
@@ -410,56 +407,6 @@ void synchronize_active_tray_size_if_changed(TrayManager& trays, TerminalSize& l
   last_size = current_size;
 }
 
-int run_repository_registration_helper(std::span<char*> const arguments) {
-  if (arguments.size() != 4 && arguments.size() != 5) {
-    std::cerr << "usage: workspace_parent --register-worktree-repository "
-                 "<registry-path> <repository-root> [clone-url]\n";
-    return 2;
-  }
-
-  RepositoryRegistrationRequest request{
-      .repository_root = arguments[3],
-      .clone_url = std::nullopt,
-      .registry_path = arguments[2],
-  };
-  if (arguments.size() == 5) {
-    request.clone_url = arguments[4];
-  }
-
-  try {
-    WorktreeRepositoryRegistrar(configured_git_executable())
-        .register_repository(request, std::cout);
-    return 0;
-  } catch (std::exception const& error) {
-    std::cerr << "Repository registration failed: " << error.what() << '\n';
-    return 1;
-  }
-}
-
-int run_worktree_provision_helper(std::span<char*> const arguments) {
-  if (arguments.size() != 6) {
-    std::cerr << "usage: workspace_parent --provision-worktree "
-                 "<registry-path> <repository-root> <branch> <worktree-path>\n";
-    return 2;
-  }
-
-  try {
-    static_cast<void>(WorktreeProvisioner(configured_git_executable())
-                          .provision(
-                              WorktreeProvisionRequest{
-                                  .repository_root = arguments[3],
-                                  .branch = arguments[4],
-                                  .worktree_path = arguments[5],
-                                  .registry_path = arguments[2],
-                              },
-                              std::cout));
-    return 0;
-  } catch (std::exception const& error) {
-    std::cerr << "Worktree operation failed: " << error.what() << '\n';
-    return 1;
-  }
-}
-
 }  // namespace
 
 int run_workspace_parent() {
@@ -591,10 +538,12 @@ int run_workspace_parent() {
 
 int run_workspace_parent_command(std::span<char*> const arguments) {
   if (arguments.size() >= 2 && std::string_view(arguments[1]) == "--register-worktree-repository") {
-    return run_repository_registration_helper(arguments);
+    return run_worktree_repository_registration_command(
+        arguments, {.standard_output = std::cout, .error_output = std::cerr});
   }
   if (arguments.size() >= 2 && std::string_view(arguments[1]) == "--provision-worktree") {
-    return run_worktree_provision_helper(arguments);
+    return run_worktree_provision_command(
+        arguments, {.standard_output = std::cout, .error_output = std::cerr});
   }
   if (arguments.size() != 1) {
     std::cerr << "usage: workspace_parent\n";
