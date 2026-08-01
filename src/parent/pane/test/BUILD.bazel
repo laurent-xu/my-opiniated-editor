@@ -30,3 +30,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "pane_geometry_test",
+    srcs = ["pane_geometry_test.cc"],
+    visibility = ["//src/parent/pane:__pkg__"],
+    deps = [
+        "//src/parent/pane:pane_geometry",
+        "@googletest//:gtest_main",
+    ],
+)

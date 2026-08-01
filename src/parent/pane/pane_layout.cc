@@ -178,6 +178,18 @@ PaneNodeId PaneLayout::split_leaf(PaneNodeId const target, PaneSplitAxis const a
   return new_leaf_id;
 }
 
+void PaneLayout::set_split_percentages(PaneNodeId const split_node,
+                                       std::vector<int> const& weights) {
+  PaneSplit& split = nodes.at(split_node).mutable_split();
+  if (weights.size() != split.children.size()) {
+    throw std::invalid_argument("pane percentage count must match split child count");
+  }
+  std::vector<PanePercentage> const percentages = normalize_pane_percentages(weights);
+  for (std::size_t index = 0; index < split.children.size(); ++index) {
+    split.children[index].percentage = percentages[index];
+  }
+}
+
 PaneNodeId PaneLayout::allocate_node_id() {
   if (next_node_value == 0 || next_node_value == std::numeric_limits<PaneNodeId::Value>::max()) {
     throw std::overflow_error("pane layout exhausted node ids");

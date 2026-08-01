@@ -131,4 +131,17 @@ TEST(PaneLayoutTest, FindsPaneAndRejectsDuplicateOrInvalidSplitTargets) {
                std::invalid_argument);
 }
 
+TEST(PaneLayoutTest, SetPercentagesNormalizesWeightsAndAllowsCollapse) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  static_cast<void>(layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                                      moe::parent::PaneInsertion::AFTER));
+
+  layout.set_split_percentages(layout.root_id(), {0, 3});
+
+  EXPECT_EQ(percentages(layout.node(layout.root_id()).split()), (std::vector<int>{0, 100}));
+  EXPECT_THROW(layout.set_split_percentages(layout.root_id(), {1, 1, 1}), std::invalid_argument);
+  EXPECT_THROW(layout.set_split_percentages(first, {100}), std::logic_error);
+}
+
 }  // namespace

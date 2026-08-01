@@ -61,6 +61,7 @@ class PaneLayout {
 
   [[nodiscard]] PaneNodeId split_leaf(PaneNodeId target, PaneSplitAxis axis, PaneId new_pane,
                                       PaneInsertion insertion);
+  void set_split_percentages(PaneNodeId split_node, std::vector<int> const& weights);
 
  private:
   PaneLayout(PaneNodeId root_node, std::map<PaneNodeId, PaneLayoutNode> layout_nodes,
