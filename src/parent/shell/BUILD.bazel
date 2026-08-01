@@ -4,6 +4,7 @@ cc_library(
     hdrs = ["shell_configuration.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/pane/test:__pkg__",
         "//src/parent/tray:__pkg__",
         "//src/parent/tray/test:__pkg__",
     ],

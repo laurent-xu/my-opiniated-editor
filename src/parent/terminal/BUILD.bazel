@@ -4,6 +4,7 @@ cc_library(
     hdrs = ["content_pty_session.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/pane:__pkg__",
         "//src/parent/tray:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],

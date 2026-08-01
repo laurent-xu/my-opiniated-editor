@@ -1,0 +1,11 @@
+cc_test(
+    name = "pane_test",
+    srcs = ["pane_test.cc"],
+    visibility = ["//src/parent/pane:__pkg__"],
+    deps = [
+        "//src/parent/pane:pane_runtime",
+        "//src/parent/shell:shell_configuration",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)

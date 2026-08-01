@@ -1,0 +1,32 @@
+cc_library(
+    name = "pane_configuration",
+    hdrs = ["pane_config.h"],
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = ["//src/base:terminal_size"],
+)
+
+test_suite(
+    name = "pane_test",
+    tests = ["//src/parent/pane/test:pane_test"],
+    tags = ["integration"],
+)
+
+cc_library(
+    name = "pane_runtime",
+    srcs = ["pane.cc"],
+    hdrs = ["pane.h"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+    deps = [
+        ":pane_configuration",
+        "//src/base:file_descriptor",
+        "//src/base:process_id",
+        "//src/base:terminal_size",
+        "//src/parent/terminal:content_pty_session",
+        "//src/parent/terminal/screen:terminal_position",
+        "//src/parent/terminal/screen:terminal_screen",
+        "//src/process:process_exit_status",
+    ],
+)

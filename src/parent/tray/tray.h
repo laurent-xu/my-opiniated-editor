@@ -16,8 +16,7 @@
 
 namespace moe::parent {
 
-class ContentPtySession;
-class TerminalScreen;
+class Pane;
 class WorktreeManagementOverlay;
 
 class Tray {
@@ -44,14 +43,12 @@ class Tray {
   [[nodiscard]] WorktreeManagementOverlay const* worktree_management_overlay() const noexcept;
 
  private:
-  Tray(TrayId id, std::filesystem::path working_directory,
-       std::unique_ptr<ContentPtySession> content, base::TerminalSize size);
+  Tray(TrayId id, std::filesystem::path working_directory, std::unique_ptr<Pane> initial_pane);
 
   TrayId tray_id;
   std::string tray_label;
   std::filesystem::path cwd;
-  std::unique_ptr<ContentPtySession> content;
-  std::unique_ptr<TerminalScreen> terminal_screen;
+  std::unique_ptr<Pane> pane;
   std::unique_ptr<WorktreeManagementOverlay> worktree_overlay;
 };
 
