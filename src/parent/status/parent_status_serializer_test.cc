@@ -1,8 +1,9 @@
-#include "src/parent/parent_status.h"
+#include "src/parent/status/parent_status_serializer.h"
 
 #include <filesystem>
 
 #include "gtest/gtest.h"
+#include "src/parent/status/parent_status.h"
 #include "src/parent/tray/tray_number.h"
 
 namespace {

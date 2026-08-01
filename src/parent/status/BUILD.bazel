@@ -1,0 +1,35 @@
+cc_library(
+    name = "parent_overlay_kind",
+    hdrs = ["parent_overlay_kind.h"],
+    visibility = ["//src/parent:__pkg__"],
+)
+
+cc_library(
+    name = "parent_status",
+    hdrs = ["parent_status.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        ":parent_overlay_kind",
+        "//src/parent/tray:tray_identity",
+    ],
+)
+
+cc_library(
+    name = "parent_status_serializer",
+    srcs = ["parent_status_serializer.cc"],
+    hdrs = ["parent_status_serializer.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [":parent_status"],
+)
+
+cc_test(
+    name = "parent_status_serializer_test",
+    srcs = ["parent_status_serializer_test.cc"],
+    deps = [
+        ":parent_status",
+        ":parent_status_serializer",
+        "//src/parent/tray:tray_identity",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

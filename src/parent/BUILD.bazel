@@ -1,13 +1,7 @@
 cc_library(
     name = "parent_lib",
-    srcs = [
-        "parent_status.cc",
-        "workspace_parent.cc",
-    ],
-    hdrs = [
-        "parent_status.h",
-        "workspace_parent.h",
-    ],
+    srcs = ["workspace_parent.cc"],
+    hdrs = ["workspace_parent.h"],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
@@ -16,6 +10,8 @@ cc_library(
         "//src/parent/overlay:path_picker_overlay",
         "//src/parent/runtime:raw_terminal_mode_guard",
         "//src/parent/shell:shell_configuration",
+        "//src/parent/status:parent_status",
+        "//src/parent/status:parent_status_serializer",
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "//src/parent/tray:tray_manager",
@@ -50,15 +46,9 @@ test_suite(
     tests = ["//src/parent/overlay:path_picker_overlay_test"],
 )
 
-cc_test(
+test_suite(
     name = "parent_status_test",
-    srcs = ["parent_status_test.cc"],
-    deps = [
-        ":parent_lib",
-        "//src/parent/tray:tray_identity",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["unit"],
+    tests = ["//src/parent/status:parent_status_serializer_test"],
 )
 
 test_suite(
