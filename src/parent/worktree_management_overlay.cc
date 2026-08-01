@@ -12,8 +12,8 @@
 #include <utility>
 #include <vector>
 
-#include "src/parent/content_pty_session.h"
 #include "src/parent/overlay_footer.h"
+#include "src/parent/terminal/content_pty_session.h"
 #include "src/parent/worktree/repository_root_state.h"
 #include "src/parent/worktree/worktree_candidate_finder.h"
 #include "src/parent/worktree/worktree_provisioner.h"

@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include "src/parent/content_pty_session.h"
+#include "src/parent/terminal/content_pty_session.h"
 #include "src/parent/worktree_management_overlay.h"
 
 namespace moe::parent {

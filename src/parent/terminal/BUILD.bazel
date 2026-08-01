@@ -1,4 +1,18 @@
 cc_library(
+    name = "content_pty_session",
+    srcs = ["content_pty_session.cc"],
+    hdrs = ["content_pty_session.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+        "//src/base:terminal_size",
+        "//third_party/system:libutil",
+    ],
+)
+
+cc_library(
     name = "terminal_screen",
     srcs = ["terminal_screen.cc"],
     hdrs = [

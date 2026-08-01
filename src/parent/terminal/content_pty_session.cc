@@ -1,4 +1,4 @@
-#include "src/parent/content_pty_session.h"
+#include "src/parent/terminal/content_pty_session.h"
 
 #include <pty.h>
 #include <sys/ioctl.h>
