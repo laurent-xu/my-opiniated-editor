@@ -4,6 +4,37 @@ cc_library(
     hdrs = ["terminal_text_field.h"],
 )
 
+cc_library(
+    name = "worktree_overlay_process",
+    srcs = ["worktree_overlay_process.cc"],
+    hdrs = ["worktree_overlay_process.h"],
+    visibility = ["//src/parent/worktree/overlay:__pkg__"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:terminal_size",
+        "//src/parent/terminal:content_pty_session",
+        "//src/process:process_exit_status",
+    ],
+)
+
+cc_binary(
+    name = "worktree_overlay_process_test_helper",
+    testonly = True,
+    srcs = ["worktree_overlay_process_test_helper.cc"],
+)
+
+cc_test(
+    name = "worktree_overlay_process_test",
+    srcs = ["worktree_overlay_process_test.cc"],
+    data = [":worktree_overlay_process_test_helper"],
+    deps = [
+        ":worktree_overlay_process",
+        "//src/parent/test/support:test_paths",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
 cc_test(
     name = "terminal_text_field_test",
     srcs = ["terminal_text_field_test.cc"],
@@ -23,12 +54,12 @@ cc_library(
     ],
     deps = [
         ":terminal_text_field",
+        ":worktree_overlay_process",
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
         "//src/parent/overlay:overlay_core",
         "//src/parent/overlay:overlay_footer",
         "//src/parent/overlay:path_picker_overlay",
-        "//src/parent/terminal:content_pty_session",
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "//src/parent/worktree:repository_root_state",
@@ -36,7 +67,6 @@ cc_library(
         "//src/parent/worktree:worktree_provisioner",
         "//src/parent/worktree:worktree_registry_store",
         "//src/parent/worktree:worktree_repository_registrar",
-        "//src/process:process_exit_status",
     ],
 )
 

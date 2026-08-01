@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
 #include <set>
@@ -14,15 +13,14 @@
 
 #include "src/parent/overlay/overlay_footer.h"
 #include "src/parent/overlay/path_picker_overlay.h"
-#include "src/parent/terminal/content_pty_session.h"
 #include "src/parent/tray/tray_action_kind.h"
 #include "src/parent/tray/tray_id_kind.h"
+#include "src/parent/worktree/overlay/worktree_overlay_process.h"
 #include "src/parent/worktree/repository_root_state.h"
 #include "src/parent/worktree/worktree_candidate_finder.h"
 #include "src/parent/worktree/worktree_provisioner.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_repository_registrar.h"
-#include "src/process/process_exit_status.h"
 
 namespace moe::parent {
 
@@ -50,16 +48,6 @@ std::string trimmed(std::string value) {
     ++start;
   }
   return value.substr(start);
-}
-
-void remove_last_utf8_code_point(std::string& value) {
-  if (value.empty()) {
-    return;
-  }
-  value.pop_back();
-  while (!value.empty() && (static_cast<unsigned char>(value.back()) & 0xC0U) == 0x80U) {
-    value.pop_back();
-  }
 }
 
 std::string position_cursor(int const row, int const column) {
@@ -106,7 +94,8 @@ WorktreeManagementOverlay::WorktreeManagementOverlay(std::filesystem::path execu
       working_directory(std::move(directory)),
       git_executable(std::move(git)),
       fzf_executable(std::move(fzf)),
-      size(initial_size) {
+      size(initial_size),
+      helper_process(std::make_unique<WorktreeOverlayProcess>()) {
   update_session_trays(session_trays);
   load_repositories();
   activate_mode();
@@ -116,7 +105,7 @@ WorktreeManagementOverlay::~WorktreeManagementOverlay() = default;
 
 void WorktreeManagementOverlay::write_input(std::string_view const bytes) {
   if (current_stage() == Stage::RUNNING) {
-    process->write(bytes);
+    helper_process->write(bytes);
     return;
   }
   for (unsigned char const byte : bytes) {
@@ -128,15 +117,7 @@ bool WorktreeManagementOverlay::read_process_output() {
   if (picker != nullptr) {
     return picker->read_process_output();
   }
-  if (process == nullptr) {
-    return false;
-  }
-  std::optional<std::string> const output = process->read_available();
-  if (!output.has_value()) {
-    return false;
-  }
-  append_process_output(*output);
-  return true;
+  return helper_process->read_process_output();
 }
 
 bool WorktreeManagementOverlay::refresh_process_state() {
@@ -174,19 +155,11 @@ bool WorktreeManagementOverlay::refresh_process_state() {
     }
     return true;
   }
-  if (process == nullptr || current_stage() != Stage::RUNNING) {
+  if (current_stage() != Stage::RUNNING || !helper_process->refresh_process_state()) {
     return false;
   }
-  std::optional<process::ProcessExitStatus> const exit_status = process->try_wait_for_exit();
-  if (!exit_status.has_value()) {
-    return false;
-  }
-
-  process = nullptr;
-  append_transcript_line();
-  result_succeeded = exit_status->succeeded();
   mutable_current_stage() = Stage::RESULT;
-  if (result_succeeded && mode == Mode::ADD_WORKTREE) {
+  if (helper_process->result_succeeded() && mode == Mode::ADD_WORKTREE) {
     if (!pending_worktree_path.has_value()) {
       throw std::logic_error("successful worktree provision is missing its path");
     }
@@ -197,9 +170,7 @@ bool WorktreeManagementOverlay::refresh_process_state() {
 
 void WorktreeManagementOverlay::resize(TerminalSize const next_size) {
   size = next_size;
-  if (process != nullptr) {
-    process->resize(next_size);
-  }
+  helper_process->resize(next_size);
   if (picker != nullptr) {
     picker->resize(dialog_terminal_size());
   }
@@ -209,10 +180,7 @@ std::optional<base::FileDescriptor> WorktreeManagementOverlay::process_file_desc
   if (picker != nullptr) {
     return picker->process_file_descriptor();
   }
-  if (process == nullptr) {
-    return std::nullopt;
-  }
-  return process->file_descriptor();
+  return helper_process->file_descriptor();
 }
 
 bool WorktreeManagementOverlay::take_full_redraw_request() noexcept {
@@ -421,11 +389,7 @@ void WorktreeManagementOverlay::reset_mode_state() {
   pending_worktree_path.reset();
   switch_worktree_error_message.clear();
   repository_error_message.clear();
-  transcript_lines.clear();
-  transcript_line.clear();
-  process_escape_sequence = false;
-  process_control_sequence = false;
-  result_succeeded = false;
+  helper_process->clear();
   tray_action_confirmation.reset();
   picker_action_error.clear();
   load_repositories();
@@ -685,6 +649,8 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
       lines[6] = "Enter: continue | Tab: mode";
     }
   } else {
+    std::vector<std::string> const& transcript_lines = helper_process->transcript_lines();
+    std::string const& transcript_line = helper_process->transcript_line();
     std::size_t const transcript_capacity = height > 2 ? static_cast<std::size_t>(height - 2) : 0U;
     std::size_t const transcript_start = transcript_lines.size() > transcript_capacity
                                              ? transcript_lines.size() - transcript_capacity
@@ -701,7 +667,7 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
     if (height > 1) {
       std::string result_line = "Working";
       if (stage == Stage::RESULT) {
-        result_line = result_succeeded ? "Completed" : "Failed";
+        result_line = helper_process->result_succeeded() ? "Completed" : "Failed";
       }
       lines[static_cast<std::size_t>(height - 1)] = std::move(result_line);
     }
@@ -880,9 +846,7 @@ void WorktreeManagementOverlay::start_registration(std::optional<std::string> cl
     command.push_back(*clone_url);
   }
 
-  transcript_lines.clear();
-  transcript_line.clear();
-  process = ContentPtySession::start(command, working_directory, size);
+  helper_process->start(command, working_directory, size);
   repository_stage = Stage::RUNNING;
 }
 
@@ -896,51 +860,8 @@ void WorktreeManagementOverlay::start_worktree_provision() {
       selected_repository->string(), branch_field.value(),   pending_worktree_path->string(),
   };
 
-  transcript_lines.clear();
-  transcript_line.clear();
-  process = ContentPtySession::start(command, working_directory, size);
+  helper_process->start(command, working_directory, size);
   worktree_stage = Stage::RUNNING;
-}
-
-void WorktreeManagementOverlay::append_process_output(std::string_view const bytes) {
-  for (unsigned char const byte : bytes) {
-    if (process_control_sequence) {
-      if (byte >= 0x40U && byte <= 0x7EU) {
-        process_control_sequence = false;
-      }
-      continue;
-    }
-    if (process_escape_sequence) {
-      process_escape_sequence = false;
-      if (byte == '[') {
-        process_control_sequence = true;
-      }
-      continue;
-    }
-    if (byte == ESCAPE) {
-      process_escape_sequence = true;
-    } else if (byte == '\n' || byte == '\r') {
-      append_transcript_line();
-    } else if (byte == BACKSPACE || byte == '\b') {
-      remove_last_utf8_code_point(transcript_line);
-    } else if (byte >= 0x20U) {
-      transcript_line.push_back(static_cast<char>(byte));
-    }
-  }
-}
-
-void WorktreeManagementOverlay::append_transcript_line() {
-  if (!transcript_line.empty()) {
-    transcript_lines.push_back(std::move(transcript_line));
-    transcript_line.clear();
-    constexpr std::size_t MAX_TRANSCRIPT_LINES = 100;
-    if (transcript_lines.size() > MAX_TRANSCRIPT_LINES) {
-      transcript_lines.erase(
-          transcript_lines.begin(),
-          transcript_lines.begin() +
-              static_cast<std::ptrdiff_t>(transcript_lines.size() - MAX_TRANSCRIPT_LINES));
-    }
-  }
 }
 
 std::filesystem::path WorktreeManagementOverlay::resolved_path(

@@ -20,8 +20,8 @@
 
 namespace moe::parent {
 
-class ContentPtySession;
 class PathPickerOverlay;
+class WorktreeOverlayProcess;
 
 class WorktreeManagementOverlay : public Overlay {
  public:
@@ -112,8 +112,6 @@ class WorktreeManagementOverlay : public Overlay {
   void submit_clone_url();
   void start_registration(std::optional<std::string> clone_url);
   void start_worktree_provision();
-  void append_process_output(std::string_view bytes);
-  void append_transcript_line();
   [[nodiscard]] std::filesystem::path resolved_path(TerminalTextField const& field,
                                                     std::string const& description) const;
 
@@ -146,12 +144,7 @@ class WorktreeManagementOverlay : public Overlay {
   std::optional<TrayActionRequest> tray_action_confirmation;
   std::string picker_action_error;
   std::unique_ptr<PathPickerOverlay> picker;
-  std::unique_ptr<ContentPtySession> process;
-  std::vector<std::string> transcript_lines;
-  std::string transcript_line;
-  bool process_escape_sequence = false;
-  bool process_control_sequence = false;
-  bool result_succeeded = false;
+  std::unique_ptr<WorktreeOverlayProcess> helper_process;
   bool full_redraw_requested = false;
 };
 
