@@ -2,6 +2,8 @@ startup --output_user_root=/tmp/my-opiniated-editor-bazel-cache
 
 build --cxxopt=-std=c++23
 build --color=yes
+build --disk_cache=~/.cache/my-opiniated-editor/bazel/disk
+build --experimental_disk_cache_gc_max_size=10G
 build --host_platform=@rules_nixpkgs_core//platforms:host
 
 test --color=yes
