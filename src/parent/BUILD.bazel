@@ -2,18 +2,13 @@ cc_library(
     name = "parent_lib",
     srcs = [
         "parent_status.cc",
-        "tray.cc",
-        "tray_manager.cc",
         "workspace_parent.cc",
     ],
     hdrs = [
         "parent_status.h",
-        "tray.h",
-        "tray_config.h",
-        "tray_manager.h",
-        "tray_output_source.h",
         "workspace_parent.h",
     ],
+    visibility = ["//src/parent/tray:__pkg__"],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
@@ -21,11 +16,9 @@ cc_library(
         "//src/parent/input:parent_input_decoder",
         "//src/parent/overlay:path_picker_overlay",
         "//src/parent/runtime:raw_terminal_mode_guard",
-        "//src/parent/terminal:content_pty_session",
-        "//src/parent/terminal:terminal_position",
-        "//src/parent/terminal:terminal_screen",
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
+        "//src/parent/tray:tray_manager",
         "//src/parent/worktree/overlay:worktree_management_overlay",
         "//src/parent/worktree:repository_registration_request",
         "//src/parent/worktree:worktree_provision_request",
@@ -34,7 +27,6 @@ cc_library(
         "//src/parent/worktree:worktree_registry_store",
         "//src/parent/worktree:worktree_remover",
         "//src/parent/worktree:worktree_repository_registrar",
-        "//src/process:process_exit_status",
     ],
 )
 
@@ -79,13 +71,7 @@ cc_test(
     tags = ["unit"],
 )
 
-cc_test(
+test_suite(
     name = "tray_manager_test",
-    srcs = ["tray_manager_test.cc"],
-    deps = [
-        ":parent_lib",
-        "//src/parent/tray:tray_identity",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["integration"],
+    tests = ["//src/parent/tray:tray_manager_test"],
 )

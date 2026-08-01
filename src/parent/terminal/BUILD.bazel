@@ -16,6 +16,7 @@ cc_library(
     hdrs = ["content_pty_session.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/tray:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
     deps = [
@@ -92,6 +93,7 @@ cc_library(
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/overlay:__pkg__",
+        "//src/parent/tray:__pkg__",
     ],
     deps = [
         ":control_sequence_introducer_parser",

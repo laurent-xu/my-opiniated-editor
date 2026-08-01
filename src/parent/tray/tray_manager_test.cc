@@ -1,4 +1,4 @@
-#include "src/parent/tray_manager.h"
+#include "src/parent/tray/tray_manager.h"
 
 #include <poll.h>
 

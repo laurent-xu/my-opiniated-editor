@@ -2,7 +2,10 @@ cc_library(
     name = "worktree_management_overlay",
     srcs = ["worktree_management_overlay.cc"],
     hdrs = ["worktree_management_overlay.h"],
-    visibility = ["//src/parent:__pkg__"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:terminal_size",

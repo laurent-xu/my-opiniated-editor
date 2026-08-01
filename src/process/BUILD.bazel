@@ -5,6 +5,7 @@ cc_library(
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/terminal:__pkg__",
+        "//src/parent/tray:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
 )

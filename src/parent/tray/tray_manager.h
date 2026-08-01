@@ -11,8 +11,8 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
-#include "src/parent/tray.h"
-#include "src/parent/tray_output_source.h"
+#include "src/parent/tray/tray.h"
+#include "src/parent/tray/tray_output_source.h"
 
 namespace moe::parent {
 

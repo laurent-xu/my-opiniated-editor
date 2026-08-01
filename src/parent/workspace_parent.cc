@@ -30,7 +30,7 @@
 #include "src/parent/runtime/raw_terminal_mode_guard.h"
 #include "src/parent/tray/tray_action_kind.h"
 #include "src/parent/tray/tray_id_kind.h"
-#include "src/parent/tray_manager.h"
+#include "src/parent/tray/tray_manager.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 #include "src/parent/worktree/repository_registration_request.h"
 #include "src/parent/worktree/worktree_provision_request.h"
