@@ -1,0 +1,55 @@
+BRIDGE_TEST_DEPS = [":bridge_test_support"]
+BRIDGE_TEST_SIZE = "medium"
+BRIDGE_TEST_TAGS = ["integration"]
+BRIDGE_SUITE_VISIBILITY = ["//src/bridge:__pkg__"]
+
+py_library(
+    name = "bridge_test_support",
+    srcs = ["bridge_test_support.py"],
+    data = ["//src/bridge:parent_ws_bridge_integration_runtime"],
+)
+
+py_test(
+    name = "authentication_configuration_integration_test",
+    srcs = ["authentication_configuration_integration_test.py"],
+    size = BRIDGE_TEST_SIZE,
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
+    deps = BRIDGE_TEST_DEPS,
+)
+
+py_test(
+    name = "browser_input_routing_integration_test",
+    srcs = ["browser_input_routing_integration_test.py"],
+    size = BRIDGE_TEST_SIZE,
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
+    deps = BRIDGE_TEST_DEPS,
+)
+
+py_test(
+    name = "browser_lifecycle_integration_test",
+    srcs = ["browser_lifecycle_integration_test.py"],
+    size = BRIDGE_TEST_SIZE,
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
+    deps = BRIDGE_TEST_DEPS,
+)
+
+py_test(
+    name = "tray_workflows_integration_test",
+    srcs = ["tray_workflows_integration_test.py"],
+    size = BRIDGE_TEST_SIZE,
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
+    deps = BRIDGE_TEST_DEPS,
+)
+
+py_test(
+    name = "worktree_removal_integration_test",
+    srcs = ["worktree_removal_integration_test.py"],
+    size = BRIDGE_TEST_SIZE,
+    tags = BRIDGE_TEST_TAGS,
+    visibility = BRIDGE_SUITE_VISIBILITY,
+    deps = BRIDGE_TEST_DEPS,
+)

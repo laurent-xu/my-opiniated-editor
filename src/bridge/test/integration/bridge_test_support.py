@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+from pathlib import Path
 import socket
 import struct
 import subprocess
@@ -27,6 +28,26 @@ def shell_marker_command(marker: str) -> bytes:
 def bridge_state_directory(port: int) -> str:
     return os.path.join(
         os.environ["TEST_TMPDIR"], f"bridge-state-{port}", "my-opiniated-editor"
+    )
+
+
+def register_worktree_repository(port: int, repository: Path, porcelain: str) -> None:
+    registry_path = Path(bridge_state_directory(port)) / "worktrees.pb"
+    subprocess.run(
+        [
+            runfile_path("src/parent/workspace_parent"),
+            "--register-worktree-repository",
+            str(registry_path),
+            str(repository),
+        ],
+        env={
+            **os.environ,
+            "MOE_GIT_EXECUTABLE": runfile_path("test/fixtures/fake_git"),
+            "MOE_FAKE_GIT_WORKTREE_LIST": porcelain,
+        },
+        check=True,
+        capture_output=True,
+        text=True,
     )
 
 

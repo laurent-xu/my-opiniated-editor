@@ -90,18 +90,25 @@ cc_binary(
     deps = [":parent_ws_server"],
 )
 
-py_test(
-    name = "parent_ws_bridge_integration_test",
+filegroup(
+    name = "parent_ws_bridge_integration_runtime",
     srcs = [
-        "parent_ws_bridge_integration_test.py",
-        "parent_ws_bridge_test_lib.py",
-    ],
-    data = [
         ":parent_ws_bridge",
         "//src/parent:workspace_parent",
         "//test/fixtures:fake_fzf",
         "//test/fixtures:fake_git",
     ],
-    size = "medium",
+    visibility = ["//src/bridge/test/integration:__pkg__"],
+)
+
+test_suite(
+    name = "parent_ws_bridge_integration_test",
+    tests = [
+        "//src/bridge/test/integration:authentication_configuration_integration_test",
+        "//src/bridge/test/integration:browser_input_routing_integration_test",
+        "//src/bridge/test/integration:browser_lifecycle_integration_test",
+        "//src/bridge/test/integration:tray_workflows_integration_test",
+        "//src/bridge/test/integration:worktree_removal_integration_test",
+    ],
     tags = ["integration"],
 )
