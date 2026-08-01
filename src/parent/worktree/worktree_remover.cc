@@ -54,7 +54,7 @@ process::ProcessExitStatus run_command(std::vector<std::string> const& command) 
   do {
     waited = base::ProcessId(::waitpid(child_pid.value(), &status, 0));
   } while (waited.is_error() && errno == EINTR);
-  if (waited.value() != child_pid.value()) {
+  if (waited != child_pid) {
     throw std::system_error(errno, std::generic_category(), "wait for Git worktree removal");
   }
   return process::ProcessExitStatus::from_wait_status(process::ProcessWaitStatus(status));
@@ -158,7 +158,7 @@ bool git_lists_worktree(std::string const& git_executable, GitWorktreeQuery cons
   do {
     waited = base::ProcessId(::waitpid(child_pid.value(), &status, 0));
   } while (waited.is_error() && errno == EINTR);
-  if (waited.value() != child_pid.value()) {
+  if (waited != child_pid) {
     throw std::system_error(errno, std::generic_category(), "wait for Git worktree list");
   }
   process::ProcessExitStatus const exit_status =

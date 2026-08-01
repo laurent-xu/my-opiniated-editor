@@ -92,7 +92,7 @@ CommandResult run_command(std::vector<std::string> const& command,
   do {
     waited = base::ProcessId(::waitpid(child_pid.value(), &wait_status, 0));
   } while (waited.is_error() && errno == EINTR);
-  if (waited.value() != child_pid.value()) {
+  if (waited != child_pid) {
     throw errno_error("wait for command");
   }
   return {

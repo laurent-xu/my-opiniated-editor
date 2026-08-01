@@ -13,6 +13,9 @@ class ProcessId {
   [[nodiscard]] constexpr bool is_valid_parent_process() const { return raw_value > 0; }
   [[nodiscard]] constexpr bool is_error() const { return raw_value < 0; }
 
+  [[nodiscard]] friend constexpr bool operator==(ProcessId const& lhs,
+                                                 ProcessId const& rhs) = default;
+
  private:
   pid_t raw_value;
 };

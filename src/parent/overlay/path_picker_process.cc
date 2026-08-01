@@ -170,7 +170,7 @@ bool PathPickerProcess::refresh_process_state() {
   if (result.is_child_process()) {
     return false;
   }
-  if (result.value() != child_process_id.value()) {
+  if (result != child_process_id) {
     if (result.is_error() && errno == ECHILD) {
       child_process_id = base::ProcessId{};
       process_finished = true;

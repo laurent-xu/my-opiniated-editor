@@ -153,7 +153,7 @@ std::optional<process::ProcessExitStatus> ContentPtySession::try_wait_for_exit()
   if (result.is_child_process()) {
     return std::nullopt;
   }
-  if (result.value() == child_process_id.value()) {
+  if (result == child_process_id) {
     child_process_id = base::ProcessId{};
     return process::ProcessExitStatus::from_wait_status(process::ProcessWaitStatus(status));
   }
