@@ -69,6 +69,31 @@ moe::parent::ParentCommandDispatchEffects confirm_removal(
       COMMAND_DISPATCHER_TEST_SIZE);
 }
 
+TEST(ParentCommandDispatcherRemovalTest, BlocksProtectedWorktreeBeforeConfirmation) {
+  std::unique_ptr<moe::parent::TrayManager> trays = moe::parent::test_support::start_manager();
+  moe::parent::ParentCommandDispatcherConfig config =
+      command_dispatcher_test_config("remove-protected-worktree");
+  save_tracked_worktree(config, false);
+  config.protected_worktree_path = std::filesystem::weakly_canonical(worktree_path(config));
+  static_cast<void>(trays->switch_to_worktree(worktree_path(config)));
+  moe::parent::TrayId const protected_tray = trays->active_id();
+  moe::parent::ParentCommandDispatcher dispatcher(*trays, config);
+
+  open_overlay_and_begin_removal(dispatcher);
+
+  ASSERT_NE(trays->active_worktree_management_overlay(), nullptr);
+  EXPECT_FALSE(trays->active_worktree_management_overlay()->has_tray_action_confirmation());
+  EXPECT_NE(trays->active_worktree_management_overlay()->redraw_output().find(
+                "Remove blocked: this worktree runs my-opiniated-editor"),
+            std::string::npos);
+  EXPECT_EQ(trays->active_id(), protected_tray);
+  EXPECT_TRUE(std::filesystem::exists(worktree_path(config)));
+  moe::parent::persistence::WorktreeRegistry const registry =
+      moe::parent::WorktreeRegistryStore(config.worktree_registry_path).load();
+  ASSERT_EQ(registry.repositories_size(), 1);
+  EXPECT_EQ(registry.repositories(0).worktrees_size(), 1);
+}
+
 TEST(ParentCommandDispatcherRemovalTest, UnregistersWorktreeAlreadyAbsentFromGit) {
   std::unique_ptr<moe::parent::TrayManager> trays = moe::parent::test_support::start_manager();
   moe::parent::ParentCommandDispatcherConfig config =

@@ -194,6 +194,12 @@ WorktreeRemover::WorktreeRemover(std::string executable) : git_executable(std::m
 void WorktreeRemover::remove(WorktreeRemovalRequest const& request) const {
   std::filesystem::path const worktree_path =
       normalized_path(request.worktree_path, "worktree path");
+  std::filesystem::path const protected_worktree_path =
+      normalized_path(request.protected_worktree_path, "protected worktree path");
+  if (worktree_path == protected_worktree_path) {
+    throw std::runtime_error("protected worktree runs my-opiniated-editor and cannot be removed: " +
+                             worktree_path.string());
+  }
   WorktreeRegistryStore const store(request.registry_path);
   persistence::WorktreeRegistry registry = store.load();
   TrackedWorktree const tracked = find_tracked_worktree(registry, worktree_path);

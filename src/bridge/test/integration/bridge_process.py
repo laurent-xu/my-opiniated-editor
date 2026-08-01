@@ -89,6 +89,7 @@ def start_bridge(
     port: int,
     extra_args: list[str] | None = None,
     extra_environment: dict[str, str] | None = None,
+    cwd: str | os.PathLike[str] | None = None,
 ) -> subprocess.Popen:
     environment = dict(os.environ)
     environment["XDG_STATE_HOME"] = os.path.join(
@@ -97,6 +98,7 @@ def start_bridge(
     environment["MOE_FZF_EXECUTABLE"] = runfile_path("test/fixtures/fake_fzf")
     if extra_environment is not None:
         environment.update(extra_environment)
+    working_directory = os.fspath(cwd) if cwd is not None else os.environ["TEST_TMPDIR"]
     command = [
         runfile_path("src/bridge/parent_ws_bridge"),
         "--port",
@@ -106,7 +108,7 @@ def start_bridge(
         "--parent",
         runfile_path("src/parent/workspace_parent"),
         "--cwd",
-        os.environ["TEST_TMPDIR"],
+        working_directory,
         "--state-directory",
         bridge_state_directory(port),
     ]

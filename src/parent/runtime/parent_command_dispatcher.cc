@@ -96,6 +96,13 @@ ParentCommandDispatchEffects ParentCommandDispatcher::dispatch(ParentInputComman
       TrayActionKind const kind = begin_action->action == TrayActionIntent::CLEAR
                                       ? TrayActionKind::CLEAR
                                       : TrayActionKind::REMOVE;
+      std::optional<TrayId> const highlighted = overlay->highlighted_tray_id();
+      if (kind == TrayActionKind::REMOVE && highlighted.has_value() &&
+          highlighted->kind() == TrayIdKind::WORKTREE &&
+          highlighted->worktree_root() == config.protected_worktree_path) {
+        overlay->set_picker_action_error("Remove blocked: this worktree runs my-opiniated-editor");
+        return {.publish_status = true, .redraw = true};
+      }
       static_cast<void>(overlay->begin_tray_action_confirmation(kind));
     }
     return {.publish_status = true, .redraw = true};
@@ -144,6 +151,7 @@ bool ParentCommandDispatcher::resolve_tray_action_confirmation(bool const confir
           .remove(WorktreeRemovalRequest{
               .registry_path = config.worktree_registry_path,
               .worktree_path = request->tray_id.worktree_root(),
+              .protected_worktree_path = config.protected_worktree_path,
           });
     } catch (std::exception const& error) {
       overlay->set_picker_action_error("Remove failed: " + std::string(error.what()));

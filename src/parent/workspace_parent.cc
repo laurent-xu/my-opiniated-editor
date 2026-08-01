@@ -273,6 +273,8 @@ int run_workspace_parent() {
   std::optional<base::FileDescriptor> const parent_status_descriptor =
       parent_status_descriptor_from_environment();
   std::filesystem::path const parent_executable = current_parent_executable();
+  std::filesystem::path const protected_worktree_path =
+      std::filesystem::weakly_canonical(std::filesystem::current_path());
   std::unique_ptr<TrayManager> trays = TrayManager::start(TrayConfig{
       .command = interactive_shell_command(configured_login_shell()),
       .working_directory = configured_home_directory(),
@@ -281,6 +283,7 @@ int run_workspace_parent() {
   ParentCommandDispatcher command_dispatcher(
       *trays, ParentCommandDispatcherConfig{
                   .parent_executable = parent_executable,
+                  .protected_worktree_path = protected_worktree_path,
                   .worktree_registry_path = WorktreeRegistryStore::default_registry_path(),
                   .git_executable = configured_git_executable(),
                   .fzf_executable = configured_fzf_executable(),

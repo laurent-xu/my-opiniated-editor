@@ -42,6 +42,11 @@ longer lists the worktree, unregistering it is idempotent. If Git still lists
 the worktree after a failed removal, preserve both the registry entry and the
 in-session tray so the operation can be retried.
 
+The parent process's startup directory is a protected worktree. The service
+starts in `%h/my-opiniated-editor/main`, whose built parent and bridge binaries
+remain in use for the service lifetime, so removal attempts must fail before
+Git or the registry is changed.
+
 See [Worktree Tray Plan](../implementation/worktree-tray-plan.md) for the
 milestone order and interaction details.
 

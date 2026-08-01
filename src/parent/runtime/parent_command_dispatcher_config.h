@@ -7,6 +7,7 @@ namespace moe::parent {
 
 struct ParentCommandDispatcherConfig {
   std::filesystem::path parent_executable;
+  std::filesystem::path protected_worktree_path;
   std::filesystem::path worktree_registry_path;
   std::string git_executable;
   std::string fzf_executable;

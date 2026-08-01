@@ -14,6 +14,7 @@ ParentCommandDispatcherConfig command_dispatcher_test_config(std::string_view co
   std::filesystem::create_directories(root);
   return {
       .parent_executable = "/unused/workspace_parent",
+      .protected_worktree_path = root / "protected-worktree",
       .worktree_registry_path = root / "state" / "worktrees.pb",
       .git_executable = runfile_path("test/fixtures/fake_git").string(),
       .fzf_executable = runfile_path("test/fixtures/fake_fzf").string(),

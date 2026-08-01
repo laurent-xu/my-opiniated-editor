@@ -66,6 +66,14 @@ moe::parent::WorktreeRemover remover() {
   return moe::parent::WorktreeRemover(runfile_path("test/fixtures/fake_git").string());
 }
 
+moe::parent::WorktreeRemovalRequest removal_request(TestState const& state) {
+  return {
+      .registry_path = state.registry_path,
+      .worktree_path = state.worktree,
+      .protected_worktree_path = state.root / "protected-worktree",
+  };
+}
+
 class WorktreeRemoverTest : public testing::Test {
  protected:
   WorktreeRemoverTest()
@@ -93,7 +101,7 @@ TEST_F(WorktreeRemoverTest, PurgesGitWorktreeAndUnregistersIt) {
   TestState const state = create_state("remove-live");
   configure_list(porcelain(state, true));
 
-  remover().remove({.registry_path = state.registry_path, .worktree_path = state.worktree});
+  remover().remove(removal_request(state));
 
   EXPECT_FALSE(std::filesystem::exists(state.worktree));
   moe::parent::persistence::WorktreeRegistry const registry =
@@ -106,7 +114,7 @@ TEST_F(WorktreeRemoverTest, SilentlyUnregistersWorktreeAlreadyAbsentFromGit) {
   TestState const state = create_state("remove-already-purged");
   configure_list(porcelain(state, false));
 
-  remover().remove({.registry_path = state.registry_path, .worktree_path = state.worktree});
+  remover().remove(removal_request(state));
 
   EXPECT_TRUE(std::filesystem::exists(state.worktree));
   EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
@@ -125,7 +133,7 @@ TEST_F(WorktreeRemoverTest, PrunesMissingWorktreeWhenRemoveCannotFindItsDirector
   ASSERT_EQ(::setenv("MOE_FAKE_GIT_FAIL_OPERATION", "worktree-remove", 1), 0);
   ASSERT_EQ(::setenv("MOE_FAKE_GIT_PRUNE_MARKER", marker.c_str(), 1), 0);
 
-  remover().remove({.registry_path = state.registry_path, .worktree_path = state.worktree});
+  remover().remove(removal_request(state));
 
   EXPECT_TRUE(std::filesystem::exists(marker));
   EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
@@ -140,9 +148,7 @@ TEST_F(WorktreeRemoverTest, PreservesRegistryWhenGitStillOwnsWorktreeAfterFailur
   configure_list(porcelain(state, true));
   ASSERT_EQ(::setenv("MOE_FAKE_GIT_FAIL_OPERATION", "worktree-remove", 1), 0);
 
-  EXPECT_THROW(
-      remover().remove({.registry_path = state.registry_path, .worktree_path = state.worktree}),
-      std::runtime_error);
+  EXPECT_THROW(remover().remove(removal_request(state)), std::runtime_error);
 
   EXPECT_TRUE(std::filesystem::exists(state.worktree));
   EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
@@ -159,12 +165,34 @@ TEST_F(WorktreeRemoverTest, FailedAtomicSaveLeavesPreviousRegistryReadable) {
       state.registry_path.parent_path(),
       std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
 
-  EXPECT_THROW(
-      remover().remove({.registry_path = state.registry_path, .worktree_path = state.worktree}),
-      std::runtime_error);
+  EXPECT_THROW(remover().remove(removal_request(state)), std::runtime_error);
 
   std::filesystem::permissions(state.registry_path.parent_path(),
                                std::filesystem::perms::owner_all);
+  EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
+                .load()
+                .repositories(0)
+                .worktrees_size(),
+            1);
+}
+
+TEST_F(WorktreeRemoverTest, RejectsProtectedWorktreeBeforeChangingGitOrRegistry) {
+  TestState const state = create_state("remove-protected");
+  configure_list(porcelain(state, true));
+
+  try {
+    remover().remove({
+        .registry_path = state.registry_path,
+        .worktree_path = state.worktree,
+        .protected_worktree_path = state.worktree,
+    });
+    FAIL() << "protected worktree removal did not fail";
+  } catch (std::runtime_error const& error) {
+    EXPECT_NE(std::string(error.what()).find("protected worktree runs my-opiniated-editor"),
+              std::string::npos);
+  }
+
+  EXPECT_TRUE(std::filesystem::exists(state.worktree));
   EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
                 .load()
                 .repositories(0)

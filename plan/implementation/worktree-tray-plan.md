@@ -301,6 +301,9 @@ Deliverables:
   worktree, including stale metadata for a worktree missing from disk, then
   atomically removes the worktree from the protobuf registry and destroys any
   in-session tray.
+- The worktree used as the parent process's startup directory is protected from
+  removal. `Shift+R` reports an error immediately instead of opening the
+  confirmation, and the removal boundary rejects the same path as a backstop.
 - A worktree already absent from Git is silently unregistered. A Git failure
   that leaves the worktree registered does not alter the protobuf registry or
   destroy its tray.
