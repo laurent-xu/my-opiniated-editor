@@ -21,7 +21,7 @@
 #include <vector>
 
 #include "src/base/owned_file_descriptor.h"
-#include "src/bridge/browser_assets.h"
+#include "src/bridge/browser/browser_assets.h"
 #include "src/bridge/http_protocol.h"
 #include "src/bridge/parent_pty_session.h"
 #include "src/bridge/protocol/application_message_codec.h"

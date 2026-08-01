@@ -23,12 +23,6 @@ cc_library(
 )
 
 cc_library(
-    name = "browser_assets",
-    srcs = ["browser_assets.cc"],
-    hdrs = ["browser_assets.h"],
-)
-
-cc_library(
     name = "websocket_protocol",
     srcs = ["websocket_protocol.cc"],
     hdrs = ["websocket_protocol.h"],
@@ -60,7 +54,6 @@ cc_library(
     srcs = ["parent_ws_server.cc"],
     hdrs = ["parent_ws_server.h"],
     deps = [
-        ":browser_assets",
         ":http_protocol",
         ":parent_pty_session",
         ":pty_size",
@@ -69,6 +62,7 @@ cc_library(
         "//src/base:file_descriptor",
         "//src/base:network_port",
         "//src/base:owned_file_descriptor",
+        "//src/bridge/browser:browser_assets",
         "//src/bridge/protocol:application_message_codec",
         "//src/bridge/server:pty_websocket_hub",
         "//src/parent/input:parent_input_commands",

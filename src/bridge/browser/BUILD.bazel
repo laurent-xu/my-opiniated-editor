@@ -1,0 +1,13 @@
+cc_library(
+    name = "browser_assets",
+    srcs = [
+        "browser_client_js.cc",
+        "browser_css.cc",
+        "browser_html.cc",
+    ],
+    hdrs = [
+        "browser_assets.h",
+        "browser_font_families.h",
+    ],
+    visibility = ["//src/bridge:__pkg__"],
+)

@@ -1,89 +1,7 @@
-#include "src/bridge/browser_assets.h"
+#include "src/bridge/browser/browser_assets.h"
+#include "src/bridge/browser/browser_font_families.h"
 
 namespace moe::bridge {
-namespace {
-
-constexpr char const* XTERM_VERSION = "6.0.0";
-constexpr char const* XTERM_ADDON_FIT_VERSION = "0.11.0";
-constexpr char const* XTERM_ADDON_WEBGL_VERSION = "0.19.0";
-constexpr char const* TERMINAL_PRIMARY_FONT_FAMILY = "\"JetBrainsMono Nerd Font Mono\"";
-constexpr char const* TERMINAL_FONT_FAMILY =
-    "\"JetBrainsMono Nerd Font Mono\", \"JetBrainsMono NFM\", "
-    "\"JetBrainsMonoNL Nerd Font Mono\", \"JetBrainsMonoNL NFM\", "
-    "\"MesloLGS NF\", \"FiraCode Nerd Font Mono\", \"Hack Nerd Font Mono\", "
-    "\"CaskaydiaCove Nerd Font Mono\", \"Symbols Nerd Font Mono\", "
-    "\"PowerlineSymbols\", \"DejaVu Sans Mono for Powerline\", "
-    "\"DejaVu Sans Mono\", \"Liberation Mono\", \"Noto Sans Mono\", "
-    "\"Cascadia Mono\", \"JetBrains Mono\", monospace";
-
-}  // namespace
-
-std::string browser_html() {
-  return std::string(R"HTML(<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>my-opiniated-editor</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@)HTML") +
-         XTERM_VERSION + R"HTML(/css/xterm.css">
-    <link rel="stylesheet" href="/style.css">
-  </head>
-  <body>
-    <main id="workspace">
-      <div id="terminal" aria-label="workspace terminal"></div>
-      <div id="status" aria-live="polite">connecting</div>
-    </main>
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@)HTML" +
-         XTERM_VERSION +
-         R"HTML(/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@)HTML" +
-         XTERM_ADDON_FIT_VERSION + R"HTML(/lib/addon-fit.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@)HTML" +
-         XTERM_ADDON_WEBGL_VERSION + R"HTML(/lib/addon-webgl.js"></script>
-    <script src="/client.js"></script>
-  </body>
-</html>
-)HTML";
-}
-
-std::string browser_css() {
-  return std::string(R"CSS(:root {
-  color-scheme: dark;
-  font-family: )CSS") +
-         TERMINAL_FONT_FAMILY + R"CSS(;
-}
-
-html,
-body,
-#workspace {
-  height: 100%;
-  margin: 0;
-}
-
-body {
-  background: #0b0d0e;
-  color: #d9e2df;
-}
-
-#workspace {
-  display: grid;
-  grid-template-rows: 1fr 24px;
-}
-
-#terminal {
-  min-height: 0;
-}
-
-#status {
-  align-content: center;
-  border-top: 1px solid #27302d;
-  color: #9fb2ab;
-  font-size: 12px;
-  padding: 0 10px;
-}
-)CSS";
-}
 
 std::string browser_client_js() {
   return std::string(R"JS((async () => {
@@ -98,7 +16,7 @@ std::string browser_client_js() {
     }
     try {
       await document.fonts.load('14px )JS") +
-         TERMINAL_PRIMARY_FONT_FAMILY + R"JS(', "\ue0b0");
+         browser::PRIMARY_TERMINAL_FONT_FAMILY + R"JS(', "\ue0b0");
       await document.fonts.ready;
     } catch (error) {
       return;
@@ -112,7 +30,7 @@ std::string browser_client_js() {
     convertEol: true,
     customGlyphs: true,
     fontFamily: ')JS" +
-         TERMINAL_FONT_FAMILY + R"JS(',
+         browser::TERMINAL_FONT_FAMILY + R"JS(',
     fontSize: 14,
     lineHeight: 1.15,
     theme: {
