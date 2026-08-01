@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/base/ascii_whitespace.h"
 #include "src/parent/worktree/git_worktree_list.h"
 #include "src/parent/worktree/registry/worktree_registry_store.h"
 #include "src/parent/worktree/repository_registration_request.h"
@@ -31,19 +32,6 @@ void require_success(process::CommandResult const& result, std::string const& ac
     throw std::runtime_error(action + " failed with exit code " +
                              std::to_string(result.exit_status.value()));
   }
-}
-
-std::string trimmed(std::string value) {
-  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' ||
-                            value.back() == '\t')) {
-    value.pop_back();
-  }
-  std::size_t start = 0;
-  while (start < value.size() && (value[start] == '\n' || value[start] == '\r' ||
-                                  value[start] == ' ' || value[start] == '\t')) {
-    ++start;
-  }
-  return value.substr(start);
 }
 
 std::filesystem::path normalized_absolute_path(std::filesystem::path const& path,
@@ -155,7 +143,7 @@ RepositoryRootState inspect_repository_root(std::filesystem::path const& reposit
     return RepositoryRootState::RECOVERABLE_BARE_ROOT;
   }
   if (!std::filesystem::is_regular_file(pointer_path, error) || error != std::error_code{} ||
-      trimmed(read_git_pointer(pointer_path)) != GIT_POINTER_CONTENT) {
+      base::trim_ascii_whitespace(read_git_pointer(pointer_path)) != GIT_POINTER_CONTENT) {
     throw std::invalid_argument("repository .git must point to ./.bare: " + pointer_path.string());
   }
   return RepositoryRootState::BARE_ROOT;
@@ -187,7 +175,7 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
   bool created_root = false;
 
   if (state == RepositoryRootState::EMPTY) {
-    if (!request.clone_url.has_value() || trimmed(*request.clone_url).empty()) {
+    if (!request.clone_url.has_value() || base::trim_ascii_whitespace(*request.clone_url).empty()) {
       throw std::invalid_argument("clone URL is required for a new repository root");
     }
 
@@ -202,7 +190,8 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
 
     progress << "Cloning bare repository...\n";
     process::CommandResult const clone = process::run_command(
-        {git_executable, "clone", "--bare", trimmed(*request.clone_url), (root / ".bare").string()},
+        {git_executable, "clone", "--bare", base::trim_ascii_whitespace(*request.clone_url),
+         (root / ".bare").string()},
         process::StandardOutputMode::INHERIT);
     if (!clone.exit_status.succeeded()) {
       std::error_code cleanup_error;
@@ -226,7 +215,7 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
       {git_executable, "--git-dir", bare_directory.string(), "rev-parse", "--is-bare-repository"},
       process::StandardOutputMode::CAPTURE);
   require_success(bare_check, "validate bare repository");
-  if (trimmed(bare_check.standard_output) != "true") {
+  if (base::trim_ascii_whitespace(bare_check.standard_output) != "true") {
     throw std::runtime_error("repository .bare directory is not a bare Git repository");
   }
 
@@ -248,7 +237,8 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
       {git_executable, "--git-dir", bare_directory.string(), "symbolic-ref", "--quiet", "HEAD"},
       process::StandardOutputMode::CAPTURE);
   require_success(default_branch, "resolve default branch");
-  std::string const default_branch_ref = trimmed(default_branch.standard_output);
+  std::string const default_branch_ref =
+      base::trim_ascii_whitespace(default_branch.standard_output);
   if (!default_branch_ref.starts_with("refs/heads/")) {
     throw std::runtime_error("repository does not expose a default branch");
   }
@@ -257,7 +247,7 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
                             "--verify", "--quiet", default_branch_ref + "^{commit}"},
                            process::StandardOutputMode::CAPTURE);
   require_success(default_branch_commit, "resolve default branch commit");
-  if (trimmed(default_branch_commit.standard_output).empty()) {
+  if (base::trim_ascii_whitespace(default_branch_commit.standard_output).empty()) {
     throw std::runtime_error("repository default branch does not resolve to a commit");
   }
 

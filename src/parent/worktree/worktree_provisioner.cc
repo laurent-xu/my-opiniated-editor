@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/base/ascii_whitespace.h"
 #include "src/parent/worktree/registry/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_provision_kind.h"
 #include "src/parent/worktree/worktree_provision_request.h"
@@ -22,19 +23,6 @@
 
 namespace moe::parent {
 namespace {
-
-std::string trimmed(std::string value) {
-  while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' ||
-                            value.back() == '\t')) {
-    value.pop_back();
-  }
-  std::size_t start = 0;
-  while (start < value.size() && (value[start] == '\n' || value[start] == '\r' ||
-                                  value[start] == ' ' || value[start] == '\t')) {
-    ++start;
-  }
-  return value.substr(start);
-}
 
 std::string read_file(std::filesystem::path const& path, std::string const& description) {
   std::ifstream input(path, std::ios::binary);
@@ -124,7 +112,8 @@ void validate_existing_worktree(std::filesystem::path const& worktree_path,
   if (!std::filesystem::is_regular_file(pointer_path, error) || error != std::error_code{}) {
     throw std::invalid_argument("Existing worktree must contain a .git pointer file");
   }
-  std::string const pointer = trimmed(read_file(pointer_path, "worktree .git pointer"));
+  std::string const pointer =
+      base::trim_ascii_whitespace(read_file(pointer_path, "worktree .git pointer"));
   constexpr std::string_view PREFIX = "gitdir: ";
   if (!pointer.starts_with(PREFIX)) {
     throw std::invalid_argument("Existing worktree has an invalid .git pointer");
@@ -141,7 +130,8 @@ void validate_existing_worktree(std::filesystem::path const& worktree_path,
     throw std::invalid_argument("Existing worktree does not belong to the selected repository");
   }
 
-  std::string const head = trimmed(read_file(administrative_path / "HEAD", "worktree HEAD"));
+  std::string const head =
+      base::trim_ascii_whitespace(read_file(administrative_path / "HEAD", "worktree HEAD"));
   if (head != "ref: refs/heads/" + branch) {
     throw std::invalid_argument("Existing worktree branch does not match the entered branch");
   }
@@ -181,7 +171,7 @@ std::string resolve_default_branch(std::string const& git_executable,
     throw std::runtime_error("resolve repository default branch failed with exit code " +
                              std::to_string(symbolic_ref.exit_status.value()));
   }
-  std::string const reference = trimmed(symbolic_ref.standard_output);
+  std::string const reference = base::trim_ascii_whitespace(symbolic_ref.standard_output);
   constexpr std::string_view PREFIX = "refs/heads/";
   if (!reference.starts_with(PREFIX) || reference.size() == PREFIX.size()) {
     throw std::runtime_error("repository does not expose a default branch");
@@ -191,7 +181,8 @@ std::string resolve_default_branch(std::string const& git_executable,
       process::run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse",
                             "--verify", "--quiet", reference + "^{commit}"},
                            process::StandardOutputMode::CAPTURE);
-  if (!commit.exit_status.succeeded() || trimmed(commit.standard_output).empty()) {
+  if (!commit.exit_status.succeeded() ||
+      base::trim_ascii_whitespace(commit.standard_output).empty()) {
     throw std::runtime_error("repository default branch does not resolve to a commit");
   }
   return reference.substr(PREFIX.size());
@@ -203,7 +194,8 @@ bool resolves_to_commit(std::string const& git_executable,
       process::run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse",
                             "--verify", "--quiet", reference + "^{commit}"},
                            process::StandardOutputMode::CAPTURE);
-  return result.exit_status.succeeded() && !trimmed(result.standard_output).empty();
+  return result.exit_status.succeeded() &&
+         !base::trim_ascii_whitespace(result.standard_output).empty();
 }
 
 }  // namespace

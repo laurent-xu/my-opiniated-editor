@@ -4,6 +4,22 @@ package_group(
 )
 
 cc_library(
+    name = "ascii_whitespace",
+    srcs = ["ascii_whitespace.cc"],
+    hdrs = ["ascii_whitespace.h"],
+    visibility = [":src_packages"],
+)
+
+cc_test(
+    name = "ascii_whitespace_test",
+    srcs = ["ascii_whitespace_test.cc"],
+    deps = [
+        ":ascii_whitespace",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "file_descriptor",
     hdrs = ["file_descriptor.h"],
     visibility = [":src_packages"],

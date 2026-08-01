@@ -25,6 +25,7 @@ cc_library(
         ":git_worktree_list",
         ":repository_registration_request",
         ":repository_root_state",
+        "//src/base:ascii_whitespace",
         "//src/parent/worktree/registry:worktree_registry_store",
         "//src/process:command_runner",
     ],
@@ -115,6 +116,7 @@ cc_library(
         "//src/parent/worktree/overlay:__pkg__",
     ],
     deps = [
+        "//src/base:ascii_whitespace",
         "//src/parent/worktree/registry:worktree_registry_store",
         ":worktree_provision_kind",
         ":worktree_provision_request",

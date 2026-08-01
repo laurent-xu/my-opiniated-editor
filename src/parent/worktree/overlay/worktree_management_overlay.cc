@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/base/ascii_whitespace.h"
 #include "src/parent/overlay/overlay_footer.h"
 #include "src/parent/overlay/path_picker_overlay.h"
 #include "src/parent/tray/tray_action_kind.h"
@@ -38,19 +39,6 @@ constexpr std::array<std::string_view, 3> MODE_LABELS{
     "Add worktree",
     "Add repository",
 };
-
-std::string trimmed(std::string value) {
-  while (!value.empty() && (value.back() == ' ' || value.back() == '\t' || value.back() == '\r' ||
-                            value.back() == '\n')) {
-    value.pop_back();
-  }
-  std::size_t start = 0;
-  while (start < value.size() && (value[start] == ' ' || value[start] == '\t' ||
-                                  value[start] == '\r' || value[start] == '\n')) {
-    ++start;
-  }
-  return value.substr(start);
-}
 
 std::string position_cursor(int const row, int const column) {
   return "\x1b[" + std::to_string(row) + ";" + std::to_string(column) + "H";
@@ -706,7 +694,7 @@ void WorktreeManagementOverlay::submit_worktree_repository() {
 }
 
 void WorktreeManagementOverlay::submit_worktree_branch() {
-  std::string const branch = trimmed(workflow_state.branch_field().value());
+  std::string const branch = base::trim_ascii_whitespace(workflow_state.branch_field().value());
   try {
     std::optional<std::filesystem::path> const selected_repository = selected_repository_root();
     if (!selected_repository.has_value()) {
@@ -737,7 +725,8 @@ void WorktreeManagementOverlay::submit_repository_root() {
 }
 
 void WorktreeManagementOverlay::submit_clone_url() {
-  std::string const clone_url = trimmed(workflow_state.clone_url_field().value());
+  std::string const clone_url =
+      base::trim_ascii_whitespace(workflow_state.clone_url_field().value());
   if (clone_url.empty()) {
     workflow_state.error_message(Mode::ADD_REPOSITORY) = "Clone URL must not be empty";
     return;
@@ -788,7 +777,7 @@ void WorktreeManagementOverlay::start_worktree_provision() {
 
 std::filesystem::path WorktreeManagementOverlay::resolved_path(
     TerminalTextField const& field, std::string const& description) const {
-  std::string value = trimmed(field.value());
+  std::string value = base::trim_ascii_whitespace(field.value());
   if (value.empty()) {
     throw std::invalid_argument(description + " must not be empty");
   }
