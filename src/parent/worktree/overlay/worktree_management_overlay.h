@@ -16,6 +16,7 @@
 #include "src/parent/tray/tray_action_request.h"
 #include "src/parent/tray/tray_preview_request.h"
 #include "src/parent/tray/tray_snapshot.h"
+#include "src/parent/worktree/overlay/terminal_text_field.h"
 
 namespace moe::parent {
 
@@ -76,11 +77,6 @@ class WorktreeManagementOverlay : public Overlay {
     CONTROL_SEQUENCE,
   };
 
-  struct TextField {
-    std::string value;
-    std::size_t cursor_offset = 0;
-  };
-
   WorktreeManagementOverlay(std::filesystem::path parent_executable,
                             std::filesystem::path registry_path,
                             std::filesystem::path working_directory, std::string git_executable,
@@ -90,8 +86,8 @@ class WorktreeManagementOverlay : public Overlay {
 
   [[nodiscard]] Stage current_stage() const;
   [[nodiscard]] Stage& mutable_current_stage();
-  [[nodiscard]] TextField* active_text_field();
-  [[nodiscard]] TextField const* active_text_field() const;
+  [[nodiscard]] TerminalTextField* active_text_field();
+  [[nodiscard]] TerminalTextField const* active_text_field() const;
   [[nodiscard]] std::string& active_error_message();
   [[nodiscard]] std::string const& active_error_message() const;
   [[nodiscard]] std::string footer_output() const;
@@ -109,10 +105,6 @@ class WorktreeManagementOverlay : public Overlay {
   void write_mode_switch_input(unsigned char byte);
   void write_editing_input(unsigned char byte);
   void handle_input_control_sequence(unsigned char final_byte);
-  void move_input_cursor_left();
-  void move_input_cursor_right();
-  void erase_before_input_cursor();
-  void erase_at_input_cursor();
   void submit_input();
   void submit_worktree_repository();
   void submit_worktree_branch();
@@ -122,7 +114,7 @@ class WorktreeManagementOverlay : public Overlay {
   void start_worktree_provision();
   void append_process_output(std::string_view bytes);
   void append_transcript_line();
-  [[nodiscard]] std::filesystem::path resolved_path(TextField const& field,
+  [[nodiscard]] std::filesystem::path resolved_path(TerminalTextField const& field,
                                                     std::string const& description) const;
 
   std::filesystem::path parent_executable;
@@ -134,9 +126,9 @@ class WorktreeManagementOverlay : public Overlay {
   Mode mode = Mode::SWITCH_WORKTREE;
   Stage worktree_stage = Stage::WORKTREE_REPOSITORY;
   Stage repository_stage = Stage::REPOSITORY_ROOT;
-  TextField branch_field;
-  TextField repository_root_field;
-  TextField clone_url_field;
+  TerminalTextField branch_field;
+  TerminalTextField repository_root_field;
+  TerminalTextField clone_url_field;
   std::string mode_switch_sequence;
   InputSequenceState input_sequence_state = InputSequenceState::NORMAL;
   std::string input_control_sequence_parameters;

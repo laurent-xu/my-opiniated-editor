@@ -1,4 +1,19 @@
 cc_library(
+    name = "terminal_text_field",
+    srcs = ["terminal_text_field.cc"],
+    hdrs = ["terminal_text_field.h"],
+)
+
+cc_test(
+    name = "terminal_text_field_test",
+    srcs = ["terminal_text_field_test.cc"],
+    deps = [
+        ":terminal_text_field",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "worktree_management_overlay",
     srcs = ["worktree_management_overlay.cc"],
     hdrs = ["worktree_management_overlay.h"],
@@ -7,6 +22,7 @@ cc_library(
         "//src/parent/tray:__pkg__",
     ],
     deps = [
+        ":terminal_text_field",
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
         "//src/parent/overlay:overlay_core",

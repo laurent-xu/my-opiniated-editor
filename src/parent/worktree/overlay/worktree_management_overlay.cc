@@ -62,28 +62,6 @@ void remove_last_utf8_code_point(std::string& value) {
   }
 }
 
-std::size_t previous_utf8_code_point_start(std::string const& value, std::size_t const offset) {
-  if (offset == 0) {
-    return 0;
-  }
-  std::size_t previous = offset - 1U;
-  while (previous > 0 && (static_cast<unsigned char>(value[previous]) & 0xC0U) == 0x80U) {
-    --previous;
-  }
-  return previous;
-}
-
-std::size_t next_utf8_code_point_end(std::string const& value, std::size_t const offset) {
-  if (offset >= value.size()) {
-    return value.size();
-  }
-  std::size_t next = offset + 1U;
-  while (next < value.size() && (static_cast<unsigned char>(value[next]) & 0xC0U) == 0x80U) {
-    ++next;
-  }
-  return next;
-}
-
 std::string position_cursor(int const row, int const column) {
   return "\x1b[" + std::to_string(row) + ";" + std::to_string(column) + "H";
 }
@@ -362,7 +340,7 @@ WorktreeManagementOverlay::Stage& WorktreeManagementOverlay::mutable_current_sta
   throw std::logic_error("switch-worktree mode does not have a mutable stage");
 }
 
-WorktreeManagementOverlay::TextField* WorktreeManagementOverlay::active_text_field() {
+TerminalTextField* WorktreeManagementOverlay::active_text_field() {
   switch (current_stage()) {
     case Stage::WORKTREE_BRANCH:
       return &branch_field;
@@ -375,7 +353,7 @@ WorktreeManagementOverlay::TextField* WorktreeManagementOverlay::active_text_fie
   }
 }
 
-WorktreeManagementOverlay::TextField const* WorktreeManagementOverlay::active_text_field() const {
+TerminalTextField const* WorktreeManagementOverlay::active_text_field() const {
   switch (current_stage()) {
     case Stage::WORKTREE_BRANCH:
       return &branch_field;
@@ -435,9 +413,9 @@ void WorktreeManagementOverlay::load_repositories() {
 void WorktreeManagementOverlay::reset_mode_state() {
   worktree_stage = Stage::WORKTREE_REPOSITORY;
   repository_stage = Stage::REPOSITORY_ROOT;
-  branch_field = {};
-  repository_root_field = {};
-  clone_url_field = {};
+  branch_field.clear();
+  repository_root_field.clear();
+  clone_url_field.clear();
   selected_repository.reset();
   repository_root.reset();
   pending_worktree_path.reset();
@@ -651,9 +629,9 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
   std::optional<std::filesystem::path> const selected_repository = selected_repository_root();
   std::vector<std::string> lines(static_cast<std::size_t>(height));
   std::size_t input_cursor_column = 1;
-  auto const displayed_input = [&](TextField const& field) {
-    std::string const prompt = "> " + field.value;
-    std::size_t const prompt_cursor = 2U + std::min(field.cursor_offset, field.value.size());
+  auto const displayed_input = [&](TerminalTextField const& field) {
+    std::string const prompt = "> " + field.value();
+    std::size_t const prompt_cursor = 2U + std::min(field.cursor_offset(), field.value().size());
     std::size_t const first_visible = prompt_cursor >= width ? prompt_cursor - width + 1U : 0U;
     input_cursor_column = prompt_cursor - first_visible + 1U;
     return prompt.substr(first_visible, width);
@@ -772,73 +750,47 @@ void WorktreeManagementOverlay::write_editing_input(unsigned char const byte) {
     return;
   }
 
-  TextField* const field = active_text_field();
+  TerminalTextField* const field = active_text_field();
   if (field == nullptr) {
     return;
   }
   if (byte == BACKSPACE || byte == '\b') {
-    erase_before_input_cursor();
+    field->backspace();
     active_error_message().clear();
     return;
   }
   if (byte >= 0x20U) {
-    field->value.insert(field->cursor_offset, 1U, static_cast<char>(byte));
-    ++field->cursor_offset;
+    field->insert(byte);
     active_error_message().clear();
   }
 }
 
 void WorktreeManagementOverlay::handle_input_control_sequence(unsigned char const final_byte) {
   if (final_byte == 'D') {
-    move_input_cursor_left();
+    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+      field->move_cursor_left();
+    }
   } else if (final_byte == 'C') {
-    move_input_cursor_right();
+    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+      field->move_cursor_right();
+    }
   } else if (final_byte == 'H' ||
              (final_byte == '~' && (input_control_sequence_parameters == "1" ||
                                     input_control_sequence_parameters == "7"))) {
-    if (TextField* const field = active_text_field(); field != nullptr) {
-      field->cursor_offset = 0;
+    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+      field->move_cursor_to_start();
     }
   } else if (final_byte == 'F' ||
              (final_byte == '~' && (input_control_sequence_parameters == "4" ||
                                     input_control_sequence_parameters == "8"))) {
-    if (TextField* const field = active_text_field(); field != nullptr) {
-      field->cursor_offset = field->value.size();
+    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+      field->move_cursor_to_end();
     }
   } else if (final_byte == '~' && input_control_sequence_parameters == "3") {
-    erase_at_input_cursor();
+    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+      field->delete_at_cursor();
+    }
   }
-}
-
-void WorktreeManagementOverlay::move_input_cursor_left() {
-  if (TextField* const field = active_text_field(); field != nullptr) {
-    field->cursor_offset = previous_utf8_code_point_start(field->value, field->cursor_offset);
-  }
-}
-
-void WorktreeManagementOverlay::move_input_cursor_right() {
-  if (TextField* const field = active_text_field(); field != nullptr) {
-    field->cursor_offset = next_utf8_code_point_end(field->value, field->cursor_offset);
-  }
-}
-
-void WorktreeManagementOverlay::erase_before_input_cursor() {
-  TextField* const field = active_text_field();
-  if (field == nullptr) {
-    return;
-  }
-  std::size_t const previous = previous_utf8_code_point_start(field->value, field->cursor_offset);
-  field->value.erase(previous, field->cursor_offset - previous);
-  field->cursor_offset = previous;
-}
-
-void WorktreeManagementOverlay::erase_at_input_cursor() {
-  TextField* const field = active_text_field();
-  if (field == nullptr) {
-    return;
-  }
-  std::size_t const next = next_utf8_code_point_end(field->value, field->cursor_offset);
-  field->value.erase(field->cursor_offset, next - field->cursor_offset);
 }
 
 void WorktreeManagementOverlay::submit_input() {
@@ -870,15 +822,14 @@ void WorktreeManagementOverlay::submit_worktree_repository() {
 }
 
 void WorktreeManagementOverlay::submit_worktree_branch() {
-  std::string const branch = trimmed(branch_field.value);
+  std::string const branch = trimmed(branch_field.value());
   try {
     std::optional<std::filesystem::path> const selected_repository = selected_repository_root();
     if (!selected_repository.has_value()) {
       throw std::logic_error("selected repository is missing");
     }
     pending_worktree_path = derived_worktree_path(*selected_repository, branch);
-    branch_field.value = branch;
-    branch_field.cursor_offset = branch_field.value.size();
+    branch_field.set_value(branch);
     worktree_error_message.clear();
     start_worktree_provision();
   } catch (std::exception const& error) {
@@ -902,7 +853,7 @@ void WorktreeManagementOverlay::submit_repository_root() {
 }
 
 void WorktreeManagementOverlay::submit_clone_url() {
-  std::string const clone_url = trimmed(clone_url_field.value);
+  std::string const clone_url = trimmed(clone_url_field.value());
   if (clone_url.empty()) {
     repository_error_message = "Clone URL must not be empty";
     return;
@@ -942,7 +893,7 @@ void WorktreeManagementOverlay::start_worktree_provision() {
   }
   std::vector<std::string> const command{
       parent_executable.string(),    "--provision-worktree", registry_path.string(),
-      selected_repository->string(), branch_field.value,     pending_worktree_path->string(),
+      selected_repository->string(), branch_field.value(),   pending_worktree_path->string(),
   };
 
   transcript_lines.clear();
@@ -993,8 +944,8 @@ void WorktreeManagementOverlay::append_transcript_line() {
 }
 
 std::filesystem::path WorktreeManagementOverlay::resolved_path(
-    TextField const& field, std::string const& description) const {
-  std::string value = trimmed(field.value);
+    TerminalTextField const& field, std::string const& description) const {
+  std::string value = trimmed(field.value());
   if (value.empty()) {
     throw std::invalid_argument(description + " must not be empty");
   }
