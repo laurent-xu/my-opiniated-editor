@@ -92,16 +92,21 @@ TEST(PaneNavigationTest, SkipsCollapsedCandidates) {
             third);
 }
 
-TEST(PaneNavigationTest, RejectsSplitNodeAsSource) {
+TEST(PaneNavigationTest, SplitNodeCanNavigateToExternalLeaf) {
   moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
-  static_cast<void>(layout.split_leaf(layout.root_id(), moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
-                                      pane_id(2), moe::parent::PaneInsertion::AFTER));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+  static_cast<void>(layout.split_leaf(second, moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, pane_id(3),
+                                      moe::parent::PaneInsertion::AFTER));
+  moe::parent::PaneNodeId const right_group = required(layout.node(second).parent());
   moe::parent::PaneGeometry const geometry = moe::parent::calculate_pane_geometry(
       layout, {.origin = {.row = 0, .column = 0}, .size = {.rows = 20, .cols = 90}});
 
-  EXPECT_THROW(static_cast<void>(moe::parent::find_directional_pane(
-                   layout, geometry, layout.root_id(), moe::parent::PaneFocusDirection::RIGHT)),
-               std::invalid_argument);
+  EXPECT_EQ(moe::parent::find_directional_pane(layout, geometry, right_group,
+                                               moe::parent::PaneFocusDirection::LEFT),
+            first);
 }
 
 }  // namespace

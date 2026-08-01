@@ -105,10 +105,6 @@ std::optional<PaneNodeId> find_directional_pane(PaneLayout const& layout,
                                                 PaneGeometry const& geometry,
                                                 PaneNodeId const source,
                                                 PaneFocusDirection const direction) {
-  if (!layout.node(source).is_leaf()) {
-    throw std::invalid_argument("directional pane source must be a leaf");
-  }
-
   PaneRegion const& source_region = geometry.region(source);
   std::optional<PaneNodeId> best_node;
   std::optional<DirectionalScore> best_score;
