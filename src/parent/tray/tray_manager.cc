@@ -100,7 +100,19 @@ bool TrayManager::focus_active_pane(PaneId const pane_id) {
   return mutable_active_tray().focus_pane(pane_id);
 }
 
+bool TrayManager::focus_active_pane_direction(PaneFocusDirection const direction) {
+  return mutable_active_tray().focus_pane_direction(direction);
+}
+
 bool TrayManager::close_active_focused_pane() { return mutable_active_tray().close_focused_pane(); }
+
+bool TrayManager::toggle_active_focused_pane_maximized() {
+  return mutable_active_tray().toggle_focused_pane_maximized();
+}
+
+bool TrayManager::active_focused_pane_is_maximized() const {
+  return active_tray().focused_pane_is_maximized();
+}
 
 PaneId TrayManager::active_focused_pane_id() const { return active_tray().focused_pane_id(); }
 

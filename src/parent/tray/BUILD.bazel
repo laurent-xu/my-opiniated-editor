@@ -71,6 +71,7 @@ cc_library(
         "//src/parent/pane:pane_geometry",
         "//src/parent/pane:pane_identity",
         "//src/parent/pane:pane_layout",
+        "//src/parent/pane:pane_navigation",
         "//src/parent/pane:pane_runtime",
         "//src/parent/terminal/screen:terminal_position",
         "//src/parent/worktree/overlay:worktree_management_overlay",
@@ -98,6 +99,7 @@ cc_library(
         "//src/base:terminal_size",
         "//src/parent/pane:pane_identity",
         "//src/parent/pane:pane_layout",
+        "//src/parent/pane:pane_navigation",
         "//src/parent/worktree/overlay:worktree_management_overlay",
     ],
 )

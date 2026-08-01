@@ -141,6 +141,7 @@ TrayExitUpdate Tray::reap_exited_panes() {
   if (!panes.contains(focused_pane)) {
     focused_pane = pane_layout.node(pane_layout.leaf_nodes().front()).pane_id();
   }
+  pane_maximized = false;
   resize_panes();
   return {.changed = true, .tray_exit_status = std::nullopt};
 }
@@ -171,6 +172,7 @@ PaneId Tray::split_focused_pane(PaneSplitAxis const axis, PaneInsertion const in
   static_cast<void>(pane_layout.split_leaf(focused_node, axis, new_pane_id, insertion));
   panes.emplace(new_pane_id, std::move(new_pane));
   focused_pane = new_pane_id;
+  pane_maximized = false;
   resize_panes();
   return new_pane_id;
 }
@@ -179,8 +181,24 @@ bool Tray::focus_pane(PaneId const pane_id) {
   if (!panes.contains(pane_id)) {
     return false;
   }
+  bool const changed = pane_id != focused_pane;
   focused_pane = pane_id;
+  if (pane_maximized && changed) {
+    resize_panes();
+  }
   return true;
+}
+
+bool Tray::focus_pane_direction(PaneFocusDirection const direction) {
+  PaneGeometry const geometry = calculate_pane_geometry(
+      pane_layout, {.origin = {.row = 0, .column = 0}, .size = current_size});
+  PaneNodeId const focused_node = required_pane_node(pane_layout.find_pane(focused_pane));
+  std::optional<PaneNodeId> const target =
+      find_directional_pane(pane_layout, geometry, focused_node, direction);
+  if (!target.has_value()) {
+    return false;
+  }
+  return focus_pane(pane_layout.node(target.value()).pane_id());
 }
 
 bool Tray::close_focused_pane() {
@@ -196,9 +214,21 @@ bool Tray::close_focused_pane() {
   }
   focused_pane = pane_layout.node(next_focus.value()).pane_id();
   panes.erase(closing_pane);
+  pane_maximized = false;
   resize_panes();
   return true;
 }
+
+bool Tray::toggle_focused_pane_maximized() {
+  if (panes.size() == 1U) {
+    return false;
+  }
+  pane_maximized = !pane_maximized;
+  resize_panes();
+  return true;
+}
+
+bool Tray::focused_pane_is_maximized() const { return pane_maximized; }
 
 TrayId const& Tray::id() const { return tray_id; }
 
@@ -249,6 +279,13 @@ PaneId Tray::allocate_pane_id() {
 
 std::string Tray::render_layout(TerminalPosition const origin, base::TerminalSize const size,
                                 bool const restore_focused_cursor) const {
+  if (pane_maximized) {
+    if (restore_focused_cursor && size.rows > 0 && size.cols > 0) {
+      return pane(focused_pane).redraw_output_at(origin);
+    }
+    return pane(focused_pane).preview_output(origin, size);
+  }
+
   PaneGeometry const geometry =
       calculate_pane_geometry(pane_layout, {.origin = origin, .size = size});
   PaneNodeId const focused_node = required_pane_node(pane_layout.find_pane(focused_pane));
@@ -276,6 +313,10 @@ void Tray::resize_panes() {
       pane_layout, {.origin = {.row = 0, .column = 0}, .size = current_size});
   for (PaneNodeId const node_id : pane_layout.leaf_nodes()) {
     mutable_pane(pane_layout.node(node_id).pane_id()).resize(pty_size(geometry.region(node_id)));
+  }
+  if (pane_maximized) {
+    mutable_pane(focused_pane)
+        .resize({.rows = std::max(current_size.rows, 1), .cols = std::max(current_size.cols, 1)});
   }
 }
 

@@ -12,6 +12,7 @@
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
 #include "src/parent/pane/pane_layout.h"
+#include "src/parent/pane/pane_navigation.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray/tray_number.h"
@@ -39,7 +40,10 @@ class TrayManager {
   void resize_active(base::TerminalSize size);
   [[nodiscard]] PaneId split_active_focused_pane(PaneSplitAxis axis, PaneInsertion insertion);
   [[nodiscard]] bool focus_active_pane(PaneId pane_id);
+  [[nodiscard]] bool focus_active_pane_direction(PaneFocusDirection direction);
   [[nodiscard]] bool close_active_focused_pane();
+  [[nodiscard]] bool toggle_active_focused_pane_maximized();
+  [[nodiscard]] bool active_focused_pane_is_maximized() const;
   [[nodiscard]] PaneId active_focused_pane_id() const;
   [[nodiscard]] TraySnapshot switch_to(TrayNumber number);
   [[nodiscard]] TraySnapshot switch_to_worktree(std::filesystem::path const& path);

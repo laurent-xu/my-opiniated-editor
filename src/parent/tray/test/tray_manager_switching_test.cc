@@ -73,6 +73,19 @@ TEST(TrayManagerTest, SwitchingBackPreservesFocusedPane) {
   EXPECT_EQ(manager->active_focused_pane_id(), second_pane);
 }
 
+TEST(TrayManagerTest, MaximizeStateBelongsToItsTray) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  ASSERT_TRUE(manager->toggle_active_focused_pane_maximized());
+
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+  EXPECT_FALSE(manager->active_focused_pane_is_maximized());
+
+  static_cast<void>(manager->switch_to(moe::parent::TrayNumber::one()));
+  EXPECT_TRUE(manager->active_focused_pane_is_maximized());
+}
+
 TEST(TrayManagerTest, WorktreeTrayStartsShellInWorktreeRoot) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
   std::filesystem::path const root = create_fake_worktree("cwd-worktree");

@@ -98,6 +98,71 @@ TEST(TrayManagerTest, SplitResizesBothChildPtysToTheirRegions) {
   EXPECT_NE(first_output.find("24 40"), std::string::npos);
 }
 
+TEST(TrayManagerTest, MovesFocusAcrossNestedPaneGeometry) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const left = manager->active_focused_pane_id();
+  moe::parent::PaneId const top_right = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneId const bottom_right = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, moe::parent::PaneInsertion::AFTER);
+  ASSERT_TRUE(manager->focus_active_pane(left));
+
+  EXPECT_TRUE(manager->focus_active_pane_direction(moe::parent::PaneFocusDirection::RIGHT));
+  EXPECT_EQ(manager->active_focused_pane_id(), top_right);
+  EXPECT_TRUE(manager->focus_active_pane_direction(moe::parent::PaneFocusDirection::DOWN));
+  EXPECT_EQ(manager->active_focused_pane_id(), bottom_right);
+  EXPECT_TRUE(manager->focus_active_pane_direction(moe::parent::PaneFocusDirection::LEFT));
+  EXPECT_EQ(manager->active_focused_pane_id(), left);
+  EXPECT_FALSE(manager->focus_active_pane_direction(moe::parent::PaneFocusDirection::LEFT));
+}
+
+TEST(TrayManagerTest, MaximizeIsTransientAndRestoresSplitPtySize) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+
+  ASSERT_TRUE(manager->toggle_active_focused_pane_maximized());
+  EXPECT_TRUE(manager->active_focused_pane_is_maximized());
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__maximized_size_ready__"));
+  std::string const maximized_output = read_until(*manager, "__maximized_size_ready__");
+  EXPECT_NE(maximized_output.find("24 80"), std::string::npos);
+
+  ASSERT_TRUE(manager->toggle_active_focused_pane_maximized());
+  EXPECT_FALSE(manager->active_focused_pane_is_maximized());
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__restored_size_ready__"));
+  std::string const restored_output = read_until(*manager, "__restored_size_ready__");
+  EXPECT_NE(restored_output.find("24 39"), std::string::npos);
+}
+
+TEST(TrayManagerTest, MaximizeRendersOnlyFocusedPaneUntilRestored) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const first_pane = manager->active_focused_pane_id();
+  manager->write_input(shell_marker_command("__visible_first__"));
+  static_cast<void>(read_until(*manager, "__visible_first__"));
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  manager->write_input(shell_marker_command("__visible_second__"));
+  static_cast<void>(read_until(*manager, "__visible_second__"));
+
+  ASSERT_TRUE(manager->toggle_active_focused_pane_maximized());
+  std::string const maximized = manager->active_redraw_output();
+  EXPECT_EQ(maximized.find("__visible_first__"), std::string::npos);
+  EXPECT_NE(maximized.find("__visible_second__"), std::string::npos);
+
+  ASSERT_TRUE(manager->focus_active_pane(first_pane));
+  EXPECT_TRUE(manager->active_focused_pane_is_maximized());
+  std::string const refocused = manager->active_redraw_output();
+  EXPECT_NE(refocused.find("__visible_first__"), std::string::npos);
+  EXPECT_EQ(refocused.find("__visible_second__"), std::string::npos);
+
+  ASSERT_TRUE(manager->toggle_active_focused_pane_maximized());
+  std::string const restored = manager->active_redraw_output();
+  EXPECT_NE(restored.find("__visible_first__"), std::string::npos);
+  EXPECT_NE(restored.find("__visible_second__"), std::string::npos);
+}
+
 TEST(TrayManagerTest, ResizeAppliesToActiveTray) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
 

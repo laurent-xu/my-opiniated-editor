@@ -12,6 +12,7 @@
 #include "src/base/terminal_size.h"
 #include "src/parent/pane/pane_id.h"
 #include "src/parent/pane/pane_layout.h"
+#include "src/parent/pane/pane_navigation.h"
 #include "src/parent/terminal/screen/terminal_position.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
@@ -50,7 +51,10 @@ class Tray {
   [[nodiscard]] PaneId focused_pane_id() const;
   [[nodiscard]] PaneId split_focused_pane(PaneSplitAxis axis, PaneInsertion insertion);
   [[nodiscard]] bool focus_pane(PaneId pane_id);
+  [[nodiscard]] bool focus_pane_direction(PaneFocusDirection direction);
   [[nodiscard]] bool close_focused_pane();
+  [[nodiscard]] bool toggle_focused_pane_maximized();
+  [[nodiscard]] bool focused_pane_is_maximized() const;
   [[nodiscard]] TrayId const& id() const;
   [[nodiscard]] TraySnapshot snapshot() const;
   void set_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay);
@@ -77,6 +81,7 @@ class Tray {
   PaneId focused_pane;
   PaneId::Value next_pane_value{2};
   std::map<PaneId, std::unique_ptr<Pane>> panes;
+  bool pane_maximized{false};
   std::unique_ptr<WorktreeManagementOverlay> worktree_overlay;
 };
 
