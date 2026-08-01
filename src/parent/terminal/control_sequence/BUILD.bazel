@@ -1,0 +1,22 @@
+cc_library(
+    name = "control_sequence_introducer_parser",
+    srcs = ["control_sequence_introducer_parser.cc"],
+    hdrs = [
+        "control_sequence_introducer_parse_result.h",
+        "control_sequence_introducer_parse_status.h",
+        "control_sequence_introducer_parser.h",
+        "control_sequence_introducer_sequence.h",
+    ],
+    visibility = ["//src/parent/terminal:__pkg__"],
+)
+
+cc_test(
+    name = "control_sequence_introducer_parser_test",
+    srcs = ["control_sequence_introducer_parser_test.cc"],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [
+        ":control_sequence_introducer_parser",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

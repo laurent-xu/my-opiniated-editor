@@ -3,8 +3,8 @@
 #include <cstddef>
 #include <string_view>
 
-#include "src/parent/terminal/control_sequence_introducer_parse_result.h"
-#include "src/parent/terminal/control_sequence_introducer_sequence.h"
+#include "src/parent/terminal/control_sequence/control_sequence_introducer_parse_result.h"
+#include "src/parent/terminal/control_sequence/control_sequence_introducer_sequence.h"
 
 namespace moe::parent {
 

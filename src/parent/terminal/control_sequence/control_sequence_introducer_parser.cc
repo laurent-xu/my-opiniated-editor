@@ -1,4 +1,4 @@
-#include "src/parent/terminal/control_sequence_introducer_parser.h"
+#include "src/parent/terminal/control_sequence/control_sequence_introducer_parser.h"
 
 #include <optional>
 #include <string_view>

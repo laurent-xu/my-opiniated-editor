@@ -1,16 +1,4 @@
 cc_library(
-    name = "control_sequence_introducer_parser",
-    srcs = ["control_sequence_introducer_parser.cc"],
-    hdrs = [
-        "control_sequence_introducer_parse_result.h",
-        "control_sequence_introducer_parse_status.h",
-        "control_sequence_introducer_parser.h",
-        "control_sequence_introducer_sequence.h",
-    ],
-    visibility = ["//src/parent/terminal:__pkg__"],
-)
-
-cc_library(
     name = "content_pty_session",
     srcs = ["content_pty_session.cc"],
     hdrs = ["content_pty_session.h"],
@@ -96,13 +84,13 @@ cc_library(
         "//src/parent/tray:__pkg__",
     ],
     deps = [
-        ":control_sequence_introducer_parser",
         ":terminal_cell_style",
         ":terminal_line_fill_tracker",
         ":terminal_position",
         ":terminal_snapshot_line",
         ":utf8_complete_prefix",
         "//src/base:terminal_size",
+        "//src/parent/terminal/control_sequence:control_sequence_introducer_parser",
         "//third_party/system:libvterm_neovim",
     ],
 )
@@ -114,12 +102,10 @@ cc_library(
     visibility = ["//src/parent/terminal:__pkg__"],
 )
 
-cc_test(
+test_suite(
     name = "control_sequence_introducer_parser_test",
-    srcs = ["control_sequence_introducer_parser_test.cc"],
-    deps = [
-        ":control_sequence_introducer_parser",
-        "@googletest//:gtest_main",
+    tests = [
+        "//src/parent/terminal/control_sequence:control_sequence_introducer_parser_test",
     ],
     tags = ["unit"],
 )
