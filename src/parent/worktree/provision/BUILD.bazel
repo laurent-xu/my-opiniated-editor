@@ -1,0 +1,54 @@
+cc_library(
+    name = "worktree_provision_kind",
+    hdrs = ["worktree_provision_kind.h"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+)
+
+cc_library(
+    name = "worktree_provision_request",
+    hdrs = ["worktree_provision_request.h"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+)
+
+cc_library(
+    name = "worktree_provision_result",
+    hdrs = ["worktree_provision_result.h"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+    deps = [":worktree_provision_kind"],
+)
+
+cc_library(
+    name = "worktree_provisioner",
+    srcs = ["worktree_provisioner.cc"],
+    hdrs = ["worktree_provisioner.h"],
+    visibility = [
+        "//src/parent/worktree:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
+    deps = [
+        ":worktree_provision_kind",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
+        "//src/base:ascii_whitespace",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "//src/process:command_runner",
+    ],
+)
+
+cc_test(
+    name = "worktree_provisioner_test",
+    srcs = ["worktree_provisioner_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+    deps = [
+        ":worktree_provision_kind",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
+        ":worktree_provisioner",
+        "//src/parent/test/support:environment_guard",
+        "//src/parent/test/support:test_paths",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)

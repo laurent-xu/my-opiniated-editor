@@ -71,23 +71,22 @@ cc_library(
     ],
 )
 
-cc_library(
+alias(
     name = "worktree_provision_kind",
-    hdrs = ["worktree_provision_kind.h"],
+    actual = "//src/parent/worktree/provision:worktree_provision_kind",
     visibility = ["//src/parent:__pkg__"],
 )
 
-cc_library(
+alias(
     name = "worktree_provision_request",
-    hdrs = ["worktree_provision_request.h"],
+    actual = "//src/parent/worktree/provision:worktree_provision_request",
     visibility = ["//src/parent:__pkg__"],
 )
 
-cc_library(
+alias(
     name = "worktree_provision_result",
-    hdrs = ["worktree_provision_result.h"],
+    actual = "//src/parent/worktree/provision:worktree_provision_result",
     visibility = ["//src/parent:__pkg__"],
-    deps = [":worktree_provision_kind"],
 )
 
 cc_library(
@@ -100,46 +99,25 @@ cc_library(
     visibility = ["//src/parent:__pkg__"],
     deps = [
         ":repository_registration_request",
-        ":worktree_provision_request",
-        ":worktree_provision_result",
-        ":worktree_provisioner",
         ":worktree_repository_registrar",
+        "//src/parent/worktree/provision:worktree_provision_request",
+        "//src/parent/worktree/provision:worktree_provision_result",
+        "//src/parent/worktree/provision:worktree_provisioner",
     ],
 )
 
-cc_library(
+alias(
     name = "worktree_provisioner",
-    srcs = ["worktree_provisioner.cc"],
-    hdrs = ["worktree_provisioner.h"],
+    actual = "//src/parent/worktree/provision:worktree_provisioner",
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
-    deps = [
-        "//src/base:ascii_whitespace",
-        "//src/parent/worktree/registry:worktree_registry_store",
-        ":worktree_provision_kind",
-        ":worktree_provision_request",
-        ":worktree_provision_result",
-        "//src/process:command_runner",
-    ],
 )
 
-cc_test(
+test_suite(
     name = "worktree_provisioner_test",
-    srcs = ["worktree_provisioner_test.cc"],
-    data = ["//test/fixtures:fake_git"],
-    deps = [
-        ":worktree_provisioner",
-        ":worktree_provision_kind",
-        ":worktree_provision_request",
-        ":worktree_provision_result",
-        "//src/parent/test/support:environment_guard",
-        "//src/parent/test/support:test_paths",
-        "//src/parent/worktree/registry:worktree_registry_store",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["integration"],
+    tests = ["//src/parent/worktree/provision:worktree_provisioner_test"],
 )
 
 cc_test(

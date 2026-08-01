@@ -67,7 +67,7 @@ cc_library(
         "//src/parent/tray:tray_identity",
         "//src/parent/worktree:repository_root_state",
         "//src/parent/worktree:worktree_candidate_finder",
-        "//src/parent/worktree:worktree_provisioner",
+        "//src/parent/worktree/provision:worktree_provisioner",
         "//src/parent/worktree/registry:worktree_registry_store",
         "//src/parent/worktree:worktree_repository_registrar",
         "//src/parent/worktree/overlay/workflow:worktree_overlay_workflow_state",

@@ -37,7 +37,10 @@ cc_library(
         "command_runner.h",
         "standard_output_mode.h",
     ],
-    visibility = ["//src/parent/worktree:__pkg__"],
+    visibility = [
+        "//src/parent/worktree:__pkg__",
+        "//src/parent/worktree/provision:__pkg__",
+    ],
     deps = [
         ":process_exit_status",
         "//src/base:file_descriptor",

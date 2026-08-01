@@ -1,4 +1,4 @@
-#include "src/parent/worktree/worktree_provisioner.h"
+#include "src/parent/worktree/provision/worktree_provisioner.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -15,10 +15,10 @@
 #include <vector>
 
 #include "src/base/ascii_whitespace.h"
+#include "src/parent/worktree/provision/worktree_provision_kind.h"
+#include "src/parent/worktree/provision/worktree_provision_request.h"
+#include "src/parent/worktree/provision/worktree_provision_result.h"
 #include "src/parent/worktree/registry/worktree_registry_store.h"
-#include "src/parent/worktree/worktree_provision_kind.h"
-#include "src/parent/worktree/worktree_provision_request.h"
-#include "src/parent/worktree/worktree_provision_result.h"
 #include "src/process/command_runner.h"
 
 namespace moe::parent {

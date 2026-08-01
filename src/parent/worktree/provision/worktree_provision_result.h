@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#include "src/parent/worktree/worktree_provision_kind.h"
+#include "src/parent/worktree/provision/worktree_provision_kind.h"
 
 namespace moe::parent {
 
