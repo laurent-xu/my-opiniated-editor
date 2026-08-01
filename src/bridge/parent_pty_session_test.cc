@@ -32,8 +32,13 @@ std::filesystem::path runfile_path(std::filesystem::path const& path) {
 
 std::unique_ptr<moe::bridge::ParentPtySession> start_parent(moe::bridge::PtySize const size = {
                                                                 .rows = 24, .cols = 80}) {
+  std::filesystem::path const test_directory = required_env_path("TEST_TMPDIR");
+  std::string const state_directory = (test_directory / "state").string();
+  if (::setenv("MOE_STATE_DIRECTORY", state_directory.c_str(), 1) != 0) {
+    throw std::runtime_error("failed to configure test state directory");
+  }
   std::vector<std::string> command{runfile_path("src/parent/workspace_parent").string()};
-  return moe::bridge::ParentPtySession::start(command, required_env_path("TEST_TMPDIR"), size);
+  return moe::bridge::ParentPtySession::start(command, test_directory, size);
 }
 
 std::string shell_marker_command(std::string const& marker) {
