@@ -157,6 +157,20 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = ["systemctl", "--user", "is-active"],
+    decision = "allow",
+    justification = "Read whether a user service, including a port-keyed bridge instance, is active.",
+    match = [
+        "systemctl --user is-active my-opiniated-editor-bridge.service",
+        "systemctl --user is-active my-opiniated-editor-bridge@7683.service",
+    ],
+    not_match = [
+        "systemctl --user restart my-opiniated-editor-bridge@7683.service",
+        "systemctl --user stop my-opiniated-editor-bridge@7683.service",
+    ],
+)
+
+prefix_rule(
     pattern = [
         "systemctl",
         "--user",
