@@ -25,6 +25,7 @@ cc_library(
         "//src/parent/terminal:__pkg__",
         "//src/parent/terminal/screen/test:__pkg__",
         "//src/parent/tray:__pkg__",
+        "//src/parent/tray/test:__pkg__",
     ],
 )
 

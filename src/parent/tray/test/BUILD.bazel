@@ -1,0 +1,89 @@
+cc_test(
+    name = "tray_identity_test",
+    srcs = ["tray_identity_test.cc"],
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = [
+        "//src/parent/tray:tray_identity",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_test(
+    name = "tray_preview_renderer_test",
+    srcs = ["tray_preview_renderer_test.cc"],
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = [
+        "//src/base:terminal_size",
+        "//src/parent/terminal/screen:terminal_position",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/tray:tray_preview_renderer",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_library(
+    name = "tray_manager_test_support",
+    testonly = True,
+    srcs = ["tray_manager_test_support.cc"],
+    hdrs = ["tray_manager_test_support.h"],
+    include_prefix = "src/parent/tray",
+    strip_include_prefix = "/src/parent/tray/test",
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = [
+        "//src/base:process_id",
+        "//src/parent/shell:shell_configuration",
+        "//src/parent/tray:tray_manager",
+    ],
+)
+
+cc_test(
+    name = "tray_manager_runtime_test",
+    srcs = ["tray_manager_runtime_test.cc"],
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = [
+        ":tray_manager_test_support",
+        "//src/base:terminal_size",
+        "//src/parent/tray:tray_manager",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "tray_manager_switching_test",
+    srcs = ["tray_manager_switching_test.cc"],
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = [
+        ":tray_manager_test_support",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/tray:tray_manager",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "tray_manager_lifecycle_test",
+    srcs = ["tray_manager_lifecycle_test.cc"],
+    visibility = ["//src/parent/tray:__pkg__"],
+    deps = [
+        ":tray_manager_test_support",
+        "//src/parent/tray:tray_manager",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+test_suite(
+    name = "tray_manager_test",
+    tests = [
+        ":tray_manager_lifecycle_test",
+        ":tray_manager_runtime_test",
+        ":tray_manager_switching_test",
+    ],
+    visibility = ["//src/parent/tray:__pkg__"],
+    tags = ["integration"],
+)
