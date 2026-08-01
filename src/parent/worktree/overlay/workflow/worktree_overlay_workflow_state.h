@@ -4,6 +4,7 @@
 
 #include "src/parent/worktree/overlay/terminal_text_field.h"
 #include "src/parent/worktree/overlay/workflow/worktree_overlay_mode.h"
+#include "src/parent/worktree/overlay/workflow/worktree_overlay_mode_direction.h"
 #include "src/parent/worktree/overlay/workflow/worktree_overlay_stage.h"
 
 namespace moe::parent {
@@ -15,7 +16,7 @@ class WorktreeOverlayWorkflowState {
   void set_current_stage(WorktreeOverlayStage stage);
 
   void reset() noexcept;
-  void cycle_mode(int direction) noexcept;
+  void cycle_mode(WorktreeOverlayModeDirection direction) noexcept;
 
   [[nodiscard]] TerminalTextField* active_text_field() noexcept;
   [[nodiscard]] TerminalTextField const* active_text_field() const noexcept;

@@ -27,6 +27,7 @@ namespace moe::parent {
 
 using base::TerminalSize;
 using Mode = WorktreeOverlayMode;
+using ModeDirection = WorktreeOverlayModeDirection;
 using Stage = WorktreeOverlayStage;
 
 namespace {
@@ -308,7 +309,7 @@ TerminalSize WorktreeManagementOverlay::dialog_terminal_size() const {
   };
 }
 
-void WorktreeManagementOverlay::cycle_mode(int const direction) {
+void WorktreeManagementOverlay::cycle_mode(ModeDirection const direction) {
   selected_repository.reset();
   repository_root.reset();
   pending_worktree_path.reset();
@@ -411,7 +412,7 @@ void WorktreeManagementOverlay::write_mode_input(std::string_view const bytes) {
 void WorktreeManagementOverlay::write_mode_switch_input(unsigned char const byte) {
   if (mode_switch_sequence.empty()) {
     if (byte == '\t') {
-      cycle_mode(1);
+      cycle_mode(ModeDirection::NEXT);
       return;
     }
     if (byte == ESCAPE) {
@@ -429,7 +430,7 @@ void WorktreeManagementOverlay::write_mode_switch_input(unsigned char const byte
   }
   if (mode_switch_sequence == "\x1b[Z") {
     mode_switch_sequence.clear();
-    cycle_mode(-1);
+    cycle_mode(ModeDirection::PREVIOUS);
     return;
   }
   if (mode_switch_sequence.size() == 2U || (byte >= 0x40U && byte <= 0x7EU)) {

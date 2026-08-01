@@ -17,6 +17,7 @@
 #include "src/parent/tray/tray_preview_request.h"
 #include "src/parent/tray/tray_snapshot.h"
 #include "src/parent/worktree/overlay/terminal_text_field.h"
+#include "src/parent/worktree/overlay/workflow/worktree_overlay_mode_direction.h"
 #include "src/parent/worktree/overlay/workflow/worktree_overlay_workflow_state.h"
 
 namespace moe::parent {
@@ -75,7 +76,7 @@ class WorktreeManagementOverlay : public Overlay {
   [[nodiscard]] std::string picker_action_output() const;
   [[nodiscard]] std::optional<std::filesystem::path> selected_repository_root() const;
   void load_repositories();
-  void cycle_mode(int direction);
+  void cycle_mode(WorktreeOverlayModeDirection direction);
   void activate_mode();
   void start_switch_worktree_picker();
   void start_repository_picker();

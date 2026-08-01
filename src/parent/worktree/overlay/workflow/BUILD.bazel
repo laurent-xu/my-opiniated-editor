@@ -3,6 +3,7 @@ cc_library(
     srcs = ["worktree_overlay_workflow_state.cc"],
     hdrs = [
         "worktree_overlay_mode.h",
+        "worktree_overlay_mode_direction.h",
         "worktree_overlay_stage.h",
         "worktree_overlay_workflow_state.h",
     ],

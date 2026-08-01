@@ -4,6 +4,36 @@
 #include <string>
 
 namespace moe::parent {
+namespace {
+
+WorktreeOverlayMode cycled_mode(WorktreeOverlayMode const mode,
+                                WorktreeOverlayModeDirection const direction) noexcept {
+  switch (direction) {
+    case WorktreeOverlayModeDirection::NEXT:
+      switch (mode) {
+        case WorktreeOverlayMode::SWITCH_WORKTREE:
+          return WorktreeOverlayMode::ADD_WORKTREE;
+        case WorktreeOverlayMode::ADD_WORKTREE:
+          return WorktreeOverlayMode::ADD_REPOSITORY;
+        case WorktreeOverlayMode::ADD_REPOSITORY:
+          return WorktreeOverlayMode::SWITCH_WORKTREE;
+      }
+      break;
+    case WorktreeOverlayModeDirection::PREVIOUS:
+      switch (mode) {
+        case WorktreeOverlayMode::SWITCH_WORKTREE:
+          return WorktreeOverlayMode::ADD_REPOSITORY;
+        case WorktreeOverlayMode::ADD_WORKTREE:
+          return WorktreeOverlayMode::SWITCH_WORKTREE;
+        case WorktreeOverlayMode::ADD_REPOSITORY:
+          return WorktreeOverlayMode::ADD_WORKTREE;
+      }
+      break;
+  }
+  return mode;
+}
+
+}  // namespace
 
 WorktreeOverlayMode WorktreeOverlayWorkflowState::mode() const noexcept { return active_mode; }
 
@@ -42,12 +72,11 @@ void WorktreeOverlayWorkflowState::reset() noexcept {
   repository_error.clear();
 }
 
-void WorktreeOverlayWorkflowState::cycle_mode(int const direction) noexcept {
-  int constexpr MODE_COUNT = static_cast<int>(WorktreeOverlayMode::ADD_REPOSITORY) + 1;
-  int const current = static_cast<int>(active_mode);
-  int const next = (current + direction + MODE_COUNT) % MODE_COUNT;
+void WorktreeOverlayWorkflowState::cycle_mode(
+    WorktreeOverlayModeDirection const direction) noexcept {
+  WorktreeOverlayMode const next = cycled_mode(active_mode, direction);
   reset();
-  active_mode = static_cast<WorktreeOverlayMode>(next);
+  active_mode = next;
 }
 
 TerminalTextField* WorktreeOverlayWorkflowState::active_text_field() noexcept {
