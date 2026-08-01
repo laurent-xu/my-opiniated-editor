@@ -1,13 +1,31 @@
 cc_library(
+    name = "process_wait_status",
+    hdrs = ["process_wait_status.h"],
+)
+
+cc_library(
     name = "process_exit_status",
     srcs = ["process_exit_status.cc"],
     hdrs = ["process_exit_status.h"],
     visibility = [
         "//src/parent:__pkg__",
+        "//src/parent/overlay:__pkg__",
         "//src/parent/terminal:__pkg__",
         "//src/parent/tray:__pkg__",
+        "//src/parent/worktree:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
     ],
+    deps = [":process_wait_status"],
+)
+
+cc_test(
+    name = "process_exit_status_test",
+    srcs = ["process_exit_status_test.cc"],
+    deps = [
+        ":process_exit_status",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
 )
 
 cc_library(

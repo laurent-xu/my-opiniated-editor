@@ -17,19 +17,10 @@
 #include "src/base/process_id.h"
 #include "src/parent/worktree/git_worktree_list.h"
 #include "src/parent/worktree/worktree_registry_store.h"
+#include "src/process/process_exit_status.h"
 
 namespace moe::parent {
 namespace {
-
-int exit_code_from_status(int const status) {
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  if (WIFSIGNALED(status)) {
-    return 128 + WTERMSIG(status);
-  }
-  return 1;
-}
 
 std::vector<char*> command_argv(std::vector<std::string> const& command) {
   std::vector<char*> arguments;
@@ -41,7 +32,7 @@ std::vector<char*> command_argv(std::vector<std::string> const& command) {
   return arguments;
 }
 
-int run_command(std::vector<std::string> const& command) {
+process::ProcessExitStatus run_command(std::vector<std::string> const& command) {
   base::ProcessId const child_pid(::fork());
   if (child_pid.is_error()) {
     throw std::system_error(errno, std::generic_category(), "fork Git worktree removal command");
@@ -66,7 +57,7 @@ int run_command(std::vector<std::string> const& command) {
   if (waited.value() != child_pid.value()) {
     throw std::system_error(errno, std::generic_category(), "wait for Git worktree removal");
   }
-  return exit_code_from_status(status);
+  return process::ProcessExitStatus::from_wait_status(process::ProcessWaitStatus(status));
 }
 
 std::filesystem::path normalized_path(std::filesystem::path const& path,
@@ -170,10 +161,11 @@ bool git_lists_worktree(std::string const& git_executable, GitWorktreeQuery cons
   if (waited.value() != child_pid.value()) {
     throw std::system_error(errno, std::generic_category(), "wait for Git worktree list");
   }
-  int const exit_code = exit_code_from_status(status);
-  if (exit_code != 0) {
+  process::ProcessExitStatus const exit_status =
+      process::ProcessExitStatus::from_wait_status(process::ProcessWaitStatus(status));
+  if (!exit_status.succeeded()) {
     throw std::runtime_error("git worktree list failed with exit code " +
-                             std::to_string(exit_code));
+                             std::to_string(exit_status.value()));
   }
 
   std::vector<GitWorktreeListEntry> const entries = parse_git_worktree_list(output);
@@ -215,17 +207,18 @@ void WorktreeRemover::remove(WorktreeRemovalRequest const& request) const {
     };
     git_owned_worktree = git_lists_worktree(git_executable, query);
     if (git_owned_worktree) {
-      int const remove_exit =
+      process::ProcessExitStatus const remove_status =
           run_command({git_executable, "--git-dir", bare_directory.string(), "worktree", "remove",
                        "--force", "--force", worktree_path.string()});
-      if (remove_exit != 0) {
+      if (!remove_status.succeeded()) {
         if (path_exists(worktree_path)) {
           throw std::runtime_error("git worktree remove failed with exit code " +
-                                   std::to_string(remove_exit));
+                                   std::to_string(remove_status.value()));
         }
-        int const prune_exit = run_command({git_executable, "--git-dir", bare_directory.string(),
-                                            "worktree", "prune", "--expire", "now"});
-        if (prune_exit != 0 || git_lists_worktree(git_executable, query)) {
+        process::ProcessExitStatus const prune_status =
+            run_command({git_executable, "--git-dir", bare_directory.string(), "worktree", "prune",
+                         "--expire", "now"});
+        if (!prune_status.succeeded() || git_lists_worktree(git_executable, query)) {
           throw std::runtime_error("git worktree purge failed for missing worktree");
         }
       }

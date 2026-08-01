@@ -21,6 +21,7 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/parent/terminal/terminal_position.h"
+#include "src/process/process_exit_status.h"
 
 namespace moe::parent {
 namespace {
@@ -72,16 +73,6 @@ void write_all(base::FileDescriptor const descriptor, std::string_view bytes) {
     }
     throw errno_error("write path picker input");
   }
-}
-
-int exit_code_from_status(int const status) {
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  if (WIFSIGNALED(status)) {
-    return 128 + WTERMSIG(status);
-  }
-  return 1;
 }
 
 }  // namespace
@@ -223,7 +214,8 @@ bool PathPickerOverlay::refresh_process_state() {
 
   child_process_id = base::ProcessId{};
   process_finished = true;
-  if (exit_code_from_status(status) == 0) {
+  if (process::ProcessExitStatus::from_wait_status(process::ProcessWaitStatus(status))
+          .succeeded()) {
     read_selection();
   }
   return true;

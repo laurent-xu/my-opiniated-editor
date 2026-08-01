@@ -1,8 +1,20 @@
 #include "src/process/process_exit_status.h"
 
+#include <sys/wait.h>
+
 #include <stdexcept>
 
 namespace moe::process {
+
+ProcessExitStatus ProcessExitStatus::from_wait_status(ProcessWaitStatus const wait_status) {
+  if (WIFEXITED(wait_status.value())) {
+    return exited(WEXITSTATUS(wait_status.value()));
+  }
+  if (WIFSIGNALED(wait_status.value())) {
+    return signaled(WTERMSIG(wait_status.value()));
+  }
+  return exited(1);
+}
 
 ProcessExitStatus ProcessExitStatus::exited(int const exit_code) {
   if (exit_code < 0 || exit_code > 255) {

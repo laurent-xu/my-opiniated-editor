@@ -92,6 +92,7 @@ cc_library(
         ":git_worktree_list",
         ":worktree_registry_store",
         "//src/base:process_id",
+        "//src/process:process_exit_status",
     ],
 )
 

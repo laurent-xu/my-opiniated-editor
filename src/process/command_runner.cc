@@ -33,16 +33,6 @@ std::vector<char*> command_argv(std::vector<std::string> const& command) {
   return arguments;
 }
 
-ProcessExitStatus exit_status_from_wait_status(int const wait_status) {
-  if (WIFEXITED(wait_status)) {
-    return ProcessExitStatus::exited(WEXITSTATUS(wait_status));
-  }
-  if (WIFSIGNALED(wait_status)) {
-    return ProcessExitStatus::signaled(WTERMSIG(wait_status));
-  }
-  return ProcessExitStatus::exited(1);
-}
-
 }  // namespace
 
 CommandResult run_command(std::vector<std::string> const& command,
@@ -106,7 +96,7 @@ CommandResult run_command(std::vector<std::string> const& command,
     throw errno_error("wait for command");
   }
   return {
-      .exit_status = exit_status_from_wait_status(wait_status),
+      .exit_status = ProcessExitStatus::from_wait_status(ProcessWaitStatus(wait_status)),
       .standard_output = std::move(output),
   };
 }

@@ -48,16 +48,6 @@ base::ProcessId wait_for_child(base::ProcessId const child_pid, int const option
   return result;
 }
 
-process::ProcessExitStatus exit_status_from_wait_status(int const status) {
-  if (WIFEXITED(status)) {
-    return process::ProcessExitStatus::exited(WEXITSTATUS(status));
-  }
-  if (WIFSIGNALED(status)) {
-    return process::ProcessExitStatus::signaled(WTERMSIG(status));
-  }
-  return process::ProcessExitStatus::exited(1);
-}
-
 }  // namespace
 
 std::unique_ptr<ContentPtySession> ContentPtySession::start(
@@ -165,7 +155,7 @@ std::optional<process::ProcessExitStatus> ContentPtySession::try_wait_for_exit()
   }
   if (result.value() == child_process_id.value()) {
     child_process_id = base::ProcessId{};
-    return exit_status_from_wait_status(status);
+    return process::ProcessExitStatus::from_wait_status(process::ProcessWaitStatus(status));
   }
   if (result.is_error() && errno == ECHILD) {
     child_process_id = base::ProcessId{};
