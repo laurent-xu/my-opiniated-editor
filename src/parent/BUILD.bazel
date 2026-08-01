@@ -8,7 +8,6 @@ cc_library(
         "parent_status.h",
         "workspace_parent.h",
     ],
-    visibility = ["//src/parent/tray:__pkg__"],
     deps = [
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
@@ -16,6 +15,7 @@ cc_library(
         "//src/parent/input:parent_input_decoder",
         "//src/parent/overlay:path_picker_overlay",
         "//src/parent/runtime:raw_terminal_mode_guard",
+        "//src/parent/shell:shell_configuration",
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "//src/parent/tray:tray_manager",
@@ -61,14 +61,9 @@ cc_test(
     tags = ["unit"],
 )
 
-cc_test(
+test_suite(
     name = "workspace_parent_test",
-    srcs = ["workspace_parent_test.cc"],
-    deps = [
-        ":parent_lib",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["unit"],
+    tests = ["//src/parent/shell:shell_configuration_test"],
 )
 
 test_suite(

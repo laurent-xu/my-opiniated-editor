@@ -2,7 +2,6 @@
 
 #include <fcntl.h>
 #include <poll.h>
-#include <pwd.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -28,6 +27,7 @@
 #include "src/parent/overlay/path_picker_overlay.h"
 #include "src/parent/parent_status.h"
 #include "src/parent/runtime/raw_terminal_mode_guard.h"
+#include "src/parent/shell/shell_configuration.h"
 #include "src/parent/tray/tray_action_kind.h"
 #include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/tray/tray_manager.h"
@@ -46,7 +46,6 @@ using base::TerminalSize;
 
 namespace {
 
-constexpr std::string_view DEFAULT_TERMINAL_TYPE = "xterm-256color";
 constexpr TerminalSize DEFAULT_TERMINAL_SIZE{.rows = 24, .cols = 80};
 constexpr int POLL_TIMEOUT_MILLISECONDS = 50;
 constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
@@ -461,31 +460,6 @@ int run_worktree_provision_helper(std::span<char*> const arguments) {
 }
 
 }  // namespace
-
-std::filesystem::path configured_login_shell() {
-  passwd const* const user = getpwuid(getuid());
-  if (user != nullptr && has_value(user->pw_shell)) {
-    return user->pw_shell;
-  }
-
-  char const* const shell_from_environment = std::getenv("SHELL");
-  if (has_value(shell_from_environment)) {
-    return shell_from_environment;
-  }
-
-  return "/bin/sh";
-}
-
-std::vector<std::string> interactive_shell_command(std::filesystem::path const& shell_path) {
-  return {shell_path.string(), "-i"};
-}
-
-std::string_view terminal_type_for_child(char const* const current_terminal_type) {
-  if (!has_value(current_terminal_type) || std::strcmp(current_terminal_type, "dumb") == 0) {
-    return DEFAULT_TERMINAL_TYPE;
-  }
-  return current_terminal_type;
-}
 
 int run_workspace_parent() {
   stop_requested = 0;

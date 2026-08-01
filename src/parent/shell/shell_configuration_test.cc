@@ -1,4 +1,4 @@
-#include "src/parent/workspace_parent.h"
+#include "src/parent/shell/shell_configuration.h"
 
 #include <filesystem>
 #include <string>
@@ -8,14 +8,14 @@
 
 namespace {
 
-TEST(WorkspaceParentTest, ConfiguredLoginShellIsAbsolutePath) {
+TEST(ShellConfigurationTest, ConfiguredLoginShellIsAbsolutePath) {
   std::filesystem::path const shell = moe::parent::configured_login_shell();
 
   EXPECT_TRUE(shell.is_absolute()) << shell;
   EXPECT_FALSE(shell.empty());
 }
 
-TEST(WorkspaceParentTest, InteractiveShellCommandRunsShellInteractively) {
+TEST(ShellConfigurationTest, InteractiveShellCommandRunsShellInteractively) {
   std::vector<std::string> const command =
       moe::parent::interactive_shell_command(std::filesystem::path("/bin/example-shell"));
 
@@ -24,16 +24,16 @@ TEST(WorkspaceParentTest, InteractiveShellCommandRunsShellInteractively) {
   EXPECT_EQ(command[1], "-i");
 }
 
-TEST(WorkspaceParentTest, TerminalTypeDefaultsToXtermWhenMissing) {
+TEST(ShellConfigurationTest, TerminalTypeDefaultsToXtermWhenMissing) {
   EXPECT_EQ(moe::parent::terminal_type_for_child(nullptr), "xterm-256color");
   EXPECT_EQ(moe::parent::terminal_type_for_child(""), "xterm-256color");
 }
 
-TEST(WorkspaceParentTest, TerminalTypeDefaultsToXtermWhenDumb) {
+TEST(ShellConfigurationTest, TerminalTypeDefaultsToXtermWhenDumb) {
   EXPECT_EQ(moe::parent::terminal_type_for_child("dumb"), "xterm-256color");
 }
 
-TEST(WorkspaceParentTest, TerminalTypePreservesUsefulValue) {
+TEST(ShellConfigurationTest, TerminalTypePreservesUsefulValue) {
   EXPECT_EQ(moe::parent::terminal_type_for_child("xterm-kitty"), "xterm-kitty");
 }
 

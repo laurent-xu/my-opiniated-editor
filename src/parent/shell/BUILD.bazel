@@ -1,0 +1,19 @@
+cc_library(
+    name = "shell_configuration",
+    srcs = ["shell_configuration.cc"],
+    hdrs = ["shell_configuration.h"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+)
+
+cc_test(
+    name = "shell_configuration_test",
+    srcs = ["shell_configuration_test.cc"],
+    deps = [
+        ":shell_configuration",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

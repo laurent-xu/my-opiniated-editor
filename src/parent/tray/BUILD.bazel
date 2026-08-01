@@ -106,7 +106,7 @@ cc_test(
         ":tray_identity",
         ":tray_manager",
         "//src/base:process_id",
-        "//src/parent:parent_lib",
+        "//src/parent/shell:shell_configuration",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
