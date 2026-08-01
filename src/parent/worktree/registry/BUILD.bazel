@@ -25,9 +25,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "worktree_registry_store_test_support",
+    testonly = True,
+    hdrs = ["worktree_registry_store_test_support.h"],
+    deps = [
+        ":worktree_registry_store",
+        "//src/parent/test/support:test_paths",
+    ],
+)
+
 cc_test(
-    name = "worktree_registry_store_test",
-    srcs = ["worktree_registry_store_test.cc"],
+    name = "worktree_registry_store_path_test",
+    srcs = ["worktree_registry_store_path_test.cc"],
     deps = [
         ":worktree_registry_store",
         "//src/parent/test/support:environment_guard",
@@ -35,4 +45,34 @@ cc_test(
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],
+)
+
+[
+    cc_test(
+        name = test_name,
+        srcs = [test_name + ".cc"],
+        deps = [
+            ":worktree_registry_store",
+            ":worktree_registry_store_test_support",
+            "@googletest//:gtest_main",
+        ],
+        tags = ["unit"],
+    )
+    for test_name in [
+        "worktree_registry_store_failure_safety_test",
+        "worktree_registry_store_load_test",
+        "worktree_registry_store_save_test",
+    ]
+]
+
+test_suite(
+    name = "worktree_registry_store_test",
+    tests = [
+        ":worktree_registry_store_failure_safety_test",
+        ":worktree_registry_store_load_test",
+        ":worktree_registry_store_path_test",
+        ":worktree_registry_store_save_test",
+    ],
+    tags = ["unit"],
+    visibility = ["//src/parent/worktree:__pkg__"],
 )
