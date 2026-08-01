@@ -47,12 +47,21 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "pane_selection",
+    srcs = ["pane_selection.cc"],
+    hdrs = ["pane_selection.h"],
+    visibility = ["//src/parent/pane/test:__pkg__"],
+    deps = [":pane_layout"],
+)
+
 test_suite(
     name = "pane_test",
     tests = [
         "//src/parent/pane/test:pane_geometry_test",
         "//src/parent/pane/test:pane_layout_test",
         "//src/parent/pane/test:pane_layout_types_test",
+        "//src/parent/pane/test:pane_selection_test",
         "//src/parent/pane/test:pane_test",
     ],
 )
