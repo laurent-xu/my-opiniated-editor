@@ -46,6 +46,10 @@ As of 2026-07-07:
   `/ws`.
 - Non-loopback owned bridge binds require a development token unless an
   explicit unsafe override is passed.
+- Service deployments keep the owned C++ bridge on loopback HTTP and use a
+  standalone Python process for HTTPS termination, scrypt-backed Basic Auth,
+  and HTTP/WebSocket proxying. This proxy is transport plumbing and owns no PTY
+  or editor state.
 
 The implementation path is the owned C++ bridge.
 

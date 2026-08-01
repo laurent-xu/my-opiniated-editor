@@ -1,0 +1,17 @@
+[Unit]
+Description=My Opiniated Editor HTTPS proxy on port %i
+After=network-online.target my-opiniated-editor-bridge@%i.service
+Wants=network-online.target
+Requires=my-opiniated-editor-bridge@%i.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/my-opiniated-editor/main
+EnvironmentFile=-%h/.config/my-opiniated-editor/bridge.env
+EnvironmentFile=%h/.config/my-opiniated-editor/bridge-%i.env
+ExecStart=%h/my-opiniated-editor/main/tools/bridge/https_proxy.py serve --http-port ${MOE_BRIDGE_HTTP_PORT} --https-port %i
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

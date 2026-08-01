@@ -63,18 +63,23 @@ Current progress:
   client loads xterm.js, connects to `/ws`, and forwards keyboard input/resize.
 - The owned bridge can bind to a network interface, but non-loopback binds now
   require `--token` unless an explicit unsafe override is passed.
+- The service deployment terminates HTTPS and Basic Auth in a small Python
+  proxy on LAN ports `7682` and `7683`; matching C++ bridges use loopback-only
+  HTTP ports `17682` and `17683`. Password verification uses an scrypt record
+  stored under `~/.secrets`.
 - Manual browser check on 2026-07-07 confirmed the network page loads, the
   status bar reaches connected, two tabs show the same parent content, and
   refresh works.
-- Clipboard support is intentionally parked until HTTPS/reverse-proxy support
-  exists.
+- Clipboard support remains intentionally parked until the new HTTPS path has
+  a focused live smoke check.
 
 Still open:
 
 - Decide whether to vendor/package xterm.js instead of loading it from CDN.
 - Add dedicated PID and resize integration checks against the shell-backed
   parent PTY.
-- Add HTTPS/reverse-proxy setup before reintroducing browser clipboard writes.
+- Add a focused live HTTPS/WebSocket smoke check before reintroducing browser
+  clipboard writes.
 - Add browser-level automation once the client grows beyond this static shell.
 
 ## Phase 2: Skeleton Workspace

@@ -3,9 +3,26 @@ py_test(
     srcs = ["service_scripts_test.py"],
     data = [
         "bridge.env.example",
+        "bridge-7682.env.example",
+        "bridge-7683.env.example",
+        "https_proxy.py",
+        "my-opiniated-editor-bridge-https@.service",
         "my-opiniated-editor-bridge@.service",
         "restart_bridge.sh",
         "run_bridge.sh",
     ],
     tags = ["unit"],
+)
+
+py_binary(
+    name = "https_proxy",
+    srcs = ["https_proxy.py"],
+    main = "https_proxy.py",
+)
+
+py_test(
+    name = "https_proxy_test",
+    srcs = ["https_proxy_test.py"],
+    data = ["https_proxy.py"],
+    tags = ["integration"],
 )

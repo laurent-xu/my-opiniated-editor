@@ -46,6 +46,20 @@ Current owned bridge endpoints:
   Command mode, active tray identity, and active overlay identity come from the
   parent status event rather than per-browser guesses.
 
+Current service transport:
+
+- Public ports are served by a standalone Python HTTPS proxy; the C++ bridge
+  listens over plain HTTP on an explicitly configured loopback-only port.
+- Public `7682` proxies to `127.0.0.1:17682`, and public `7683` proxies to
+  `127.0.0.1:17683`. The two bridge instances retain separate parent and
+  workspace state.
+- The proxy requires HTTP Basic Auth for every HTTP request and WebSocket
+  upgrade. Browsers retain successful credentials for the origin, so reloads
+  and reconnects do not prompt repeatedly.
+- The password file under `~/.secrets` stores only the username, scrypt
+  parameters, random salt, and digest. TLS certificate and key files are also
+  kept outside the repository.
+
 Initial endpoints:
 
 - `GET /`: browser app assets.
@@ -185,6 +199,10 @@ For remote access:
 - Add CSRF protection to state-changing HTTP endpoints.
 - Keep future clipboard writes auditable because clipboard is a high-trust
   channel.
+
+The current LAN service path satisfies the first three requirements with the
+HTTPS/auth proxy. The bridge's `--token` option remains a localhost development
+guard and is not used by the service deployment.
 
 ## Compatibility Policy
 

@@ -37,6 +37,10 @@ Already done:
   resize frames.
 - Network binding for the owned bridge requires `--token` unless an explicit
   unsafe override is passed.
+- Service deployments now put a small Python HTTPS/auth proxy on public LAN
+  ports and keep each plain-HTTP C++ bridge on a loopback-only upstream port.
+  The proxy verifies a scrypt password record from `~/.secrets` and tunnels
+  both HTTP and WebSocket traffic.
 - Clipboard support was removed from Phase 1 after manual HTTP testing showed
   the network path should be stabilized before adding browser clipboard writes.
   Reintroduce clipboard only after HTTPS/reverse proxy support is available.
@@ -51,7 +55,8 @@ Next implementation goals:
 1. Decide whether to vendor/package xterm.js instead of loading it from CDN.
 2. Add dedicated PID and resize integration checks against the shell-backed
    parent PTY.
-3. Add HTTPS/reverse-proxy setup before reintroducing clipboard.
+3. Add a focused live HTTPS/WebSocket smoke check before reintroducing
+   clipboard.
 4. Add browser-level automation once the client grows beyond this static shell.
 
 ## First Self-Hosting Milestone

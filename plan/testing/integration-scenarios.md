@@ -38,9 +38,12 @@ Current automated coverage:
 - `//src/bridge:parent_ws_bridge_integration_test` verifies token-protected
   HTTP/WebSocket attach and rejects non-loopback binds without a token or
   explicit unsafe override.
+- `//tools/bridge:https_proxy_test` verifies authenticated HTTP forwarding and
+  WebSocket tunneling through the HTTPS proxy boundary.
 - Manual browser check on 2026-07-07 confirmed the network page loads, status
   reaches connected, two tabs show the same parent content, and refresh works.
-- Clipboard is intentionally parked until HTTPS/reverse-proxy support exists.
+- Clipboard is intentionally parked until the HTTPS path has a focused live
+  smoke check.
 
 Deferred focused coverage:
 

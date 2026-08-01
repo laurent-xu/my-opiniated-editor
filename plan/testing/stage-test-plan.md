@@ -70,13 +70,16 @@ Current coverage:
   client assets and that the JS includes xterm.js setup and `/ws` connection.
 - The same integration test verifies token-protected HTTP/WebSocket attach and
   rejects non-loopback binds without a token or explicit unsafe override.
+- `//tools/bridge:https_proxy_test` verifies scrypt password records, rejects
+  missing or incorrect Basic Auth, forwards authorized HTTP, and tunnels an
+  authenticated WebSocket upgrade to the loopback bridge port.
 - Tray lifecycle coverage verifies confirmed command-mode clear/remove actions,
   atomic worktree unregistration, no eager recreation of an inactive anonymous
   tray 1, and fallback to a fresh anonymous tray 1 when active content exits or
   is destroyed.
 - Manual browser testing confirmed the network page loads, status reaches
   connected, two tabs show the same parent content, and refresh works.
-- Clipboard is parked until HTTPS/reverse-proxy support exists.
+- Clipboard is parked until the HTTPS path has a focused live smoke check.
 - Dedicated shell-backed PID and resize checks are deferred to their own focused
   integration tests.
 

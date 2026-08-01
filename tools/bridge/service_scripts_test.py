@@ -26,32 +26,15 @@ class ServiceScriptsTest(unittest.TestCase):
                     check=True,
                 )
 
-    def test_runner_requires_token_before_starting(self):
-        env = dict(os.environ)
-        env.pop("MOE_BRIDGE_TOKEN", None)
-        env["MOE_BRIDGE_INTERFACE"] = "0.0.0.0"
-
-        result = subprocess.run(
-            [self.bash, runfile_path("tools/bridge/run_bridge.sh"), "7682"],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, "")
-        self.assertIn("MOE_BRIDGE_TOKEN is required", result.stderr)
-
-    def test_bridge_scripts_require_a_port_argument(self):
-        for script in [
-            "tools/bridge/run_bridge.sh",
-            "tools/bridge/restart_bridge.sh",
-        ]:
+    def test_bridge_scripts_require_port_arguments(self):
+        invocations = [
+            ("tools/bridge/run_bridge.sh", ["17682"]),
+            ("tools/bridge/restart_bridge.sh", []),
+        ]
+        for script, arguments in invocations:
             with self.subTest(script=script):
                 result = subprocess.run(
-                    [self.bash, runfile_path(script)],
+                    [self.bash, runfile_path(script), *arguments],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
@@ -61,7 +44,7 @@ class ServiceScriptsTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("usage:", result.stderr)
 
-    def test_runner_executes_prebuilt_bridge_without_bazel(self):
+    def test_runner_uses_loopback_upstream_for_public_port(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "repo"
             runner = repo_root / "tools" / "bridge" / "run_bridge.sh"
@@ -84,11 +67,9 @@ class ServiceScriptsTest(unittest.TestCase):
 
             log_path = repo_root / "runner.log"
             subprocess.run(
-                [self.bash, runner, "8765"],
+                [self.bash, runner, "18765", "8765"],
                 env={
                     **os.environ,
-                    "MOE_BRIDGE_INTERFACE": "127.0.0.1",
-                    "MOE_BRIDGE_TOKEN": "test-token",
                     "XDG_STATE_HOME": str(repo_root / "state"),
                     "MOE_TEST_LOG": str(log_path),
                 },
@@ -102,9 +83,7 @@ class ServiceScriptsTest(unittest.TestCase):
                     "arg=--interface",
                     "arg=127.0.0.1",
                     "arg=--port",
-                    "arg=8765",
-                    "arg=--token",
-                    "arg=test-token",
+                    "arg=18765",
                     "arg=--parent",
                     "arg=bazel-bin/src/parent/workspace_parent",
                     "arg=--cwd",
@@ -121,8 +100,25 @@ class ServiceScriptsTest(unittest.TestCase):
 
         self.assertIn("WorkingDirectory=%h/my-opiniated-editor/main\n", service)
         self.assertIn(
-            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh %i\n",
+            "EnvironmentFile=%h/.config/my-opiniated-editor/bridge-%i.env\n",
             service,
+        )
+        self.assertIn(
+            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh ${MOE_BRIDGE_HTTP_PORT} %i\n",
+            service,
+        )
+
+        https_service = Path(
+            runfile_path("tools/bridge/my-opiniated-editor-bridge-https@.service")
+        ).read_text(encoding="utf-8")
+        self.assertIn("Requires=my-opiniated-editor-bridge@%i.service\n", https_service)
+        self.assertIn(
+            "EnvironmentFile=%h/.config/my-opiniated-editor/bridge-%i.env\n",
+            https_service,
+        )
+        self.assertIn(
+            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/https_proxy.py serve --http-port ${MOE_BRIDGE_HTTP_PORT} --https-port %i\n",
+            https_service,
         )
 
     def test_restart_builds_before_restart(self):
@@ -153,6 +149,7 @@ class ServiceScriptsTest(unittest.TestCase):
                     "bazel --batch build //src/bridge:parent_ws_bridge //src/parent:workspace_parent",
                     "systemctl --user daemon-reload",
                     "systemctl --user restart my-opiniated-editor-bridge@8765.service",
+                    "systemctl --user restart my-opiniated-editor-bridge-https@8765.service",
                 ],
             )
 

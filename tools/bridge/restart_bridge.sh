@@ -8,7 +8,7 @@ if [[ "$#" -ne 1 || ! "$1" =~ ^[0-9]{1,5}$ ]]; then
 fi
 port="$((10#$1))"
 if ((port < 1 || port > 65535)); then
-  echo "port must be between 1 and 65535" >&2
+  echo "HTTPS port must be between 1 and 65535" >&2
   exit 2
 fi
 
@@ -23,3 +23,4 @@ bazel --batch build \
 
 systemctl --user daemon-reload
 systemctl --user restart "my-opiniated-editor-bridge@${port}.service"
+systemctl --user restart "my-opiniated-editor-bridge-https@${port}.service"

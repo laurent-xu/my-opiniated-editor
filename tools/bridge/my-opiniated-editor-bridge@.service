@@ -1,13 +1,14 @@
 [Unit]
-Description=My Opiniated Editor parent PTY browser bridge on port %i
+Description=My Opiniated Editor loopback parent PTY bridge for HTTPS port %i
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=%h/my-opiniated-editor/main
-EnvironmentFile=%h/.config/my-opiniated-editor/bridge.env
-ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh %i
+EnvironmentFile=-%h/.config/my-opiniated-editor/bridge.env
+EnvironmentFile=%h/.config/my-opiniated-editor/bridge-%i.env
+ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_bridge.sh ${MOE_BRIDGE_HTTP_PORT} %i
 Restart=on-failure
 RestartSec=2
 
