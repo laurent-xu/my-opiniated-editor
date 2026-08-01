@@ -55,12 +55,24 @@ cc_library(
     deps = [":pane_layout"],
 )
 
+cc_library(
+    name = "pane_resize",
+    srcs = ["pane_resize.cc"],
+    hdrs = ["pane_resize.h"],
+    visibility = ["//src/parent/pane/test:__pkg__"],
+    deps = [
+        ":pane_layout",
+        ":pane_selection",
+    ],
+)
+
 test_suite(
     name = "pane_test",
     tests = [
         "//src/parent/pane/test:pane_geometry_test",
         "//src/parent/pane/test:pane_layout_test",
         "//src/parent/pane/test:pane_layout_types_test",
+        "//src/parent/pane/test:pane_resize_test",
         "//src/parent/pane/test:pane_selection_test",
         "//src/parent/pane/test:pane_test",
     ],

@@ -50,3 +50,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "pane_resize_test",
+    srcs = ["pane_resize_test.cc"],
+    visibility = ["//src/parent/pane:__pkg__"],
+    deps = [
+        "//src/parent/pane:pane_resize",
+        "@googletest//:gtest_main",
+    ],
+)
