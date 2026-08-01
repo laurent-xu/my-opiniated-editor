@@ -58,12 +58,44 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "browser_application_message_parser_test",
-    srcs = ["browser_application_message_parser_test.cc"],
+cc_library(
+    name = "browser_application_message_parser_test_support",
+    testonly = True,
+    srcs = ["browser_application_message_parser_test_support.cc"],
+    hdrs = ["browser_application_message_parser_test_support.h"],
     deps = [
         ":browser_application_message_parser",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "browser_parent_command_message_parser_test",
+    srcs = ["browser_parent_command_message_parser_test.cc"],
+    deps = [
+        ":browser_application_message_parser",
+        ":browser_application_message_parser_test_support",
         "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_test(
+    name = "browser_terminal_message_parser_test",
+    srcs = ["browser_terminal_message_parser_test.cc"],
+    deps = [
+        ":browser_application_message_parser",
+        ":browser_application_message_parser_test_support",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+test_suite(
+    name = "browser_application_message_parser_test",
+    tests = [
+        ":browser_parent_command_message_parser_test",
+        ":browser_terminal_message_parser_test",
     ],
     tags = ["unit"],
 )
