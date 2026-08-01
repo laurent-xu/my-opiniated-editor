@@ -1,0 +1,22 @@
+cc_library(
+    name = "application_message_codec",
+    srcs = ["application_message_codec.cc"],
+    hdrs = [
+        "application_message_codec.h",
+        "bridge_to_browser_message.h",
+        "browser_to_bridge_message.h",
+    ],
+    visibility = [
+        "//src/bridge:__pkg__",
+        "//src/bridge/server:__pkg__",
+    ],
+)
+
+cc_test(
+    name = "application_message_codec_test",
+    srcs = ["application_message_codec_test.cc"],
+    deps = [
+        ":application_message_codec",
+        "@googletest//:gtest_main",
+    ],
+)

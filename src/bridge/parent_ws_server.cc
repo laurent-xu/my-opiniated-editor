@@ -24,6 +24,8 @@
 #include "src/bridge/browser_assets.h"
 #include "src/bridge/http_protocol.h"
 #include "src/bridge/parent_pty_session.h"
+#include "src/bridge/protocol/application_message_codec.h"
+#include "src/bridge/protocol/browser_to_bridge_message.h"
 #include "src/bridge/pty_size.h"
 #include "src/bridge/server/pty_websocket_hub.h"
 #include "src/bridge/socket_io.h"
@@ -148,40 +150,39 @@ parent::OverlayNavigation parse_worktree_overlay_navigation(std::string_view con
 }
 
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
-  if (payload.empty()) {
+  std::optional<protocol::BrowserToBridgeMessage> const message =
+      protocol::decode_browser_to_bridge_message(payload);
+  if (!message.has_value()) {
     return;
   }
 
-  char const command = payload.front();
-  std::string_view const data = payload.substr(1U);
-  if (command == '0') {
-    session.write(data);
-    return;
-  }
-  if (command == '1') {
-    session.resize(parse_resize_payload(data));
-    return;
-  }
-  if (command == '2') {
-    send_parent_input_command(session, parent::SwitchAnonymousTrayCommand{
-                                           .tray_number = parse_tray_switch_payload(data)});
-    return;
-  }
-  if (command == '3') {
-    send_parent_input_command(session, parent::ToggleWorktreeOverlayCommand{});
-    return;
-  }
-  if (command == '5') {
-    send_parent_input_command(session, parent::ToggleCommandModeCommand{});
-    return;
-  }
-  if (command == '6') {
-    send_parent_input_command(session, parse_worktree_picker_command(data));
-    return;
-  }
-  if (command == '7') {
-    send_parent_input_command(session, parent::NavigateOverlayCommand{
-                                           .navigation = parse_worktree_overlay_navigation(data)});
+  using Type = protocol::BrowserToBridgeMessage::Type;
+  switch (message->type) {
+    case Type::TERMINAL_INPUT:
+      session.write(message->payload);
+      return;
+    case Type::RESIZE:
+      session.resize(parse_resize_payload(message->payload));
+      return;
+    case Type::SWITCH_ANONYMOUS_TRAY:
+      send_parent_input_command(session,
+                                parent::SwitchAnonymousTrayCommand{
+                                    .tray_number = parse_tray_switch_payload(message->payload)});
+      return;
+    case Type::TOGGLE_WORKTREE_OVERLAY:
+      send_parent_input_command(session, parent::ToggleWorktreeOverlayCommand{});
+      return;
+    case Type::TOGGLE_COMMAND_MODE:
+      send_parent_input_command(session, parent::ToggleCommandModeCommand{});
+      return;
+    case Type::WORKTREE_PICKER_ACTION:
+      send_parent_input_command(session, parse_worktree_picker_command(message->payload));
+      return;
+    case Type::OVERLAY_NAVIGATION:
+      send_parent_input_command(
+          session, parent::NavigateOverlayCommand{
+                       .navigation = parse_worktree_overlay_navigation(message->payload)});
+      return;
   }
 }
 

@@ -12,6 +12,8 @@
 
 #include "src/base/owned_file_descriptor.h"
 #include "src/bridge/parent_pty_session.h"
+#include "src/bridge/protocol/application_message_codec.h"
+#include "src/bridge/protocol/bridge_to_browser_message.h"
 #include "src/bridge/server/websocket_client_connection.h"
 #include "src/bridge/socket_io.h"
 #include "src/bridge/websocket_protocol.h"
@@ -73,13 +75,15 @@ void PtyWebsocketHub::add_client(std::shared_ptr<WebsocketClientConnection> cons
   std::scoped_lock const lock(state_mutex);
   clients.push_back(client);
   if (!terminal_backlog.empty()) {
-    std::string payload("0");
-    payload.append(terminal_backlog);
+    std::string const payload = protocol::encode_bridge_to_browser_message(
+        {.type = protocol::BridgeToBrowserMessage::Type::TERMINAL_OUTPUT,
+         .payload = terminal_backlog});
     static_cast<void>(client->send_binary(payload));
   }
   if (!latest_parent_status.empty()) {
-    std::string payload("1");
-    payload.append(latest_parent_status);
+    std::string const payload = protocol::encode_bridge_to_browser_message(
+        {.type = protocol::BridgeToBrowserMessage::Type::PARENT_STATUS,
+         .payload = latest_parent_status});
     static_cast<void>(client->send_binary(payload));
   }
 }
@@ -102,8 +106,9 @@ void PtyWebsocketHub::broadcast_terminal_output(std::string const& terminal_outp
     terminal_backlog.erase(0, terminal_backlog.size() - MAX_TERMINAL_BACKLOG);
   }
 
-  std::string payload("0");
-  payload.append(terminal_output);
+  std::string const payload = protocol::encode_bridge_to_browser_message(
+      {.type = protocol::BridgeToBrowserMessage::Type::TERMINAL_OUTPUT,
+       .payload = terminal_output});
   send_to_clients(payload);
 }
 
@@ -111,8 +116,9 @@ void PtyWebsocketHub::broadcast_parent_status(std::string status) {
   std::scoped_lock const lock(state_mutex);
   latest_parent_status = std::move(status);
 
-  std::string payload("1");
-  payload.append(latest_parent_status);
+  std::string const payload = protocol::encode_bridge_to_browser_message(
+      {.type = protocol::BridgeToBrowserMessage::Type::PARENT_STATUS,
+       .payload = latest_parent_status});
   send_to_clients(payload);
 }
 

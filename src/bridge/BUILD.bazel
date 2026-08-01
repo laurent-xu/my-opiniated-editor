@@ -69,6 +69,7 @@ cc_library(
         "//src/base:file_descriptor",
         "//src/base:network_port",
         "//src/base:owned_file_descriptor",
+        "//src/bridge/protocol:application_message_codec",
         "//src/bridge/server:pty_websocket_hub",
         "//src/parent/input:parent_input_commands",
         "//src/parent/input:parent_input_protocol",

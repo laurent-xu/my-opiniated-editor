@@ -20,5 +20,6 @@ cc_library(
         "//src/bridge:parent_pty_session",
         "//src/bridge:socket_io",
         "//src/bridge:websocket_protocol",
+        "//src/bridge/protocol:application_message_codec",
     ],
 )
