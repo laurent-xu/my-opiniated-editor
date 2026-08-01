@@ -90,13 +90,31 @@ cc_test(
     tags = ["unit"],
 )
 
-cc_test(
+TERMINAL_SCREEN_BEHAVIOR_TESTS = [
+    "terminal_screen_background_test",
+    "terminal_screen_erase_background_test",
+    "terminal_screen_mode_test",
+    "terminal_screen_redraw_test",
+    "terminal_screen_region_test",
+    "terminal_screen_utf8_test",
+]
+
+[
+    cc_test(
+        name = test_name,
+        srcs = [test_name + ".cc"],
+        deps = [
+            ":terminal_screen",
+            "@googletest//:gtest_main",
+        ],
+        tags = ["unit"],
+    )
+    for test_name in TERMINAL_SCREEN_BEHAVIOR_TESTS
+]
+
+test_suite(
     name = "terminal_screen_test",
-    srcs = ["terminal_screen_test.cc"],
-    deps = [
-        ":terminal_screen",
-        "@googletest//:gtest_main",
-    ],
+    tests = [":" + test_name for test_name in TERMINAL_SCREEN_BEHAVIOR_TESTS],
     tags = ["unit"],
 )
 
