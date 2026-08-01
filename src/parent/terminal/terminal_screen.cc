@@ -1,14 +1,13 @@
 #include "src/parent/terminal/terminal_screen.h"
 
 #include <algorithm>
-#include <cstdint>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "src/parent/terminal/control_sequence_introducer_parser.h"
 #include "src/parent/terminal/terminal_cell_style.h"
 #include "src/parent/terminal/terminal_line_fill_tracker.h"
 #include "src/parent/terminal/terminal_rect_move.h"
@@ -32,25 +31,6 @@ constexpr std::string_view DISABLE_REVERSE_SCREEN = "\x1b[?5l";
 constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
 constexpr std::size_t MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES = 128;
-
-struct ControlSequenceIntroducerSequence {
-  std::size_t start = 0;
-  std::size_t end = 0;
-  char command = '\0';
-  int mode = -1;
-};
-
-enum class ControlSequenceIntroducerParseStatus : std::uint8_t {
-  NOT_CONTROL_SEQUENCE_INTRODUCER,
-  INCOMPLETE,
-  COMPLETE
-};
-
-struct ControlSequenceIntroducerParseResult {
-  ControlSequenceIntroducerParseStatus status =
-      ControlSequenceIntroducerParseStatus::NOT_CONTROL_SEQUENCE_INTRODUCER;
-  ControlSequenceIntroducerSequence sequence;
-};
 
 void validate_size(TerminalSize const size) {
   if (size.rows <= 0 || size.cols <= 0) {
@@ -140,75 +120,6 @@ std::size_t complete_utf8_prefix_size(std::string_view const bytes) {
     index += sequence_length;
   }
   return bytes.size();
-}
-
-bool is_control_sequence_introducer_final_byte(unsigned char const byte) {
-  return byte >= 0x40U && byte <= 0x7EU;
-}
-
-bool is_ascii_digit(char const character) { return character >= '0' && character <= '9'; }
-
-std::optional<int> first_control_sequence_introducer_parameter(
-    std::string_view const parameter_bytes) {
-  int value = 0;
-  bool has_digit = false;
-  for (char const character : parameter_bytes) {
-    if (is_ascii_digit(character)) {
-      has_digit = true;
-      value = (value * 10) + (character - '0');
-      continue;
-    }
-    if (character == ';' || character == ':') {
-      break;
-    }
-    if (character == '\0') {
-      break;
-    }
-    return std::nullopt;
-  }
-  return has_digit ? std::optional<int>(value) : std::optional<int>(0);
-}
-
-ControlSequenceIntroducerParseResult parse_control_sequence_introducer_sequence(
-    std::string_view const bytes, std::size_t const start) {
-  if (start + 1 >= bytes.size()) {
-    return ControlSequenceIntroducerParseResult{
-        .status = ControlSequenceIntroducerParseStatus::INCOMPLETE};
-  }
-  if (bytes[start] != '\x1b' || bytes[start + 1] != '[') {
-    return ControlSequenceIntroducerParseResult{
-        .status = ControlSequenceIntroducerParseStatus::NOT_CONTROL_SEQUENCE_INTRODUCER};
-  }
-
-  for (std::size_t index = start + 2; index < bytes.size(); ++index) {
-    if (!is_control_sequence_introducer_final_byte(static_cast<unsigned char>(bytes[index]))) {
-      continue;
-    }
-
-    std::string_view const parameter_bytes = bytes.substr(start + 2, index - (start + 2));
-    std::optional<int> const mode = first_control_sequence_introducer_parameter(parameter_bytes);
-    if (!mode.has_value()) {
-      return ControlSequenceIntroducerParseResult{
-          .status = ControlSequenceIntroducerParseStatus::COMPLETE,
-          .sequence =
-              ControlSequenceIntroducerSequence{
-                  .start = start, .end = index + 1, .command = bytes[index]},
-      };
-    }
-    return ControlSequenceIntroducerParseResult{
-        .status = ControlSequenceIntroducerParseStatus::COMPLETE,
-        .sequence =
-            ControlSequenceIntroducerSequence{
-                .start = start, .end = index + 1, .command = bytes[index], .mode = *mode},
-    };
-  }
-
-  return ControlSequenceIntroducerParseResult{.status =
-                                                  ControlSequenceIntroducerParseStatus::INCOMPLETE};
-}
-
-bool is_erase_sequence(ControlSequenceIntroducerSequence const sequence) {
-  return sequence.mode >= 0 && (sequence.command == 'K' || sequence.command == 'J');
 }
 
 int ignore_damage(VTermRect const /*rect*/, void* const /*user*/) { return 1; }

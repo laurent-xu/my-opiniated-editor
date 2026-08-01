@@ -1,4 +1,16 @@
 cc_library(
+    name = "control_sequence_introducer_parser",
+    srcs = ["control_sequence_introducer_parser.cc"],
+    hdrs = [
+        "control_sequence_introducer_parse_result.h",
+        "control_sequence_introducer_parse_status.h",
+        "control_sequence_introducer_parser.h",
+        "control_sequence_introducer_sequence.h",
+    ],
+    visibility = ["//src/parent/terminal:__pkg__"],
+)
+
+cc_library(
     name = "content_pty_session",
     srcs = ["content_pty_session.cc"],
     hdrs = ["content_pty_session.h"],
@@ -79,6 +91,7 @@ cc_library(
         "//src/parent/overlay:__pkg__",
     ],
     deps = [
+        ":control_sequence_introducer_parser",
         ":terminal_cell_style",
         ":terminal_line_fill_tracker",
         ":terminal_position",
@@ -86,6 +99,16 @@ cc_library(
         "//src/base:terminal_size",
         "//third_party/system:libvterm_neovim",
     ],
+)
+
+cc_test(
+    name = "control_sequence_introducer_parser_test",
+    srcs = ["control_sequence_introducer_parser_test.cc"],
+    deps = [
+        ":control_sequence_introducer_parser",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
 )
 
 cc_test(
