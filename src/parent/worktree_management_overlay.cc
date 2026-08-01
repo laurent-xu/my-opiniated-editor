@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "src/parent/overlay_footer.h"
+#include "src/parent/path_picker_overlay.h"
 #include "src/parent/terminal/content_pty_session.h"
 #include "src/parent/worktree/repository_root_state.h"
 #include "src/parent/worktree/worktree_candidate_finder.h"
@@ -247,14 +248,15 @@ std::optional<TrayPreviewRequest> WorktreeManagementOverlay::preview_request() c
     return std::nullopt;
   }
   std::optional<std::size_t> const index = picker->highlighted_index();
-  int const preview_rows = picker->first_row();
-  if (!index.has_value() || *index >= switch_candidate_tray_ids.size() || preview_rows <= 0) {
+  TerminalSize const available_region = picker->available_region_above();
+  if (!index.has_value() || *index >= switch_candidate_tray_ids.size() ||
+      available_region.rows <= 0) {
     return std::nullopt;
   }
   return TrayPreviewRequest{
       .tray_id = switch_candidate_tray_ids[*index],
       .origin = TerminalPosition{.row = 0, .column = 0},
-      .size = TerminalSize{.rows = preview_rows, .cols = dialog_terminal_size().cols},
+      .size = available_region,
   };
 }
 

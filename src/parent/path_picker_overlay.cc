@@ -253,8 +253,8 @@ std::optional<base::FileDescriptor> PathPickerOverlay::process_file_descriptor()
 }
 
 std::string PathPickerOverlay::redraw_output() const {
-  int const first_row = std::max(0, parent_terminal_size.rows - picker_terminal_size.rows);
-  return terminal_screen.render_region_snapshot(TerminalPosition{.row = first_row, .column = 0});
+  return terminal_screen.render_region_snapshot(
+      TerminalPosition{.row = available_region_above().rows, .column = 0});
 }
 
 bool PathPickerOverlay::finished() const noexcept { return process_finished; }
@@ -271,8 +271,11 @@ std::optional<std::size_t> PathPickerOverlay::highlighted_index() const noexcept
   return highlighted_candidate_index;
 }
 
-int PathPickerOverlay::first_row() const noexcept {
-  return std::max(0, parent_terminal_size.rows - picker_terminal_size.rows);
+base::TerminalSize PathPickerOverlay::available_region_above() const noexcept {
+  return {
+      .rows = std::max(0, parent_terminal_size.rows - picker_terminal_size.rows),
+      .cols = parent_terminal_size.cols,
+  };
 }
 
 void PathPickerOverlay::write_candidates() {

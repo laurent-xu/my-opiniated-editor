@@ -39,7 +39,7 @@ class PathPickerOverlay : public Overlay {
   [[nodiscard]] std::optional<std::filesystem::path> const& selected_path() const noexcept;
   [[nodiscard]] std::optional<std::size_t> selected_index() const noexcept;
   [[nodiscard]] std::optional<std::size_t> highlighted_index() const noexcept;
-  [[nodiscard]] int first_row() const noexcept;
+  [[nodiscard]] base::TerminalSize available_region_above() const noexcept;
 
  private:
   struct Handles {

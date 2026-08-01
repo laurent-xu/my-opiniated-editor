@@ -152,7 +152,10 @@ TEST(WorktreeManagementOverlayTest, WorktreePickerIncludesAndPreviewsUsedAnonymo
   moe::parent::TrayPreviewRequest const& preview_request = *preview;
   EXPECT_EQ(preview_request.tray_id,
             moe::parent::TrayId::anonymous(moe::parent::TrayNumber::one()));
-  EXPECT_GT(preview_request.size.rows, 0);
+  EXPECT_EQ(preview_request.origin.row, 0);
+  EXPECT_EQ(preview_request.origin.column, 0);
+  EXPECT_EQ(preview_request.size.rows, 12);
+  EXPECT_EQ(preview_request.size.cols, 100);
 
   std::optional<moe::base::FileDescriptor> const descriptor = overlay->process_file_descriptor();
   if (!descriptor.has_value()) {

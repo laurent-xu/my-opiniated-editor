@@ -70,6 +70,17 @@ cc_test(
 )
 
 cc_test(
+    name = "path_picker_overlay_test",
+    srcs = ["path_picker_overlay_test.cc"],
+    data = ["//test/fixtures:fake_fzf"],
+    deps = [
+        ":parent_lib",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
     name = "parent_status_test",
     srcs = ["parent_status_test.cc"],
     deps = [
