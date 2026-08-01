@@ -3,22 +3,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <iosfwd>
-#include <optional>
 #include <string>
 
 namespace moe::parent {
 
-enum class RepositoryRootState : std::uint8_t {
-  EMPTY,
-  BARE_ROOT,
-  RECOVERABLE_BARE_ROOT,
-};
-
-struct RepositoryRegistrationRequest {
-  std::filesystem::path repository_root;
-  std::optional<std::string> clone_url;
-  std::filesystem::path registry_path;
-};
+enum class RepositoryRootState : std::uint8_t;
+struct RepositoryRegistrationRequest;
 
 [[nodiscard]] RepositoryRootState inspect_repository_root(
     std::filesystem::path const& repository_root);

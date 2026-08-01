@@ -9,6 +9,9 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
+#include "src/parent/worktree/worktree_provision_kind.h"
+#include "src/parent/worktree/worktree_provision_request.h"
+#include "src/parent/worktree/worktree_provision_result.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {

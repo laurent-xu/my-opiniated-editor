@@ -14,6 +14,7 @@
 
 #include "src/parent/content_pty_session.h"
 #include "src/parent/overlay_footer.h"
+#include "src/parent/worktree/repository_root_state.h"
 #include "src/parent/worktree/worktree_candidate_finder.h"
 #include "src/parent/worktree/worktree_provisioner.h"
 #include "src/parent/worktree/worktree_registry_store.h"

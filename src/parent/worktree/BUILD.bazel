@@ -21,12 +21,26 @@ cc_library(
 )
 
 cc_library(
+    name = "repository_registration_request",
+    hdrs = ["repository_registration_request.h"],
+    visibility = ["//src/parent:__pkg__"],
+)
+
+cc_library(
+    name = "repository_root_state",
+    hdrs = ["repository_root_state.h"],
+    visibility = ["//src/parent:__pkg__"],
+)
+
+cc_library(
     name = "worktree_repository_registrar",
     srcs = ["worktree_repository_registrar.cc"],
     hdrs = ["worktree_repository_registrar.h"],
     visibility = ["//src/parent:__pkg__"],
     deps = [
         ":git_worktree_list",
+        ":repository_registration_request",
+        ":repository_root_state",
         ":worktree_registry_store",
         "//src/process:command_runner",
     ],
@@ -66,12 +80,34 @@ cc_library(
 )
 
 cc_library(
+    name = "worktree_provision_kind",
+    hdrs = ["worktree_provision_kind.h"],
+    visibility = ["//src/parent:__pkg__"],
+)
+
+cc_library(
+    name = "worktree_provision_request",
+    hdrs = ["worktree_provision_request.h"],
+    visibility = ["//src/parent:__pkg__"],
+)
+
+cc_library(
+    name = "worktree_provision_result",
+    hdrs = ["worktree_provision_result.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = [":worktree_provision_kind"],
+)
+
+cc_library(
     name = "worktree_provisioner",
     srcs = ["worktree_provisioner.cc"],
     hdrs = ["worktree_provisioner.h"],
     visibility = ["//src/parent:__pkg__"],
     deps = [
         ":worktree_registry_store",
+        ":worktree_provision_kind",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
         "//src/process:command_runner",
     ],
 )
@@ -82,6 +118,9 @@ cc_test(
     data = ["//test/fixtures:fake_git"],
     deps = [
         ":worktree_provisioner",
+        ":worktree_provision_kind",
+        ":worktree_provision_request",
+        ":worktree_provision_result",
         "//src/parent/test/support:environment_guard",
         "@googletest//:gtest_main",
     ],
@@ -117,6 +156,7 @@ cc_test(
     srcs = ["worktree_repository_registrar_test.cc"],
     data = ["//test/fixtures:fake_git"],
     deps = [
+        ":repository_registration_request",
         ":worktree_registry_store",
         ":worktree_repository_registrar",
         "//src/parent/test/support:environment_guard",

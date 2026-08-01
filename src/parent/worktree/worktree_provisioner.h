@@ -1,28 +1,13 @@
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
 #include <iosfwd>
 #include <string>
 
 namespace moe::parent {
 
-enum class WorktreeProvisionKind : std::uint8_t {
-  ADOPTED,
-  CREATED,
-};
-
-struct WorktreeProvisionRequest {
-  std::filesystem::path repository_root;
-  std::string branch;
-  std::filesystem::path worktree_path;
-  std::filesystem::path registry_path;
-};
-
-struct WorktreeProvisionResult {
-  std::filesystem::path worktree_path;
-  WorktreeProvisionKind kind;
-};
+struct WorktreeProvisionRequest;
+struct WorktreeProvisionResult;
 
 [[nodiscard]] std::filesystem::path derived_worktree_path(
     std::filesystem::path const& repository_root, std::string const& branch);
