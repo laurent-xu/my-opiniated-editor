@@ -144,4 +144,100 @@ TEST(PaneLayoutTest, SetPercentagesNormalizesWeightsAndAllowsCollapse) {
   EXPECT_THROW(layout.set_split_percentages(first, {100}), std::logic_error);
 }
 
+TEST(PaneLayoutTest, RemovingMiddleLeafRedistributesAndFocusesNextLeaf) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const third =
+      layout.split_leaf(second, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(3),
+                        moe::parent::PaneInsertion::AFTER);
+
+  std::optional<moe::parent::PaneNodeId> const next_focus = layout.remove_leaf(second);
+
+  EXPECT_EQ(required(next_focus), third);
+  EXPECT_EQ(pane_values(layout), (std::vector<moe::parent::PaneId::Value>{1, 3}));
+  EXPECT_EQ(percentages(layout.node(layout.root_id()).split()), (std::vector<int>{67, 33}));
+  EXPECT_THROW(static_cast<void>(layout.node(second)), std::out_of_range);
+}
+
+TEST(PaneLayoutTest, RemovingLastLeafFocusesPreviousLeaf) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+
+  EXPECT_EQ(required(layout.remove_leaf(second)), first);
+  EXPECT_EQ(layout.root_id(), first);
+  EXPECT_FALSE(layout.node(first).parent().has_value());
+}
+
+TEST(PaneLayoutTest, RemovingNestedLeafDissolvesUnarySplit) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const third =
+      layout.split_leaf(second, moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, pane_id(3),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const removed_group = required(layout.node(second).parent());
+
+  EXPECT_EQ(required(layout.remove_leaf(second)), third);
+
+  EXPECT_EQ(child_node_ids(layout.node(layout.root_id()).split()),
+            (std::vector<moe::parent::PaneNodeId>{first, third}));
+  EXPECT_EQ(layout.node(third).parent(), layout.root_id());
+  EXPECT_THROW(static_cast<void>(layout.node(removed_group)), std::out_of_range);
+}
+
+TEST(PaneLayoutTest, DissolvingNestedSplitFlattensMatchingGrandparentAxis) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const third =
+      layout.split_leaf(second, moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, pane_id(3),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const fourth =
+      layout.split_leaf(third, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(4),
+                        moe::parent::PaneInsertion::AFTER);
+
+  EXPECT_EQ(required(layout.remove_leaf(second)), third);
+
+  moe::parent::PaneSplit const& root_split = layout.node(layout.root_id()).split();
+  EXPECT_EQ(child_node_ids(root_split),
+            (std::vector<moe::parent::PaneNodeId>{first, third, fourth}));
+  EXPECT_EQ(percentages(root_split), (std::vector<int>{50, 25, 25}));
+  EXPECT_EQ(layout.node(third).parent(), layout.root_id());
+  EXPECT_EQ(layout.node(fourth).parent(), layout.root_id());
+}
+
+TEST(PaneLayoutTest, RemovingOnlyVisibleLeafEqualizesZeroWeightSiblings) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+  static_cast<void>(layout.split_leaf(second, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(3),
+                                      moe::parent::PaneInsertion::AFTER));
+  layout.set_split_percentages(layout.root_id(), {100, 0, 0});
+
+  EXPECT_TRUE(layout.remove_leaf(first).has_value());
+  EXPECT_EQ(percentages(layout.node(layout.root_id()).split()), (std::vector<int>{50, 50}));
+}
+
+TEST(PaneLayoutTest, LastLeafCannotBeRemovedAndSplitNodeIsNotALeaf) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  EXPECT_FALSE(layout.remove_leaf(layout.root_id()).has_value());
+  EXPECT_EQ(pane_values(layout), (std::vector<moe::parent::PaneId::Value>{1}));
+
+  static_cast<void>(layout.split_leaf(layout.root_id(), moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                      pane_id(2), moe::parent::PaneInsertion::AFTER));
+  EXPECT_THROW(static_cast<void>(layout.remove_leaf(layout.root_id())), std::invalid_argument);
+}
+
 }  // namespace

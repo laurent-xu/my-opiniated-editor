@@ -10,38 +10,6 @@ namespace moe::parent {
 
 namespace {
 
-std::vector<int> distribute_total(std::vector<int> const& weights, int const total) {
-  if (weights.empty()) {
-    throw std::logic_error("cannot distribute a percentage across no pane nodes");
-  }
-
-  int const weight_sum = std::accumulate(weights.begin(), weights.end(), 0);
-  std::vector<int> result(weights.size(), 0);
-  std::vector<int> remainders(weights.size(), 0);
-  int assigned = 0;
-  for (std::size_t index = 0; index < weights.size(); ++index) {
-    int const effective_weight = weight_sum == 0 ? 1 : weights[index];
-    int const effective_sum = weight_sum == 0 ? static_cast<int>(weights.size()) : weight_sum;
-    int const scaled = effective_weight * total;
-    result[index] = scaled / effective_sum;
-    remainders[index] = scaled % effective_sum;
-    assigned += result[index];
-  }
-
-  std::vector<std::size_t> remainder_order(weights.size());
-  for (std::size_t index = 0; index < remainder_order.size(); ++index) {
-    remainder_order[index] = index;
-  }
-  std::ranges::stable_sort(remainder_order,
-                           [&remainders](std::size_t const lhs, std::size_t const rhs) {
-                             return remainders[lhs] > remainders[rhs];
-                           });
-  for (int offset = 0; offset < total - assigned; ++offset) {
-    ++result[remainder_order[static_cast<std::size_t>(offset)]];
-  }
-  return result;
-}
-
 struct SelectionPartition {
   std::vector<std::size_t> selected_indices;
   std::vector<std::size_t> unselected_indices;
@@ -131,9 +99,10 @@ bool resize_pane_selection(PaneLayout& layout, PaneSelection const& selection,
 
   std::vector<int> percentages(split.children.size(), 0);
   assign_at(percentages, partition.selected_indices,
-            distribute_total(selected_weights, resized_total));
+            distribute_pane_percentage_total(selected_weights, resized_total));
   assign_at(percentages, partition.unselected_indices,
-            distribute_total(unselected_weights, PanePercentage::MAX_VALUE - resized_total));
+            distribute_pane_percentage_total(unselected_weights,
+                                             PanePercentage::MAX_VALUE - resized_total));
   layout.set_split_percentages(parent, percentages);
   return true;
 }
@@ -156,9 +125,9 @@ bool equalize_pane_selection(PaneLayout& layout, PaneSelection const& selection)
   int const selected_total = std::accumulate(selected_weights.begin(), selected_weights.end(), 0);
   std::vector<int> const current = percentage_values(split);
   std::vector<int> percentages = current;
-  assign_at(
-      percentages, partition.selected_indices,
-      distribute_total(std::vector<int>(partition.selected_indices.size(), 1), selected_total));
+  assign_at(percentages, partition.selected_indices,
+            distribute_pane_percentage_total(std::vector<int>(partition.selected_indices.size(), 1),
+                                             selected_total));
   if (percentages == current) {
     return false;
   }

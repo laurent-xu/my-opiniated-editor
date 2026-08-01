@@ -66,6 +66,14 @@ TEST(PaneLayoutTypesTest, AllZeroWeightsBecomeEqualPercentages) {
             (std::vector<int>{25, 25, 25, 25}));
 }
 
+TEST(PaneLayoutTypesTest, DistributesArbitraryPercentageTotalWithTheSameRoundingRule) {
+  EXPECT_EQ(moe::parent::distribute_pane_percentage_total({1, 1, 1}, 10),
+            (std::vector<int>{4, 3, 3}));
+  EXPECT_EQ(moe::parent::distribute_pane_percentage_total({0, 0}, 5), (std::vector<int>{3, 2}));
+  EXPECT_EQ(moe::parent::distribute_pane_percentage_total({0, 5, 0}, 40),
+            (std::vector<int>{0, 40, 0}));
+}
+
 TEST(PaneLayoutTypesTest, EveryNormalizationSumsToOneHundred) {
   for (int first = 0; first <= 10; ++first) {
     for (int second = 0; second <= 10; ++second) {
@@ -89,6 +97,10 @@ TEST(PaneLayoutTypesTest, NormalizationRejectsMissingOrNegativeWeights) {
   EXPECT_THROW(static_cast<void>(moe::parent::normalize_pane_percentages({25, -1, 76})),
                std::invalid_argument);
   EXPECT_THROW(static_cast<void>(moe::parent::equal_pane_percentages(0)), std::invalid_argument);
+  EXPECT_THROW(static_cast<void>(moe::parent::distribute_pane_percentage_total({}, 10)),
+               std::invalid_argument);
+  EXPECT_THROW(static_cast<void>(moe::parent::distribute_pane_percentage_total({1}, 101)),
+               std::invalid_argument);
 }
 
 }  // namespace

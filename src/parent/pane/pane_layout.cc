@@ -178,6 +178,52 @@ PaneNodeId PaneLayout::split_leaf(PaneNodeId const target, PaneSplitAxis const a
   return new_leaf_id;
 }
 
+std::optional<PaneNodeId> PaneLayout::remove_leaf(PaneNodeId const target) {
+  PaneLayoutNode const& target_node = node(target);
+  if (!target_node.is_leaf()) {
+    throw std::invalid_argument("only leaf pane nodes can be removed");
+  }
+
+  std::vector<PaneNodeId> const leaves = leaf_nodes();
+  if (leaves.size() == 1) {
+    return std::nullopt;
+  }
+  auto const target_position = std::ranges::find(leaves, target);
+  if (target_position == leaves.end()) {
+    throw std::logic_error("pane leaf is not reachable from the layout root");
+  }
+  std::size_t const target_leaf_index = static_cast<std::size_t>(target_position - leaves.begin());
+  PaneNodeId const next_focus = target_leaf_index + 1 < leaves.size()
+                                    ? leaves[target_leaf_index + 1]
+                                    : leaves[target_leaf_index - 1];
+
+  std::optional<PaneNodeId> const parent_id = target_node.parent();
+  if (!parent_id.has_value()) {
+    throw std::logic_error("multi-pane layout leaf has no parent");
+  }
+  PaneSplit& parent_split = nodes.at(parent_id.value()).mutable_split();
+  std::size_t const target_child_index = child_index(parent_split, target);
+  auto const child_position =
+      parent_split.children.begin() + static_cast<std::ptrdiff_t>(target_child_index);
+  parent_split.children.erase(child_position);
+
+  std::vector<int> remaining_weights;
+  remaining_weights.reserve(parent_split.children.size());
+  for (PaneSplitChild const& child : parent_split.children) {
+    remaining_weights.push_back(child.percentage.value());
+  }
+  std::vector<PanePercentage> const normalized = normalize_pane_percentages(remaining_weights);
+  for (std::size_t index = 0; index < parent_split.children.size(); ++index) {
+    parent_split.children[index].percentage = normalized[index];
+  }
+  nodes.erase(target);
+
+  if (parent_split.children.size() == 1) {
+    dissolve_unary_split(parent_id.value());
+  }
+  return next_focus;
+}
+
 void PaneLayout::set_split_percentages(PaneNodeId const split_node,
                                        std::vector<int> const& weights) {
   PaneSplit& split = nodes.at(split_node).mutable_split();
@@ -209,6 +255,60 @@ void PaneLayout::append_leaf_nodes(PaneNodeId const node_id,
   for (PaneSplitChild const& child : layout_node.split().children) {
     append_leaf_nodes(child.node_id, output);
   }
+}
+
+void PaneLayout::dissolve_unary_split(PaneNodeId const split_node) {
+  PaneLayoutNode const& unary_node = node(split_node);
+  PaneSplit const& unary_split = unary_node.split();
+  if (unary_split.children.size() != 1) {
+    throw std::logic_error("only a unary pane split can be dissolved");
+  }
+
+  PaneNodeId const child_id = unary_split.children.front().node_id;
+  std::optional<PaneNodeId> const grandparent_id = unary_node.parent();
+  if (!grandparent_id.has_value()) {
+    root = child_id;
+    nodes.at(child_id).set_parent(std::nullopt);
+    nodes.erase(split_node);
+    return;
+  }
+
+  PaneSplit& grandparent_split = nodes.at(grandparent_id.value()).mutable_split();
+  std::size_t const inherited_index = child_index(grandparent_split, split_node);
+  PaneLayoutNode const& child_node = node(child_id);
+  if (!child_node.is_leaf() && child_node.split().axis == grandparent_split.axis) {
+    PaneSplit const promoted_split = child_node.split();
+    int const inherited_percentage = grandparent_split.children[inherited_index].percentage.value();
+    std::vector<int> promoted_weights;
+    promoted_weights.reserve(promoted_split.children.size());
+    for (PaneSplitChild const& promoted_child : promoted_split.children) {
+      promoted_weights.push_back(promoted_child.percentage.value());
+    }
+    std::vector<int> const inherited_percentages =
+        distribute_pane_percentage_total(promoted_weights, inherited_percentage);
+    std::vector<PaneSplitChild> promoted_children = promoted_split.children;
+    for (std::size_t index = 0; index < promoted_children.size(); ++index) {
+      promoted_children[index].percentage = required_percentage(inherited_percentages[index]);
+    }
+
+    auto const inherited_child_position =
+        grandparent_split.children.begin() + static_cast<std::ptrdiff_t>(inherited_index);
+    grandparent_split.children.erase(inherited_child_position);
+    grandparent_split.children.insert(
+        grandparent_split.children.begin() + static_cast<std::ptrdiff_t>(inherited_index),
+        promoted_children.begin(), promoted_children.end());
+
+    for (PaneSplitChild const& promoted_child : promoted_split.children) {
+      nodes.at(promoted_child.node_id).set_parent(grandparent_id);
+    }
+    nodes.erase(child_id);
+    nodes.erase(split_node);
+    return;
+  }
+
+  grandparent_split.children[inherited_index].node_id = child_id;
+  nodes.at(child_id).set_parent(grandparent_id);
+  nodes.erase(split_node);
 }
 
 }  // namespace moe::parent

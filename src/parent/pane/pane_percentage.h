@@ -31,5 +31,7 @@ class PanePercentage {
 [[nodiscard]] std::vector<PanePercentage> normalize_pane_percentages(
     std::vector<int> const& weights);
 [[nodiscard]] std::vector<PanePercentage> equal_pane_percentages(int count);
+[[nodiscard]] std::vector<int> distribute_pane_percentage_total(std::vector<int> const& weights,
+                                                                int total);
 
 }  // namespace moe::parent
