@@ -48,14 +48,14 @@ base::ProcessId wait_for_child(base::ProcessId const child_pid, int const option
   return result;
 }
 
-int exit_code_from_status(int const status) {
+process::ProcessExitStatus exit_status_from_wait_status(int const status) {
   if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
+    return process::ProcessExitStatus::exited(WEXITSTATUS(status));
   }
   if (WIFSIGNALED(status)) {
-    return 128 + WTERMSIG(status);
+    return process::ProcessExitStatus::signaled(WTERMSIG(status));
   }
-  return 1;
+  return process::ProcessExitStatus::exited(1);
 }
 
 }  // namespace
@@ -153,9 +153,9 @@ void ContentPtySession::resize(base::TerminalSize const size) const {
   }
 }
 
-std::optional<int> ContentPtySession::try_wait_for_exit() noexcept {
+std::optional<process::ProcessExitStatus> ContentPtySession::try_wait_for_exit() noexcept {
   if (!child_process_id.is_valid_parent_process()) {
-    return 0;
+    return process::ProcessExitStatus::exited(0);
   }
 
   int status = 0;
@@ -165,11 +165,11 @@ std::optional<int> ContentPtySession::try_wait_for_exit() noexcept {
   }
   if (result.value() == child_process_id.value()) {
     child_process_id = base::ProcessId{};
-    return exit_code_from_status(status);
+    return exit_status_from_wait_status(status);
   }
   if (result.is_error() && errno == ECHILD) {
     child_process_id = base::ProcessId{};
-    return 0;
+    return process::ProcessExitStatus::exited(0);
   }
   return std::nullopt;
 }

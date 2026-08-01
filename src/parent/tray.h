@@ -12,6 +12,7 @@
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray_config.h"
 #include "src/parent/tray_snapshot.h"
+#include "src/process/process_exit_status.h"
 
 namespace moe::parent {
 
@@ -32,7 +33,7 @@ class Tray {
   [[nodiscard]] std::string preview_output(TerminalPosition origin,
                                            base::TerminalSize region_size) const;
   void resize(base::TerminalSize size);
-  [[nodiscard]] std::optional<int> try_wait_for_exit() noexcept;
+  [[nodiscard]] std::optional<process::ProcessExitStatus> try_wait_for_exit() noexcept;
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
   [[nodiscard]] TrayId const& id() const;
   [[nodiscard]] TraySnapshot snapshot() const;

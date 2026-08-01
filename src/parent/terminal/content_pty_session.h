@@ -11,6 +11,7 @@
 #include "src/base/owned_file_descriptor.h"
 #include "src/base/process_id.h"
 #include "src/base/terminal_size.h"
+#include "src/process/process_exit_status.h"
 
 namespace moe::parent {
 
@@ -31,7 +32,7 @@ class ContentPtySession {
   void write(std::string_view bytes) const;
   [[nodiscard]] std::optional<std::string> read_available() const;
   void resize(base::TerminalSize size) const;
-  [[nodiscard]] std::optional<int> try_wait_for_exit() noexcept;
+  [[nodiscard]] std::optional<process::ProcessExitStatus> try_wait_for_exit() noexcept;
 
  private:
   struct Handles {

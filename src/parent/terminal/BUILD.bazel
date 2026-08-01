@@ -8,6 +8,7 @@ cc_library(
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
         "//src/base:terminal_size",
+        "//src/process:process_exit_status",
         "//third_party/system:libutil",
     ],
 )

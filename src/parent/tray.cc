@@ -54,7 +54,9 @@ void Tray::resize(base::TerminalSize const size) {
   }
 }
 
-std::optional<int> Tray::try_wait_for_exit() noexcept { return content->try_wait_for_exit(); }
+std::optional<process::ProcessExitStatus> Tray::try_wait_for_exit() noexcept {
+  return content->try_wait_for_exit();
+}
 
 base::FileDescriptor Tray::file_descriptor() const { return content->file_descriptor(); }
 

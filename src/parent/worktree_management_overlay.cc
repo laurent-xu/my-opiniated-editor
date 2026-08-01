@@ -19,6 +19,7 @@
 #include "src/parent/worktree/worktree_provisioner.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_repository_registrar.h"
+#include "src/process/process_exit_status.h"
 
 namespace moe::parent {
 
@@ -195,14 +196,14 @@ bool WorktreeManagementOverlay::refresh_process_state() {
   if (process == nullptr || current_stage() != Stage::RUNNING) {
     return false;
   }
-  std::optional<int> const exit_code = process->try_wait_for_exit();
-  if (!exit_code.has_value()) {
+  std::optional<process::ProcessExitStatus> const exit_status = process->try_wait_for_exit();
+  if (!exit_status.has_value()) {
     return false;
   }
 
   process = nullptr;
   append_transcript_line();
-  result_succeeded = *exit_code == 0;
+  result_succeeded = exit_status->succeeded();
   mutable_current_stage() = Stage::RESULT;
   if (result_succeeded && mode == Mode::ADD_WORKTREE) {
     if (!pending_worktree_path.has_value()) {

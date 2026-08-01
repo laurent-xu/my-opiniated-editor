@@ -42,6 +42,7 @@ cc_library(
         "//src/parent/worktree:worktree_registry_store",
         "//src/parent/worktree:worktree_remover",
         "//src/parent/worktree:worktree_repository_registrar",
+        "//src/process:process_exit_status",
         "//third_party/system:libutil",
     ],
 )
