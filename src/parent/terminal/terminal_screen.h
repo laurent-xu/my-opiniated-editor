@@ -13,6 +13,8 @@
 
 namespace moe::parent {
 
+class TerminalLineFillTracker;
+
 class TerminalScreen {
  public:
   explicit TerminalScreen(base::TerminalSize size);
@@ -68,8 +70,7 @@ class TerminalScreen {
   bool cursor_visible = true;
   std::deque<std::string> scrollback_lines;
 
-  struct LineFillTracker;
-  std::unique_ptr<LineFillTracker> line_fill_tracker;
+  std::unique_ptr<TerminalLineFillTracker> line_fill_tracker;
 };
 
 }  // namespace moe::parent

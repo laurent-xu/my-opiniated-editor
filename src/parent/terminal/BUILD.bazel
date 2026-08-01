@@ -26,6 +26,22 @@ cc_library(
 )
 
 cc_library(
+    name = "terminal_line_fill_tracker",
+    srcs = ["terminal_line_fill_tracker.cc"],
+    hdrs = [
+        "terminal_line_fill_tracker.h",
+        "terminal_rect_move.h",
+    ],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [
+        ":terminal_cell_style",
+        ":terminal_snapshot_line",
+        "//src/base:terminal_size",
+        "//third_party/system:libvterm_neovim",
+    ],
+)
+
+cc_library(
     name = "terminal_position",
     hdrs = ["terminal_position.h"],
     visibility = [
@@ -55,11 +71,23 @@ cc_library(
     visibility = ["//src/parent:__pkg__"],
     deps = [
         ":terminal_cell_style",
+        ":terminal_line_fill_tracker",
         ":terminal_position",
         ":terminal_snapshot_line",
         "//src/base:terminal_size",
         "//third_party/system:libvterm_neovim",
     ],
+)
+
+cc_test(
+    name = "terminal_line_fill_tracker_test",
+    srcs = ["terminal_line_fill_tracker_test.cc"],
+    deps = [
+        ":terminal_cell_style",
+        ":terminal_line_fill_tracker",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
 )
 
 cc_test(
