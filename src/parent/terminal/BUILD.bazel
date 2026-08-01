@@ -26,15 +26,22 @@ cc_library(
 )
 
 cc_library(
+    name = "terminal_position",
+    hdrs = ["terminal_position.h"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+)
+
+cc_library(
     name = "terminal_screen",
     srcs = ["terminal_screen.cc"],
-    hdrs = [
-        "terminal_position.h",
-        "terminal_screen.h",
-    ],
+    hdrs = ["terminal_screen.h"],
     visibility = ["//src/parent:__pkg__"],
     deps = [
         ":terminal_cell_style",
+        ":terminal_position",
         "//src/base:terminal_size",
         "//third_party/system:libvterm_neovim",
     ],
@@ -54,7 +61,10 @@ cc_library(
     name = "terminal_screen_snapshot_test_support",
     testonly = True,
     hdrs = ["terminal_screen_snapshot_test_support.h"],
-    deps = [":terminal_screen"],
+    deps = [
+        ":terminal_position",
+        ":terminal_screen",
+    ],
 )
 
 [
@@ -62,6 +72,7 @@ cc_library(
         name = test_name,
         srcs = [test_name + ".cc"],
         deps = [
+            ":terminal_position",
             ":terminal_screen_snapshot_test_support",
             "@googletest//:gtest_main",
         ],

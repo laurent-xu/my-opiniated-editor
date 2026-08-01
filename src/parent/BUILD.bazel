@@ -1,4 +1,20 @@
 cc_library(
+    name = "tray_contracts",
+    hdrs = [
+        "tray_action_kind.h",
+        "tray_action_request.h",
+        "tray_preview_request.h",
+        "tray_snapshot.h",
+    ],
+    deps = [
+        "//src/base:process_id",
+        "//src/base:terminal_size",
+        "//src/parent/terminal:terminal_position",
+        "//src/parent/tray:tray_identity",
+    ],
+)
+
+cc_library(
     name = "parent_lib",
     srcs = [
         "overlay_footer.cc",
@@ -15,17 +31,14 @@ cc_library(
         "path_picker_overlay.h",
         "parent_status.h",
         "tray.h",
-        "tray_action_kind.h",
-        "tray_action_request.h",
         "tray_config.h",
         "tray_manager.h",
         "tray_output_source.h",
-        "tray_preview_request.h",
-        "tray_snapshot.h",
         "worktree_management_overlay.h",
         "workspace_parent.h",
     ],
     deps = [
+        ":tray_contracts",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
@@ -33,6 +46,7 @@ cc_library(
         "//src/parent/input:parent_input_decoder",
         "//src/parent/runtime:raw_terminal_mode_guard",
         "//src/parent/terminal:content_pty_session",
+        "//src/parent/terminal:terminal_position",
         "//src/parent/terminal:terminal_screen",
         "//src/parent/tray:tray_identity",
         "//src/parent/worktree:repository_registration_request",
