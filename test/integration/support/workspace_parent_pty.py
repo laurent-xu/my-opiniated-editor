@@ -81,11 +81,17 @@ def switch_worktree_overlay_to_add_worktree_mode(fd: int):
     os.write(fd, b"\t")
 
 
-def worktree_test_environment(name: str) -> dict[str, str]:
+def workspace_parent_test_environment(name: str) -> dict[str, str]:
     environment = dict(os.environ)
     environment["XDG_STATE_HOME"] = os.path.join(
         os.environ["TEST_TMPDIR"], name, "state"
     )
+    environment.pop("MOE_STATE_DIRECTORY", None)
+    return environment
+
+
+def worktree_test_environment(name: str) -> dict[str, str]:
+    environment = workspace_parent_test_environment(name)
     environment["MOE_GIT_EXECUTABLE"] = runfile_path("test/fixtures/fake_git")
     environment["MOE_FZF_EXECUTABLE"] = runfile_path("test/fixtures/fake_fzf")
     environment["MOE_FAKE_GIT_LOG"] = os.path.join(
@@ -105,6 +111,9 @@ def worktree_test_environment(name: str) -> dict[str, str]:
 
 class WorkspaceParentPty:
     def __init__(self, environment: dict[str, str] | None = None):
+        if environment is None:
+            environment = workspace_parent_test_environment("workspace-parent")
+
         master_fd, slave_fd = pty.openpty()
         try:
             process = subprocess.Popen(

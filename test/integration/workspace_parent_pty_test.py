@@ -13,6 +13,7 @@ from test.integration.support.workspace_parent_pty import (
     shell_pid_marker_command,
     switch_worktree_overlay_to_add_worktree_mode,
     switch_worktree_overlay_to_repository_mode,
+    workspace_parent_test_environment,
     worktree_test_environment,
 )
 
@@ -120,7 +121,7 @@ class WorkspaceParentPtyTest(unittest.TestCase):
         self.assertIn("__moe_line_40__", redraw_output)
 
     def test_parent_process_defaults_terminal_type_for_shell(self):
-        env = dict(os.environ)
+        env = workspace_parent_test_environment("default-terminal-type")
         env.pop("TERM", None)
         parent = WorkspaceParentPty(env)
         self.addCleanup(parent.close)
@@ -128,6 +129,16 @@ class WorkspaceParentPtyTest(unittest.TestCase):
         os.write(parent.master_fd, b"printf '%s\\n' \"$TERM\"\n")
         terminal_type = read_until(parent.master_fd, "xterm-256color")
         self.assertIn("xterm-256color", terminal_type)
+
+    def test_parent_process_starts_without_home_when_test_state_is_isolated(self):
+        environment = workspace_parent_test_environment("without-home")
+        environment.pop("HOME", None)
+        parent = WorkspaceParentPty(environment)
+        self.addCleanup(parent.close)
+
+        os.write(parent.master_fd, shell_marker_command("__moe_without_home_ready__"))
+        output = read_until(parent.master_fd, "__moe_without_home_ready__")
+        self.assertIn("__moe_without_home_ready__", output)
 
     def test_worktree_manager_registers_existing_bare_root(self):
         test_root = os.path.join(os.environ["TEST_TMPDIR"], "register-existing")
