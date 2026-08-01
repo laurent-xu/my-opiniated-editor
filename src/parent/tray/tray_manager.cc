@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "src/parent/tray/tray.h"
 #include "src/parent/tray/tray_preview_renderer.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 

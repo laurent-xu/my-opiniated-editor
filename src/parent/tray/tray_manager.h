@@ -11,11 +11,15 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
-#include "src/parent/tray/tray.h"
+#include "src/parent/tray/tray_config.h"
+#include "src/parent/tray/tray_id.h"
+#include "src/parent/tray/tray_number.h"
 #include "src/parent/tray/tray_output_source.h"
+#include "src/parent/tray/tray_snapshot.h"
 
 namespace moe::parent {
 
+class Tray;
 class WorktreeManagementOverlay;
 
 class TrayManager {
