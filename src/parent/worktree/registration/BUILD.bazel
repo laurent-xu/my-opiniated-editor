@@ -32,18 +32,63 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "worktree_repository_registrar_test",
-    srcs = ["worktree_repository_registrar_test.cc"],
-    data = ["//test/fixtures:fake_git"],
-    visibility = ["//src/parent/worktree:__pkg__"],
+cc_library(
+    name = "worktree_repository_registrar_test_support",
+    testonly = True,
+    srcs = ["worktree_repository_registrar_test_support.cc"],
+    hdrs = ["worktree_repository_registrar_test_support.h"],
     deps = [
-        ":repository_registration_request",
         ":worktree_repository_registrar",
         "//src/parent/test/support:environment_guard",
         "//src/parent/test/support:test_paths",
+        "@googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "worktree_repository_registrar_successful_registration_test",
+    srcs = ["worktree_repository_registrar_successful_registration_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":repository_registration_request",
+        ":worktree_repository_registrar_test_support",
         "//src/parent/worktree/registry:worktree_registry_store",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_repository_registrar_failure_safety_test",
+    srcs = ["worktree_repository_registrar_failure_safety_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":repository_registration_request",
+        ":worktree_repository_registrar_test_support",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_repository_registrar_recovery_and_adoption_test",
+    srcs = ["worktree_repository_registrar_recovery_and_adoption_test.cc"],
+    data = ["//test/fixtures:fake_git"],
+    deps = [
+        ":repository_registration_request",
+        ":worktree_repository_registrar_test_support",
+        "//src/parent/worktree/registry:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+test_suite(
+    name = "worktree_repository_registrar_test",
+    tests = [
+        ":worktree_repository_registrar_failure_safety_test",
+        ":worktree_repository_registrar_recovery_and_adoption_test",
+        ":worktree_repository_registrar_successful_registration_test",
+    ],
+    visibility = ["//src/parent/worktree:__pkg__"],
 )
