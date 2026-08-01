@@ -6,7 +6,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <array>
 #include <cerrno>
 #include <charconv>
 #include <chrono>
@@ -29,6 +28,8 @@
 #include "src/bridge/server/pty_websocket_hub.h"
 #include "src/bridge/socket_io.h"
 #include "src/bridge/websocket_protocol.h"
+#include "src/parent/input/parent_input_command.h"
+#include "src/parent/input/parent_input_protocol.h"
 
 namespace moe::bridge {
 namespace {
@@ -40,9 +41,6 @@ using base::OwnedFileDescriptor;
 constexpr int DEFAULT_ROWS = 24;
 constexpr int DEFAULT_COLS = 80;
 constexpr std::chrono::milliseconds POLL_TIMEOUT{250};
-constexpr char TRAY_COMMAND_PREFIX = '\x18';
-constexpr int MIN_ANONYMOUS_TRAY = 1;
-constexpr int MAX_ANONYMOUS_TRAY = 9;
 constexpr char const* PARENT_STATE_DIRECTORY_ENVIRONMENT = "MOE_STATE_DIRECTORY";
 
 std::sig_atomic_t volatile keep_running = 1;
@@ -90,62 +88,63 @@ PtySize parse_resize_payload(std::string_view const payload) {
   return {.rows = *rows, .cols = *columns};
 }
 
-int parse_tray_switch_payload(std::string_view const payload) {
+parent::TrayNumber parse_tray_switch_payload(std::string_view const payload) {
   std::optional<int> const tray = parse_json_int(payload, JsonKey{.value = "tray"});
-  if (!tray.has_value() || *tray < MIN_ANONYMOUS_TRAY || *tray > MAX_ANONYMOUS_TRAY) {
+  std::optional<parent::TrayNumber> const tray_number =
+      tray.has_value() ? parent::TrayNumber::from_int(*tray) : std::nullopt;
+  if (!tray_number.has_value()) {
     throw std::runtime_error("tray switch payload requires tray 1 through 9");
   }
-  return *tray;
+  return *tray_number;
 }
 
-void switch_parent_tray(ParentPtySession const& session, int const tray_number) {
-  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, static_cast<char>('0' + tray_number)};
-  session.write(std::string_view(command.data(), command.size()));
+void send_parent_input_command(ParentPtySession const& session,
+                               parent::ParentInputCommand const& command) {
+  auto const encoded = parent::encode_parent_input_command(command);
+  session.write(std::string_view(encoded.data(), encoded.size()));
 }
 
-void open_parent_worktree_manager(ParentPtySession const& session) {
-  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, 'w'};
-  session.write(std::string_view(command.data(), command.size()));
-}
-
-void toggle_parent_command_mode(ParentPtySession const& session) {
-  std::array<char, 2> const command{TRAY_COMMAND_PREFIX, 'e'};
-  session.write(std::string_view(command.data(), command.size()));
-}
-
-void send_parent_worktree_picker_command(ParentPtySession const& session,
-                                         std::string_view const command) {
-  if (command.size() != 1U || (command.front() != 'c' && command.front() != 'r' &&
-                               command.front() != 'y' && command.front() != 'n')) {
+parent::ParentInputCommand parse_worktree_picker_command(std::string_view const command) {
+  if (command.size() != 1U) {
     throw std::runtime_error("worktree picker command requires c, r, y, or n");
   }
-  std::array<char, 2> const parent_command{TRAY_COMMAND_PREFIX, command.front()};
-  session.write(std::string_view(parent_command.data(), parent_command.size()));
+  switch (command.front()) {
+    case 'c':
+      return parent::BeginTrayActionCommand{.action = parent::TrayActionIntent::CLEAR};
+    case 'r':
+      return parent::BeginTrayActionCommand{.action = parent::TrayActionIntent::REMOVE};
+    case 'y':
+      return parent::ResolveTrayActionCommand{.decision = parent::ConfirmationDecision::CONFIRM};
+    case 'n':
+      return parent::ResolveTrayActionCommand{.decision = parent::ConfirmationDecision::CANCEL};
+    default:
+      throw std::runtime_error("worktree picker command requires c, r, y, or n");
+  }
 }
 
-void send_parent_worktree_overlay_navigation(ParentPtySession const& session,
-                                             std::string_view const navigation) {
-  char parent_command_byte = '\0';
+parent::OverlayNavigation parse_worktree_overlay_navigation(std::string_view const navigation) {
   if (navigation == "up") {
-    parent_command_byte = 'A';
-  } else if (navigation == "down") {
-    parent_command_byte = 'B';
-  } else if (navigation == "right") {
-    parent_command_byte = 'C';
-  } else if (navigation == "left") {
-    parent_command_byte = 'D';
-  } else if (navigation == "tab") {
-    parent_command_byte = 'I';
-  } else if (navigation == "backtab") {
-    parent_command_byte = 'Z';
-  } else if (navigation == "enter") {
-    parent_command_byte = 'M';
-  } else {
-    throw std::runtime_error("worktree overlay navigation is invalid");
+    return parent::OverlayNavigation::UP;
   }
-
-  std::array<char, 2> const parent_command{TRAY_COMMAND_PREFIX, parent_command_byte};
-  session.write(std::string_view(parent_command.data(), parent_command.size()));
+  if (navigation == "down") {
+    return parent::OverlayNavigation::DOWN;
+  }
+  if (navigation == "right") {
+    return parent::OverlayNavigation::RIGHT;
+  }
+  if (navigation == "left") {
+    return parent::OverlayNavigation::LEFT;
+  }
+  if (navigation == "tab") {
+    return parent::OverlayNavigation::TAB;
+  }
+  if (navigation == "backtab") {
+    return parent::OverlayNavigation::BACKTAB;
+  }
+  if (navigation == "enter") {
+    return parent::OverlayNavigation::ENTER;
+  }
+  throw std::runtime_error("worktree overlay navigation is invalid");
 }
 
 void handle_websocket_payload(ParentPtySession const& session, std::string_view const payload) {
@@ -164,23 +163,25 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
     return;
   }
   if (command == '2') {
-    switch_parent_tray(session, parse_tray_switch_payload(data));
+    send_parent_input_command(session, parent::SwitchAnonymousTrayCommand{
+                                           .tray_number = parse_tray_switch_payload(data)});
     return;
   }
   if (command == '3') {
-    open_parent_worktree_manager(session);
+    send_parent_input_command(session, parent::ToggleWorktreeOverlayCommand{});
     return;
   }
   if (command == '5') {
-    toggle_parent_command_mode(session);
+    send_parent_input_command(session, parent::ToggleCommandModeCommand{});
     return;
   }
   if (command == '6') {
-    send_parent_worktree_picker_command(session, data);
+    send_parent_input_command(session, parse_worktree_picker_command(data));
     return;
   }
   if (command == '7') {
-    send_parent_worktree_overlay_navigation(session, data);
+    send_parent_input_command(session, parent::NavigateOverlayCommand{
+                                           .navigation = parse_worktree_overlay_navigation(data)});
   }
 }
 

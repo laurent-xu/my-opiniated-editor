@@ -19,6 +19,7 @@ class ParentInputDecoder {
   };
 
   State state = State::LITERAL_INPUT;
+  std::uint8_t pending_command_prefix = 0;
 };
 
 }  // namespace moe::parent
