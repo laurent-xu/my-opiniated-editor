@@ -33,6 +33,42 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     client_js = fetch_text(port, "/client.js")
     test_case.assertTrue(client_js.startswith("(async () => {"), client_js[:32])
     test_case.assertTrue(client_js.rstrip().endswith("})();"))
+    expected_browser_to_bridge_discriminators = """\
+  const BrowserToBridgeDiscriminator = Object.freeze({
+    TERMINAL_INPUT: "0",
+    RESIZE: "1",
+    SWITCH_ANONYMOUS_TRAY: "2",
+    TOGGLE_WORKTREE_OVERLAY: "3",
+    TOGGLE_COMMAND_MODE: "5",
+    WORKTREE_PICKER_ACTION: "6",
+    OVERLAY_NAVIGATION: "7",
+  });"""
+    expected_bridge_to_browser_discriminators = """\
+  const BridgeToBrowserDiscriminator = Object.freeze({
+    TERMINAL_OUTPUT: "0",
+    PARENT_STATUS: "1",
+  });"""
+    test_case.assertIn(expected_browser_to_bridge_discriminators, client_js)
+    test_case.assertIn(expected_bridge_to_browser_discriminators, client_js)
+    expected_discriminator_uses = (
+        "sendCommand(BrowserToBridgeDiscriminator.TERMINAL_INPUT, action.data)",
+        "sendCommand(BrowserToBridgeDiscriminator.TERMINAL_INPUT, data)",
+        "BrowserToBridgeDiscriminator.RESIZE,\n"
+        "      JSON.stringify({ columns: terminal.cols, rows: terminal.rows })",
+        "BrowserToBridgeDiscriminator.SWITCH_ANONYMOUS_TRAY,\n"
+        "      JSON.stringify({ tray: trayNumber })",
+        'sendCommand(BrowserToBridgeDiscriminator.TOGGLE_WORKTREE_OVERLAY, "")',
+        'sendCommand(BrowserToBridgeDiscriminator.TOGGLE_COMMAND_MODE, "")',
+        "sendCommand(BrowserToBridgeDiscriminator.WORKTREE_PICKER_ACTION, command)",
+        "sendCommand(BrowserToBridgeDiscriminator.OVERLAY_NAVIGATION, navigation)",
+        "if (command === BridgeToBrowserDiscriminator.TERMINAL_OUTPUT)",
+        "if (command === BridgeToBrowserDiscriminator.PARENT_STATUS)",
+    )
+    for discriminator_use in expected_discriminator_uses:
+        test_case.assertIn(discriminator_use, client_js)
+    test_case.assertNotIn('sendCommand("', client_js)
+    test_case.assertNotIn('command === "0"', client_js)
+    test_case.assertNotIn('command === "1"', client_js)
     test_case.assertIn("async function awaitTerminalFont()", client_js)
     test_case.assertIn(
         'document.fonts.load(\'14px "JetBrainsMono Nerd Font Mono"\', "\\ue0b0")',
@@ -67,14 +103,10 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("let commandMode = false", client_js)
     test_case.assertNotIn("let worktreeManagerOpen", client_js)
     test_case.assertIn('parts.push("command")', client_js)
-    test_case.assertIn(
-        'sendCommand("2", JSON.stringify({ tray: trayNumber }))', client_js
-    )
     test_case.assertNotIn("activeTrayNumber", client_js)
     test_case.assertNotIn("setCommandMode", client_js)
     test_case.assertIn("activeTrayLabel = status.trayLabel", client_js)
     test_case.assertIn('event.key === "Escape"', client_js)
-    test_case.assertIn('sendCommand("5", "")', client_js)
     test_case.assertIn('event.key === "Shift"', client_js)
     test_case.assertIn('TERMINAL: "terminal"', client_js)
     test_case.assertIn('COMMAND: "command"', client_js)
@@ -98,19 +130,14 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('code: "KeyW"', client_js)
     test_case.assertIn('code: "KeyC"', client_js)
     test_case.assertIn('code: "KeyR"', client_js)
-    test_case.assertIn('sendCommand("3", "")', client_js)
     test_case.assertIn("toggleWorktreeManager()", client_js)
-    test_case.assertIn('sendCommand("6", command)', client_js)
-    test_case.assertIn('sendCommand("7", navigation)', client_js)
     test_case.assertIn('command: "c"', client_js)
     test_case.assertIn('command: "r"', client_js)
     test_case.assertIn('ArrowUp: "up"', client_js)
     test_case.assertIn('ArrowDown: "down"', client_js)
     test_case.assertIn('return "enter"', client_js)
     test_case.assertIn('return event.shiftKey ? "backtab" : "tab"', client_js)
-    test_case.assertNotIn('sendCommand("4", "")', client_js)
     test_case.assertNotIn("toggleWorktreePicker()", client_js)
-    test_case.assertNotIn('sendCommand("0", "\\x03")', client_js)
     test_case.assertNotIn("tray find not implemented", client_js)
     test_case.assertIn('event.key === "Tab"', client_js)
     test_case.assertIn('event.code === "Tab"', client_js)
@@ -124,7 +151,6 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         'if (event.type === "keydown" && handleTerminalKey(event))', client_js
     )
     test_case.assertIn('data: event.shiftKey ? "\\x1b[Z" : "\\t"', client_js)
-    test_case.assertIn('sendCommand("0", action.data)', client_js)
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)

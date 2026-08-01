@@ -5,26 +5,17 @@
 #include <string>
 #include <string_view>
 
+#include "src/bridge/protocol/application_message_discriminators.h"
+
 namespace moe::bridge::protocol {
 namespace {
 
-constexpr char TERMINAL_INPUT_DISCRIMINATOR = '0';
-constexpr char RESIZE_DISCRIMINATOR = '1';
-constexpr char SWITCH_ANONYMOUS_TRAY_DISCRIMINATOR = '2';
-constexpr char TOGGLE_WORKTREE_OVERLAY_DISCRIMINATOR = '3';
-constexpr char TOGGLE_COMMAND_MODE_DISCRIMINATOR = '5';
-constexpr char WORKTREE_PICKER_ACTION_DISCRIMINATOR = '6';
-constexpr char OVERLAY_NAVIGATION_DISCRIMINATOR = '7';
-
-constexpr char TERMINAL_OUTPUT_DISCRIMINATOR = '0';
-constexpr char PARENT_STATUS_DISCRIMINATOR = '1';
-
-char bridge_to_browser_discriminator(BridgeToBrowserMessage::Type const type) {
+char discriminator_for_bridge_message(BridgeToBrowserMessage::Type const type) {
   switch (type) {
     case BridgeToBrowserMessage::Type::TERMINAL_OUTPUT:
-      return TERMINAL_OUTPUT_DISCRIMINATOR;
+      return bridge_to_browser_discriminator::TERMINAL_OUTPUT;
     case BridgeToBrowserMessage::Type::PARENT_STATUS:
-      return PARENT_STATUS_DISCRIMINATOR;
+      return bridge_to_browser_discriminator::PARENT_STATUS;
   }
   throw std::logic_error("invalid bridge-to-browser message type");
 }
@@ -39,25 +30,25 @@ std::optional<BrowserToBridgeMessage> decode_browser_to_bridge_message(
 
   BrowserToBridgeMessage::Type type;
   switch (message.front()) {
-    case TERMINAL_INPUT_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::TERMINAL_INPUT:
       type = BrowserToBridgeMessage::Type::TERMINAL_INPUT;
       break;
-    case RESIZE_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::RESIZE:
       type = BrowserToBridgeMessage::Type::RESIZE;
       break;
-    case SWITCH_ANONYMOUS_TRAY_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::SWITCH_ANONYMOUS_TRAY:
       type = BrowserToBridgeMessage::Type::SWITCH_ANONYMOUS_TRAY;
       break;
-    case TOGGLE_WORKTREE_OVERLAY_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::TOGGLE_WORKTREE_OVERLAY:
       type = BrowserToBridgeMessage::Type::TOGGLE_WORKTREE_OVERLAY;
       break;
-    case TOGGLE_COMMAND_MODE_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::TOGGLE_COMMAND_MODE:
       type = BrowserToBridgeMessage::Type::TOGGLE_COMMAND_MODE;
       break;
-    case WORKTREE_PICKER_ACTION_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::WORKTREE_PICKER_ACTION:
       type = BrowserToBridgeMessage::Type::WORKTREE_PICKER_ACTION;
       break;
-    case OVERLAY_NAVIGATION_DISCRIMINATOR:
+    case browser_to_bridge_discriminator::OVERLAY_NAVIGATION:
       type = BrowserToBridgeMessage::Type::OVERLAY_NAVIGATION;
       break;
     default:
@@ -67,7 +58,7 @@ std::optional<BrowserToBridgeMessage> decode_browser_to_bridge_message(
 }
 
 std::string encode_bridge_to_browser_message(BridgeToBrowserMessage const& message) {
-  std::string encoded(1U, bridge_to_browser_discriminator(message.type));
+  std::string encoded(1U, discriminator_for_bridge_message(message.type));
   encoded.append(message.payload);
   return encoded;
 }

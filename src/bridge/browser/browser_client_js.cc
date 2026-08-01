@@ -1,5 +1,6 @@
 #include "src/bridge/browser/browser_assets.h"
 #include "src/bridge/browser/browser_font_families.h"
+#include "src/bridge/protocol/application_message_discriminators.h"
 
 namespace moe::bridge {
 
@@ -74,6 +75,28 @@ std::string browser_client_js() {
     WORKTREE_OVERLAY_NAVIGATION: "worktreeOverlayNavigation",
     TERMINAL_INPUT: "terminalInput",
   });
+  const BrowserToBridgeDiscriminator = Object.freeze({
+    TERMINAL_INPUT: ")JS" +
+         protocol::browser_to_bridge_discriminator::TERMINAL_INPUT + R"JS(",
+    RESIZE: ")JS" +
+         protocol::browser_to_bridge_discriminator::RESIZE + R"JS(",
+    SWITCH_ANONYMOUS_TRAY: ")JS" +
+         protocol::browser_to_bridge_discriminator::SWITCH_ANONYMOUS_TRAY + R"JS(",
+    TOGGLE_WORKTREE_OVERLAY: ")JS" +
+         protocol::browser_to_bridge_discriminator::TOGGLE_WORKTREE_OVERLAY + R"JS(",
+    TOGGLE_COMMAND_MODE: ")JS" +
+         protocol::browser_to_bridge_discriminator::TOGGLE_COMMAND_MODE + R"JS(",
+    WORKTREE_PICKER_ACTION: ")JS" +
+         protocol::browser_to_bridge_discriminator::WORKTREE_PICKER_ACTION + R"JS(",
+    OVERLAY_NAVIGATION: ")JS" +
+         protocol::browser_to_bridge_discriminator::OVERLAY_NAVIGATION + R"JS(",
+  });
+  const BridgeToBrowserDiscriminator = Object.freeze({
+    TERMINAL_OUTPUT: ")JS" +
+         protocol::bridge_to_browser_discriminator::TERMINAL_OUTPUT + R"JS(",
+    PARENT_STATUS: ")JS" +
+         protocol::bridge_to_browser_discriminator::PARENT_STATUS + R"JS(",
+  });
 
   function renderStatus() {
     const parts = [connectionState, activeTrayLabel];
@@ -108,24 +131,30 @@ std::string browser_client_js() {
   }
 
   function sendTraySwitch(trayNumber) {
-    sendCommand("2", JSON.stringify({ tray: trayNumber }));
+    sendCommand(
+      BrowserToBridgeDiscriminator.SWITCH_ANONYMOUS_TRAY,
+      JSON.stringify({ tray: trayNumber }),
+    );
   }
 
   function toggleWorktreeManager() {
-    sendCommand("3", "");
+    sendCommand(BrowserToBridgeDiscriminator.TOGGLE_WORKTREE_OVERLAY, "");
   }
 
   function sendWorktreePickerCommand(command) {
-    sendCommand("6", command);
+    sendCommand(BrowserToBridgeDiscriminator.WORKTREE_PICKER_ACTION, command);
   }
 
   function sendWorktreeOverlayNavigation(navigation) {
-    sendCommand("7", navigation);
+    sendCommand(BrowserToBridgeDiscriminator.OVERLAY_NAVIGATION, navigation);
   }
 
   function fitAndSendSize() {
     fitAddon.fit();
-    sendCommand("1", JSON.stringify({ columns: terminal.cols, rows: terminal.rows }));
+    sendCommand(
+      BrowserToBridgeDiscriminator.RESIZE,
+      JSON.stringify({ columns: terminal.cols, rows: terminal.rows }),
+    );
   }
 
   function terminalShouldReceiveKey() {
@@ -284,7 +313,7 @@ std::string browser_client_js() {
 
     event.preventDefault();
     if (action.type === KeyActionType.TOGGLE_COMMAND_MODE) {
-      sendCommand("5", "");
+      sendCommand(BrowserToBridgeDiscriminator.TOGGLE_COMMAND_MODE, "");
     } else if (action.type === KeyActionType.SWITCH_TRAY) {
       sendTraySwitch(action.trayNumber);
     } else if (action.type === KeyActionType.TOGGLE_WORKTREE_MANAGER) {
@@ -294,7 +323,7 @@ std::string browser_client_js() {
     } else if (action.type === KeyActionType.WORKTREE_OVERLAY_NAVIGATION) {
       sendWorktreeOverlayNavigation(action.navigation);
     } else if (action.type === KeyActionType.TERMINAL_INPUT) {
-      sendCommand("0", action.data);
+      sendCommand(BrowserToBridgeDiscriminator.TERMINAL_INPUT, action.data);
     } else if (action.type === KeyActionType.REFRESH_STATUS) {
       renderStatus();
     }
@@ -320,7 +349,7 @@ std::string browser_client_js() {
   });
 
   terminal.onData((data) => {
-    sendCommand("0", data);
+    sendCommand(BrowserToBridgeDiscriminator.TERMINAL_INPUT, data);
   });
 
   socket.addEventListener("open", () => {
@@ -335,12 +364,12 @@ std::string browser_client_js() {
       return;
     }
     const command = String.fromCharCode(bytes[0]);
-    if (command === "0") {
+    if (command === BridgeToBrowserDiscriminator.TERMINAL_OUTPUT) {
       const payload = decoder.decode(bytes.slice(1), { stream: true });
       terminal.write(payload);
       return;
     }
-    if (command === "1") {
+    if (command === BridgeToBrowserDiscriminator.PARENT_STATUS) {
       try {
         applyParentStatus(JSON.parse(statusDecoder.decode(bytes.slice(1))));
       } catch (error) {

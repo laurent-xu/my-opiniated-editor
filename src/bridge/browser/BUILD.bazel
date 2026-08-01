@@ -10,4 +10,5 @@ cc_library(
         "browser_font_families.h",
     ],
     visibility = ["//src/bridge:__pkg__"],
+    deps = ["//src/bridge/protocol:application_message_discriminators"],
 )

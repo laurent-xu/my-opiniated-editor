@@ -1,4 +1,10 @@
 cc_library(
+    name = "application_message_discriminators",
+    hdrs = ["application_message_discriminators.h"],
+    visibility = ["//src/bridge/browser:__pkg__"],
+)
+
+cc_library(
     name = "application_message_codec",
     srcs = ["application_message_codec.cc"],
     hdrs = [
@@ -7,6 +13,7 @@ cc_library(
         "browser_to_bridge_message.h",
     ],
     visibility = ["//src/bridge/server:__pkg__"],
+    deps = [":application_message_discriminators"],
 )
 
 cc_library(
@@ -46,6 +53,7 @@ cc_test(
     srcs = ["application_message_codec_test.cc"],
     deps = [
         ":application_message_codec",
+        ":application_message_discriminators",
         "@googletest//:gtest_main",
     ],
 )
