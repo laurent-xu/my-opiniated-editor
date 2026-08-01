@@ -24,13 +24,24 @@ cc_library(
     visibility = ["//src/parent/pane/test:__pkg__"],
 )
 
+cc_library(
+    name = "pane_layout",
+    srcs = ["pane_layout.cc"],
+    hdrs = ["pane_layout.h"],
+    visibility = ["//src/parent/pane/test:__pkg__"],
+    deps = [
+        ":pane_identity",
+        ":pane_layout_types",
+    ],
+)
+
 test_suite(
     name = "pane_test",
     tests = [
+        "//src/parent/pane/test:pane_layout_test",
         "//src/parent/pane/test:pane_layout_types_test",
         "//src/parent/pane/test:pane_test",
     ],
-    tags = ["integration"],
 )
 
 cc_library(
