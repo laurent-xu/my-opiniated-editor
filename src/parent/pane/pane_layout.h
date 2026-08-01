@@ -13,6 +13,8 @@
 
 namespace moe::parent {
 
+class PaneLayoutMover;
+
 enum class PaneInsertion : std::uint8_t {
   BEFORE,
   AFTER,
@@ -37,6 +39,8 @@ class PaneLayoutNode {
   [[nodiscard]] PaneSplit const& split() const;
 
  private:
+  friend class PaneLayoutMover;
+
   friend class PaneLayout;
 
   PaneLayoutNode(PaneNodeId id, std::optional<PaneNodeId> parent, PaneId pane_id);
@@ -65,6 +69,8 @@ class PaneLayout {
   void set_split_percentages(PaneNodeId split_node, std::vector<int> const& weights);
 
  private:
+  friend class PaneLayoutMover;
+
   PaneLayout(PaneNodeId root_node, std::map<PaneNodeId, PaneLayoutNode> layout_nodes,
              PaneNodeId::Value next_value);
 
