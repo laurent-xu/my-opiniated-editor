@@ -73,18 +73,78 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "worktree_management_overlay_test_support",
+    testonly = True,
+    srcs = ["worktree_management_overlay_test_support.cc"],
+    hdrs = ["worktree_management_overlay_test_support.h"],
+    deps = [
+        "//src/base:process_id",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/worktree:worktree_registry_store",
+    ],
+)
+
 cc_test(
-    name = "worktree_management_overlay_test",
-    srcs = ["worktree_management_overlay_test.cc"],
+    name = "worktree_management_overlay_mode_test",
+    srcs = ["worktree_management_overlay_mode_test.cc"],
+    deps = [
+        ":worktree_management_overlay",
+        ":worktree_management_overlay_test_support",
+        "//src/base:terminal_size",
+        "//src/parent/overlay:overlay_footer",
+        "//src/parent/test/support:test_paths",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_management_overlay_picker_test",
+    srcs = ["worktree_management_overlay_picker_test.cc"],
     data = ["//test/fixtures:fake_fzf"],
     deps = [
         ":worktree_management_overlay",
-        "//src/base:process_id",
+        ":worktree_management_overlay_test_support",
+        "//src/base:file_descriptor",
+        "//src/base:terminal_size",
         "//src/parent/overlay:overlay_footer",
+        "//src/parent/test/support:test_paths",
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "//src/parent/worktree:worktree_registry_store",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
+)
+
+cc_test(
+    name = "worktree_management_overlay_tray_action_test",
+    srcs = ["worktree_management_overlay_tray_action_test.cc"],
+    data = [
+        "//test/fixtures:fake_fzf",
+        "//test/fixtures:fake_git",
+    ],
+    deps = [
+        ":worktree_management_overlay",
+        ":worktree_management_overlay_test_support",
+        "//src/base:file_descriptor",
+        "//src/base:terminal_size",
+        "//src/parent/test/support:test_paths",
+        "//src/parent/tray:tray_contracts",
+        "//src/parent/tray:tray_identity",
+        "//src/parent/worktree:worktree_registry_store",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["integration"],
+)
+
+test_suite(
+    name = "worktree_management_overlay_test",
+    tests = [
+        ":worktree_management_overlay_mode_test",
+        ":worktree_management_overlay_picker_test",
+        ":worktree_management_overlay_tray_action_test",
+    ],
 )
