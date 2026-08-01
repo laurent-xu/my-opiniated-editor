@@ -8,24 +8,14 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
+#include "src/parent/test/support/test_paths.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {
 
 using moe::parent::test_support::EnvironmentGuard;
-
-std::filesystem::path required_environment_path(char const* name) {
-  char const* const value = std::getenv(name);
-  if (value == nullptr || value[0] == '\0') {
-    throw std::runtime_error(std::string(name) + " is required");
-  }
-  return value;
-}
-
-std::filesystem::path runfile_path(std::filesystem::path const& path) {
-  return required_environment_path("TEST_SRCDIR") / required_environment_path("TEST_WORKSPACE") /
-         path;
-}
+using moe::parent::test_support::required_environment_path;
+using moe::parent::test_support::runfile_path;
 
 struct TestState {
   std::filesystem::path root;

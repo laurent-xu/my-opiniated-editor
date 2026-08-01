@@ -6,3 +6,9 @@ cc_library(
         "//src/parent/worktree:__pkg__",
     ],
 )
+
+cc_library(
+    name = "test_paths",
+    hdrs = ["test_paths.h"],
+    visibility = ["//src/parent/worktree:__pkg__"],
+)

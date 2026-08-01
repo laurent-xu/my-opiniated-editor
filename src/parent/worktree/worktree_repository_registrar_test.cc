@@ -10,6 +10,7 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
+#include "src/parent/test/support/test_paths.h"
 #include "src/parent/worktree/repository_registration_request.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 
@@ -20,19 +21,8 @@ using moe::parent::WorktreeRegistryStore;
 using moe::parent::WorktreeRepositoryRegistrar;
 using moe::parent::persistence::WorktreeRegistry;
 using moe::parent::test_support::EnvironmentGuard;
-
-std::filesystem::path required_environment_path(char const* name) {
-  char const* value = std::getenv(name);
-  if (value == nullptr) {
-    throw std::runtime_error(std::string(name) + " is required");
-  }
-  return {value};
-}
-
-std::filesystem::path runfile_path(std::filesystem::path const& path) {
-  return required_environment_path("TEST_SRCDIR") / required_environment_path("TEST_WORKSPACE") /
-         path;
-}
+using moe::parent::test_support::required_environment_path;
+using moe::parent::test_support::runfile_path;
 
 std::filesystem::path test_directory(std::string const& name) {
   std::filesystem::path const path = required_environment_path("TEST_TMPDIR") / name;

@@ -10,6 +10,7 @@
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
+#include "src/parent/test/support/test_paths.h"
 
 namespace {
 
@@ -17,17 +18,10 @@ using moe::parent::WorktreeRegistryStore;
 using moe::parent::persistence::Repository;
 using moe::parent::persistence::WorktreeRegistry;
 using moe::parent::test_support::EnvironmentGuard;
-
-std::filesystem::path required_test_tmpdir() {
-  char const* value = std::getenv("TEST_TMPDIR");
-  if (value == nullptr) {
-    throw std::runtime_error("TEST_TMPDIR is required");
-  }
-  return {value};
-}
+using moe::parent::test_support::required_environment_path;
 
 std::filesystem::path test_registry_path(std::string const& name) {
-  std::filesystem::path const directory = required_test_tmpdir() / name;
+  std::filesystem::path const directory = required_environment_path("TEST_TMPDIR") / name;
   std::filesystem::remove_all(directory);
   std::filesystem::create_directories(directory);
   return directory / "worktrees.pb";
@@ -75,7 +69,7 @@ TEST(WorktreeRegistryStoreTest, ResolvesXdgStatePathAndHomeFallback) {
   EnvironmentGuard const state_directory_guard("MOE_STATE_DIRECTORY");
   EnvironmentGuard const xdg_guard("XDG_STATE_HOME");
   EnvironmentGuard const home_guard("HOME");
-  std::filesystem::path const test_root = required_test_tmpdir() / "state-path";
+  std::filesystem::path const test_root = required_environment_path("TEST_TMPDIR") / "state-path";
   std::filesystem::path const xdg_root = test_root / "xdg";
   std::filesystem::path const home_root = test_root / "home";
 
@@ -94,7 +88,8 @@ TEST(WorktreeRegistryStoreTest, InstanceStateDirectoryOverridesUserStateRoots) {
   EnvironmentGuard const state_directory_guard("MOE_STATE_DIRECTORY");
   EnvironmentGuard const xdg_guard("XDG_STATE_HOME");
   EnvironmentGuard const home_guard("HOME");
-  std::filesystem::path const test_root = required_test_tmpdir() / "instance-state-path";
+  std::filesystem::path const test_root =
+      required_environment_path("TEST_TMPDIR") / "instance-state-path";
   std::filesystem::path const instance_root = test_root / "manual-instance";
 
   ASSERT_EQ(::setenv("XDG_STATE_HOME", (test_root / "xdg").c_str(), 1), 0);

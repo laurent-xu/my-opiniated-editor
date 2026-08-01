@@ -2,33 +2,23 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "src/parent/test/support/environment_guard.h"
+#include "src/parent/test/support/test_paths.h"
 #include "src/parent/worktree/worktree_registry_store.h"
 
 namespace {
 
 using moe::parent::test_support::EnvironmentGuard;
-
-std::filesystem::path required_env_path(char const* const name) {
-  char const* const value = std::getenv(name);
-  if (value == nullptr || value[0] == '\0') {
-    throw std::runtime_error("missing test environment variable: " + std::string(name));
-  }
-  return value;
-}
-
-std::filesystem::path runfile_path(std::filesystem::path const& path) {
-  return required_env_path("TEST_SRCDIR") / required_env_path("TEST_WORKSPACE") / path;
-}
+using moe::parent::test_support::required_environment_path;
+using moe::parent::test_support::runfile_path;
 
 TEST(WorktreeCandidateFinderTest, ReturnsOnlyLiveAvailableTrackedWorktrees) {
   EnvironmentGuard const list_guard("MOE_FAKE_GIT_WORKTREE_LIST");
-  std::filesystem::path const root = required_env_path("TEST_TMPDIR") / "candidate-filter";
+  std::filesystem::path const root = required_environment_path("TEST_TMPDIR") / "candidate-filter";
   std::filesystem::path const repository = root / "repository";
   std::filesystem::path const available = repository / "main";
   std::filesystem::path const prunable = repository / "stale";
