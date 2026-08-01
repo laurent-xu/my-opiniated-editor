@@ -5,9 +5,31 @@ cc_library(
     deps = ["//src/base:terminal_size"],
 )
 
+cc_library(
+    name = "pane_identity",
+    hdrs = [
+        "pane_id.h",
+        "pane_node_id.h",
+    ],
+    visibility = ["//src/parent/pane/test:__pkg__"],
+)
+
+cc_library(
+    name = "pane_layout_types",
+    srcs = ["pane_percentage.cc"],
+    hdrs = [
+        "pane_percentage.h",
+        "pane_split_axis.h",
+    ],
+    visibility = ["//src/parent/pane/test:__pkg__"],
+)
+
 test_suite(
     name = "pane_test",
-    tests = ["//src/parent/pane/test:pane_test"],
+    tests = [
+        "//src/parent/pane/test:pane_layout_types_test",
+        "//src/parent/pane/test:pane_test",
+    ],
     tags = ["integration"],
 )
 

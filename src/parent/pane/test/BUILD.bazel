@@ -9,3 +9,14 @@ cc_test(
     ],
     tags = ["integration"],
 )
+
+cc_test(
+    name = "pane_layout_types_test",
+    srcs = ["pane_layout_types_test.cc"],
+    visibility = ["//src/parent/pane:__pkg__"],
+    deps = [
+        "//src/parent/pane:pane_identity",
+        "//src/parent/pane:pane_layout_types",
+        "@googletest//:gtest_main",
+    ],
+)
