@@ -81,6 +81,7 @@ class WorktreeRemovalIntegrationTest(unittest.TestCase):
         (worktree / ".git").touch()
         repository = repository.resolve()
         worktree = worktree.resolve()
+        git_log = repository / "git.log"
         porcelain = (
             f"worktree {repository / '.bare'}\n"
             "HEAD 111\n"
@@ -95,6 +96,7 @@ class WorktreeRemovalIntegrationTest(unittest.TestCase):
             extra_environment={
                 "MOE_GIT_EXECUTABLE": runfile_path("test/fixtures/fake_git"),
                 "MOE_FAKE_GIT_WORKTREE_LIST": porcelain,
+                "MOE_FAKE_GIT_LOG": str(git_log),
             },
         )
 
@@ -176,6 +178,13 @@ class WorktreeRemovalIntegrationTest(unittest.TestCase):
             first_client.read_parent_status_until(fallback)
             second_client.read_parent_status_until(fallback)
             self.assertFalse(worktree.exists())
+            invocations = git_log.read_text(encoding="utf-8")
+            remove_position = invocations.find('"worktree", "remove"')
+            branch_position = invocations.find(
+                '"branch", "--delete", "--force", "--", "topic"'
+            )
+            self.assertGreaterEqual(remove_position, 0)
+            self.assertGreater(branch_position, remove_position)
 
             first_client.open_worktree_manager()
             first_client.read_parent_status_until(

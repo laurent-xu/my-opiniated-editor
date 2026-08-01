@@ -58,6 +58,11 @@ std::string porcelain(TestState const& state, bool const include_worktree) {
   return result;
 }
 
+std::string read_file(std::filesystem::path const& path) {
+  std::ifstream input(path);
+  return {std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+}
+
 void configure_list(std::string const& value) {
   ASSERT_EQ(::setenv("MOE_FAKE_GIT_WORKTREE_LIST", value.c_str(), 1), 0);
 }
@@ -97,9 +102,11 @@ class WorktreeRemoverTest : public testing::Test {
   EnvironmentGuard log_guard;
 };
 
-TEST_F(WorktreeRemoverTest, PurgesGitWorktreeAndUnregistersIt) {
+TEST_F(WorktreeRemoverTest, PurgesGitWorktreeDeletesBranchAndUnregistersIt) {
   TestState const state = create_state("remove-live");
   configure_list(porcelain(state, true));
+  std::filesystem::path const git_log = state.root / "git.log";
+  ASSERT_EQ(::setenv("MOE_FAKE_GIT_LOG", git_log.c_str(), 1), 0);
 
   remover().remove(removal_request(state));
 
@@ -108,6 +115,13 @@ TEST_F(WorktreeRemoverTest, PurgesGitWorktreeAndUnregistersIt) {
       moe::parent::WorktreeRegistryStore(state.registry_path).load();
   ASSERT_EQ(registry.repositories_size(), 1);
   EXPECT_EQ(registry.repositories(0).worktrees_size(), 0);
+  std::string const invocations = read_file(git_log);
+  std::size_t const remove_position = invocations.find(R"("worktree", "remove")");
+  std::size_t const branch_position =
+      invocations.find(R"("branch", "--delete", "--force", "--", "topic")");
+  ASSERT_NE(remove_position, std::string::npos);
+  ASSERT_NE(branch_position, std::string::npos);
+  EXPECT_LT(remove_position, branch_position);
 }
 
 TEST_F(WorktreeRemoverTest, SilentlyUnregistersWorktreeAlreadyAbsentFromGit) {
@@ -151,6 +165,27 @@ TEST_F(WorktreeRemoverTest, PreservesRegistryWhenGitStillOwnsWorktreeAfterFailur
   EXPECT_THROW(remover().remove(removal_request(state)), std::runtime_error);
 
   EXPECT_TRUE(std::filesystem::exists(state.worktree));
+  EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
+                .load()
+                .repositories(0)
+                .worktrees_size(),
+            1);
+}
+
+TEST_F(WorktreeRemoverTest, ReportsBranchDeletionFailureAfterPurgingWorktree) {
+  TestState const state = create_state("remove-branch-failure");
+  configure_list(porcelain(state, true));
+  ASSERT_EQ(::setenv("MOE_FAKE_GIT_FAIL_OPERATION", "branch", 1), 0);
+
+  try {
+    remover().remove(removal_request(state));
+    FAIL() << "branch deletion failure did not fail worktree removal";
+  } catch (std::runtime_error const& error) {
+    EXPECT_NE(std::string(error.what()).find("worktree was purged but git branch delete failed"),
+              std::string::npos);
+  }
+
+  EXPECT_FALSE(std::filesystem::exists(state.worktree));
   EXPECT_EQ(moe::parent::WorktreeRegistryStore(state.registry_path)
                 .load()
                 .repositories(0)

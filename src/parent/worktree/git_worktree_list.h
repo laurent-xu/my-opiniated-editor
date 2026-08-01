@@ -1,6 +1,8 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -8,6 +10,7 @@ namespace moe::parent {
 
 struct GitWorktreeListEntry {
   std::filesystem::path path;
+  std::optional<std::string> branch;
   bool bare = false;
   bool prunable = false;
 };

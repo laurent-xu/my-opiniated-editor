@@ -27,6 +27,8 @@ std::filesystem::path normalized_absolute_path(std::filesystem::path const& path
 }  // namespace
 
 std::vector<GitWorktreeListEntry> parse_git_worktree_list(std::string_view const porcelain_output) {
+  constexpr std::string_view WORKTREE_PREFIX = "worktree ";
+  constexpr std::string_view BRANCH_PREFIX = "branch refs/heads/";
   std::vector<GitWorktreeListEntry> entries;
   std::optional<GitWorktreeListEntry> current;
 
@@ -45,11 +47,14 @@ std::vector<GitWorktreeListEntry> parse_git_worktree_list(std::string_view const
         (end == std::string_view::npos ? porcelain_output.size() : end) - start);
     if (field.empty()) {
       finish_record();
-    } else if (field.starts_with("worktree ")) {
+    } else if (field.starts_with(WORKTREE_PREFIX)) {
       finish_record();
-      current = GitWorktreeListEntry{.path = std::filesystem::path(field.substr(9))};
+      current =
+          GitWorktreeListEntry{.path = std::filesystem::path(field.substr(WORKTREE_PREFIX.size()))};
     } else if (current.has_value() && field == "bare") {
       current->bare = true;
+    } else if (current.has_value() && field.starts_with(BRANCH_PREFIX)) {
+      current->branch = field.substr(BRANCH_PREFIX.size());
     } else if (current.has_value() && field.starts_with("prunable")) {
       current->prunable = true;
     }

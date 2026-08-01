@@ -299,8 +299,8 @@ Deliverables:
   registry.
 - Confirming removal of a worktree asks Git to force-remove the linked
   worktree, including stale metadata for a worktree missing from disk, then
-  atomically removes the worktree from the protobuf registry and destroys any
-  in-session tray.
+  force-deletes the local branch reported by Git, atomically removes the
+  worktree from the protobuf registry, and destroys any in-session tray.
 - The worktree used as the parent process's startup directory is protected from
   removal. `Shift+R` reports an error immediately instead of opening the
   confirmation, and the removal boundary rejects the same path as a backstop.

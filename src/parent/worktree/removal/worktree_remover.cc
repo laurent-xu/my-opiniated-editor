@@ -8,6 +8,7 @@
 #include <array>
 #include <cerrno>
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -102,7 +103,8 @@ struct GitWorktreeQuery {
   std::filesystem::path worktree_path;
 };
 
-bool git_lists_worktree(std::string const& git_executable, GitWorktreeQuery const& query) {
+std::optional<GitWorktreeListEntry> find_git_worktree(std::string const& git_executable,
+                                                      GitWorktreeQuery const& query) {
   std::array<int, 2> raw_pipe{-1, -1};
   if (::pipe(raw_pipe.data()) != 0) {
     throw std::system_error(errno, std::generic_category(), "create Git worktree-list pipe");
@@ -169,9 +171,13 @@ bool git_lists_worktree(std::string const& git_executable, GitWorktreeQuery cons
   }
 
   std::vector<GitWorktreeListEntry> const entries = parse_git_worktree_list(output);
-  return std::ranges::any_of(entries, [&query](GitWorktreeListEntry const& entry) {
+  auto const found = std::ranges::find_if(entries, [&query](GitWorktreeListEntry const& entry) {
     return normalized_path(entry.path, "Git worktree path") == query.worktree_path;
   });
+  if (found == entries.end()) {
+    return std::nullopt;
+  }
+  return *found;
 }
 
 bool path_exists(std::filesystem::path const& path) {
@@ -211,8 +217,10 @@ void WorktreeRemover::remove(WorktreeRemovalRequest const& request) const {
         .bare_directory = bare_directory,
         .worktree_path = worktree_path,
     };
-    git_owned_worktree = git_lists_worktree(git_executable, query);
-    if (git_owned_worktree) {
+    std::optional<GitWorktreeListEntry> const git_worktree =
+        find_git_worktree(git_executable, query);
+    git_owned_worktree = git_worktree.has_value();
+    if (git_worktree.has_value()) {
       process::ProcessExitStatus const remove_status =
           run_command({git_executable, "--git-dir", bare_directory.string(), "worktree", "remove",
                        "--force", "--force", worktree_path.string()});
@@ -224,8 +232,18 @@ void WorktreeRemover::remove(WorktreeRemovalRequest const& request) const {
         process::ProcessExitStatus const prune_status =
             run_command({git_executable, "--git-dir", bare_directory.string(), "worktree", "prune",
                          "--expire", "now"});
-        if (!prune_status.succeeded() || git_lists_worktree(git_executable, query)) {
+        if (!prune_status.succeeded() || find_git_worktree(git_executable, query).has_value()) {
           throw std::runtime_error("git worktree purge failed for missing worktree");
+        }
+      }
+      if (git_worktree->branch.has_value()) {
+        process::ProcessExitStatus const branch_status =
+            run_command({git_executable, "--git-dir", bare_directory.string(), "branch", "--delete",
+                         "--force", "--", *git_worktree->branch});
+        if (!branch_status.succeeded()) {
+          throw std::runtime_error(
+              "worktree was purged but git branch delete failed with exit code " +
+              std::to_string(branch_status.value()));
         }
       }
     }

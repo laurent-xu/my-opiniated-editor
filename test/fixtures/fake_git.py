@@ -123,6 +123,11 @@ def main() -> int:
         sys.stdout.buffer.write(porcelain.replace("\n", "\0").encode())
         return 0
 
+    if operation == "branch":
+        if len(arguments) != 7 or arguments[3:6] != ["--delete", "--force", "--"]:
+            return 2
+        return 0
+
     if operation in {"config", "fetch"}:
         return 0
 
