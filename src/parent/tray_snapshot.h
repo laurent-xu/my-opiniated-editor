@@ -4,7 +4,7 @@
 #include <string>
 
 #include "src/base/process_id.h"
-#include "src/parent/tray_id.h"
+#include "src/parent/tray/tray_id.h"
 
 namespace moe::parent {
 

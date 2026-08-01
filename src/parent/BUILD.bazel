@@ -1,16 +1,4 @@
 cc_library(
-    name = "tray_identity",
-    srcs = [
-        "tray_id.cc",
-        "tray_number.cc",
-    ],
-    hdrs = [
-        "tray_id.h",
-        "tray_number.h",
-    ],
-)
-
-cc_library(
     name = "parent_lib",
     srcs = [
         "overlay_footer.cc",
@@ -37,13 +25,13 @@ cc_library(
         "workspace_parent.h",
     ],
     deps = [
-        ":tray_identity",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
         "//src/base:terminal_size",
         "//src/parent/terminal:content_pty_session",
         "//src/parent/terminal:terminal_screen",
+        "//src/parent/tray:tray_identity",
         "//src/parent/worktree:repository_registration_request",
         "//src/parent/worktree:repository_root_state",
         "//src/parent/worktree:worktree_candidate_finder",
@@ -83,6 +71,7 @@ cc_test(
     srcs = ["parent_status_test.cc"],
     deps = [
         ":parent_lib",
+        "//src/parent/tray:tray_identity",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],

@@ -3,7 +3,7 @@
 #include <filesystem>
 
 #include "gtest/gtest.h"
-#include "src/parent/tray_number.h"
+#include "src/parent/tray/tray_number.h"
 
 namespace {
 

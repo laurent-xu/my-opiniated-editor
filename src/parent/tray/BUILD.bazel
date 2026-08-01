@@ -1,0 +1,12 @@
+cc_library(
+    name = "tray_identity",
+    srcs = [
+        "tray_id.cc",
+        "tray_number.cc",
+    ],
+    hdrs = [
+        "tray_id.h",
+        "tray_number.h",
+    ],
+    visibility = ["//src/parent:__pkg__"],
+)

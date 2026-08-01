@@ -5,7 +5,7 @@
 #include <string>
 #include <variant>
 
-#include "src/parent/tray_number.h"
+#include "src/parent/tray/tray_number.h"
 
 namespace moe::parent {
 
