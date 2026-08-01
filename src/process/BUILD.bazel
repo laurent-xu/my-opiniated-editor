@@ -1,0 +1,36 @@
+cc_library(
+    name = "command_runner",
+    srcs = [
+        "command_runner.cc",
+        "process_exit_status.cc",
+    ],
+    hdrs = [
+        "command_result.h",
+        "command_runner.h",
+        "process_exit_status.h",
+        "standard_output_mode.h",
+    ],
+    visibility = ["//src/parent/worktree:__pkg__"],
+    deps = [
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+        "//src/base:process_id",
+    ],
+)
+
+cc_binary(
+    name = "fake_command",
+    testonly = True,
+    srcs = ["fake_command.cc"],
+)
+
+cc_test(
+    name = "command_runner_test",
+    srcs = ["command_runner_test.cc"],
+    data = [":fake_command"],
+    deps = [
+        ":command_runner",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

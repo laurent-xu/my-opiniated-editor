@@ -1,13 +1,7 @@
 #include "src/parent/worktree/worktree_provisioner.h"
 
-#include <sys/wait.h>
-#include <unistd.h>
-
 #include <algorithm>
-#include <array>
-#include <cerrno>
 #include <cstddef>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -20,106 +14,11 @@
 #include <utility>
 #include <vector>
 
-#include "src/base/file_descriptor.h"
-#include "src/base/owned_file_descriptor.h"
-#include "src/base/process_id.h"
 #include "src/parent/worktree/worktree_registry_store.h"
+#include "src/process/command_runner.h"
 
 namespace moe::parent {
 namespace {
-
-using base::FileDescriptor;
-using base::OwnedFileDescriptor;
-using base::ProcessId;
-
-struct CommandResult {
-  int exit_code;
-  std::string standard_output;
-};
-
-std::runtime_error errno_error(std::string const& action) {
-  return std::runtime_error(action + ": " + std::strerror(errno));
-}
-
-std::vector<char*> command_argv(std::vector<std::string> const& command) {
-  std::vector<char*> arguments;
-  arguments.reserve(command.size() + 1U);
-  for (std::string const& argument : command) {
-    arguments.push_back(const_cast<char*>(argument.c_str()));
-  }
-  arguments.push_back(nullptr);
-  return arguments;
-}
-
-int exit_code_from_status(int const status) {
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  if (WIFSIGNALED(status)) {
-    return 128 + WTERMSIG(status);
-  }
-  return 1;
-}
-
-CommandResult run_command(std::vector<std::string> const& command,
-                          bool const capture_standard_output) {
-  if (command.empty()) {
-    throw std::invalid_argument("command must not be empty");
-  }
-
-  std::array<int, 2> pipe_descriptors{-1, -1};
-  if (capture_standard_output && ::pipe(pipe_descriptors.data()) != 0) {
-    throw errno_error("create Git command pipe");
-  }
-  OwnedFileDescriptor read_end{FileDescriptor(capture_standard_output ? pipe_descriptors[0] : -1)};
-  OwnedFileDescriptor write_end{FileDescriptor(capture_standard_output ? pipe_descriptors[1] : -1)};
-
-  ProcessId const child_pid(::fork());
-  if (child_pid.is_error()) {
-    throw errno_error("fork Git command");
-  }
-  if (child_pid.is_child_process()) {
-    if (capture_standard_output) {
-      read_end.reset();
-      if (::dup2(write_end.get().value(), STDOUT_FILENO) < 0) {
-        _exit(126);
-      }
-      write_end.reset();
-    }
-    std::vector<char*> arguments = command_argv(command);
-    ::execvp(arguments[0], arguments.data());
-    _exit(127);
-  }
-
-  write_end.reset();
-  std::string output;
-  if (capture_standard_output) {
-    std::array<char, 4096> buffer{};
-    while (true) {
-      ssize_t const count = ::read(read_end.get().value(), buffer.data(), buffer.size());
-      if (count > 0) {
-        output.append(buffer.data(), static_cast<std::size_t>(count));
-        continue;
-      }
-      if (count == 0) {
-        break;
-      }
-      if (errno != EINTR) {
-        throw errno_error("read Git command output");
-      }
-    }
-  }
-
-  int status = 0;
-  ProcessId waited;
-  do {
-    waited = ProcessId(::waitpid(child_pid.value(), &status, 0));
-  } while (waited.is_error() && errno == EINTR);
-  if (waited.value() != child_pid.value()) {
-    throw errno_error("wait for Git command");
-  }
-  return {.exit_code = exit_code_from_status(status), .standard_output = std::move(output)};
-}
 
 std::string trimmed(std::string value) {
   while (!value.empty() && (value.back() == '\n' || value.back() == '\r' || value.back() == ' ' ||
@@ -272,12 +171,12 @@ void register_worktree(persistence::WorktreeRegistry& registry, persistence::Rep
 
 std::string resolve_default_branch(std::string const& git_executable,
                                    std::filesystem::path const& bare_directory) {
-  CommandResult const symbolic_ref = run_command(
+  process::CommandResult const symbolic_ref = process::run_command(
       {git_executable, "--git-dir", bare_directory.string(), "symbolic-ref", "--quiet", "HEAD"},
-      true);
-  if (symbolic_ref.exit_code != 0) {
+      process::StandardOutputMode::CAPTURE);
+  if (!symbolic_ref.exit_status.succeeded()) {
     throw std::runtime_error("resolve repository default branch failed with exit code " +
-                             std::to_string(symbolic_ref.exit_code));
+                             std::to_string(symbolic_ref.exit_status.value()));
   }
   std::string const reference = trimmed(symbolic_ref.standard_output);
   constexpr std::string_view PREFIX = "refs/heads/";
@@ -285,11 +184,11 @@ std::string resolve_default_branch(std::string const& git_executable,
     throw std::runtime_error("repository does not expose a default branch");
   }
 
-  CommandResult const commit =
-      run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse", "--verify",
-                   "--quiet", reference + "^{commit}"},
-                  true);
-  if (commit.exit_code != 0 || trimmed(commit.standard_output).empty()) {
+  process::CommandResult const commit =
+      process::run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse",
+                            "--verify", "--quiet", reference + "^{commit}"},
+                           process::StandardOutputMode::CAPTURE);
+  if (!commit.exit_status.succeeded() || trimmed(commit.standard_output).empty()) {
     throw std::runtime_error("repository default branch does not resolve to a commit");
   }
   return reference.substr(PREFIX.size());
@@ -297,11 +196,11 @@ std::string resolve_default_branch(std::string const& git_executable,
 
 bool resolves_to_commit(std::string const& git_executable,
                         std::filesystem::path const& bare_directory, std::string const& reference) {
-  CommandResult const result =
-      run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse", "--verify",
-                   "--quiet", reference + "^{commit}"},
-                  true);
-  return result.exit_code == 0 && !trimmed(result.standard_output).empty();
+  process::CommandResult const result =
+      process::run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse",
+                            "--verify", "--quiet", reference + "^{commit}"},
+                           process::StandardOutputMode::CAPTURE);
+  return result.exit_status.succeeded() && !trimmed(result.standard_output).empty();
 }
 
 }  // namespace
@@ -352,10 +251,10 @@ WorktreeProvisionResult WorktreeProvisioner::provision(WorktreeProvisionRequest 
   std::string const remote_reference = "refs/remotes/origin/" + request.branch;
   std::string const fetch_refspec = "+refs/heads/" + request.branch + ":" + remote_reference;
   progress << "Fetching origin branch " << request.branch << "...\n";
-  CommandResult const fetch = run_command(
+  process::CommandResult const fetch = process::run_command(
       {git_executable, "--git-dir", bare_directory.string(), "fetch", "origin", fetch_refspec},
-      false);
-  if (fetch.exit_code != 0) {
+      process::StandardOutputMode::INHERIT);
+  if (!fetch.exit_status.succeeded()) {
     progress << "Origin branch was not fetched; checking local refs...\n";
   }
 
@@ -378,10 +277,11 @@ WorktreeProvisionResult WorktreeProvisioner::provision(WorktreeProvisionRequest 
                           {"-b", request.branch, worktree_path.string(), default_branch});
   }
 
-  CommandResult const create = run_command(create_command, false);
-  if (create.exit_code != 0) {
+  process::CommandResult const create =
+      process::run_command(create_command, process::StandardOutputMode::INHERIT);
+  if (!create.exit_status.succeeded()) {
     throw std::runtime_error("git worktree add failed with exit code " +
-                             std::to_string(create.exit_code));
+                             std::to_string(create.exit_status.value()));
   }
   if (!std::filesystem::is_directory(worktree_path, error) || error != std::error_code{} ||
       !std::filesystem::exists(worktree_path / ".git", error) || error != std::error_code{}) {

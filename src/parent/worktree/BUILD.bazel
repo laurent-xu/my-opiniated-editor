@@ -28,9 +28,7 @@ cc_library(
     deps = [
         ":git_worktree_list",
         ":worktree_registry_store",
-        "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
-        "//src/base:process_id",
+        "//src/process:command_runner",
     ],
 )
 
@@ -48,9 +46,7 @@ cc_library(
     deps = [
         ":git_worktree_list",
         ":worktree_registry_store",
-        "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
-        "//src/base:process_id",
+        "//src/process:command_runner",
     ],
 )
 
@@ -76,9 +72,7 @@ cc_library(
     visibility = ["//src/parent:__pkg__"],
     deps = [
         ":worktree_registry_store",
-        "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
-        "//src/base:process_id",
+        "//src/process:command_runner",
     ],
 )
 

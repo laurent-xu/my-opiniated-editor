@@ -1,11 +1,6 @@
 #include "src/parent/worktree/worktree_candidate_finder.h"
 
-#include <sys/wait.h>
-#include <unistd.h>
-
 #include <algorithm>
-#include <array>
-#include <cerrno>
 #include <filesystem>
 #include <set>
 #include <stdexcept>
@@ -14,94 +9,12 @@
 #include <utility>
 #include <vector>
 
-#include "src/base/file_descriptor.h"
-#include "src/base/owned_file_descriptor.h"
-#include "src/base/process_id.h"
 #include "src/parent/worktree/git_worktree_list.h"
 #include "src/parent/worktree/worktree_registry_store.h"
+#include "src/process/command_runner.h"
 
 namespace moe::parent {
 namespace {
-
-struct CommandResult {
-  int exit_code;
-  std::string standard_output;
-};
-
-std::runtime_error errno_error(std::string const& action) {
-  return std::runtime_error(action + ": " + std::generic_category().message(errno));
-}
-
-std::vector<char*> command_argv(std::vector<std::string> const& command) {
-  std::vector<char*> arguments;
-  arguments.reserve(command.size() + 1);
-  for (std::string const& part : command) {
-    arguments.push_back(const_cast<char*>(part.c_str()));
-  }
-  arguments.push_back(nullptr);
-  return arguments;
-}
-
-int exit_code_from_status(int const status) {
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  if (WIFSIGNALED(status)) {
-    return 128 + WTERMSIG(status);
-  }
-  return 1;
-}
-
-CommandResult run_command(std::vector<std::string> const& command) {
-  std::array<int, 2> raw_pipe{-1, -1};
-  if (::pipe(raw_pipe.data()) != 0) {
-    throw errno_error("create git worktree-list pipe");
-  }
-  base::OwnedFileDescriptor read_end{base::FileDescriptor(raw_pipe[0])};
-  base::OwnedFileDescriptor write_end{base::FileDescriptor(raw_pipe[1])};
-
-  base::ProcessId const child_pid(::fork());
-  if (child_pid.is_error()) {
-    throw errno_error("fork git worktree-list command");
-  }
-  if (child_pid.is_child_process()) {
-    read_end.reset();
-    if (::dup2(write_end.get().value(), STDOUT_FILENO) < 0) {
-      _exit(126);
-    }
-    write_end.reset();
-    std::vector<char*> arguments = command_argv(command);
-    ::execvp(arguments[0], arguments.data());
-    _exit(127);
-  }
-
-  write_end.reset();
-  std::string output;
-  std::array<char, 4096> buffer{};
-  while (true) {
-    ssize_t const count = ::read(read_end.get().value(), buffer.data(), buffer.size());
-    if (count > 0) {
-      output.append(buffer.data(), static_cast<std::size_t>(count));
-      continue;
-    }
-    if (count == 0) {
-      break;
-    }
-    if (errno != EINTR) {
-      throw errno_error("read git worktree-list output");
-    }
-  }
-
-  int status = 0;
-  base::ProcessId waited;
-  do {
-    waited = base::ProcessId(::waitpid(child_pid.value(), &status, 0));
-  } while (waited.is_error() && errno == EINTR);
-  if (waited.value() != child_pid.value()) {
-    throw errno_error("wait for git worktree-list command");
-  }
-  return {.exit_code = exit_code_from_status(status), .standard_output = std::move(output)};
-}
 
 bool is_existing_directory(std::filesystem::path const& path) {
   std::error_code error;
@@ -136,9 +49,11 @@ std::vector<std::filesystem::path> WorktreeCandidateFinder::find_available(
       continue;
     }
 
-    CommandResult const result = run_command({git_executable, "--git-dir", bare_directory.string(),
-                                              "worktree", "list", "--porcelain", "-z"});
-    if (result.exit_code != 0) {
+    process::CommandResult const result =
+        process::run_command({git_executable, "--git-dir", bare_directory.string(), "worktree",
+                              "list", "--porcelain", "-z"},
+                             process::StandardOutputMode::CAPTURE);
+    if (!result.exit_status.succeeded()) {
       continue;
     }
 

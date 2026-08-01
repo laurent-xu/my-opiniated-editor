@@ -1,11 +1,6 @@
 #include "src/parent/worktree/worktree_repository_registrar.h"
 
-#include <sys/wait.h>
-#include <unistd.h>
-
 #include <algorithm>
-#include <array>
-#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -19,11 +14,9 @@
 #include <utility>
 #include <vector>
 
-#include "src/base/file_descriptor.h"
-#include "src/base/owned_file_descriptor.h"
-#include "src/base/process_id.h"
 #include "src/parent/worktree/git_worktree_list.h"
 #include "src/parent/worktree/worktree_registry_store.h"
+#include "src/process/command_runner.h"
 
 namespace moe::parent {
 namespace {
@@ -31,106 +24,10 @@ namespace {
 constexpr std::string_view GIT_POINTER_CONTENT = "gitdir: ./.bare";
 constexpr std::string_view REMOTE_FETCH_REFSPEC = "+refs/heads/*:refs/remotes/origin/*";
 
-struct CommandResult {
-  int exit_code;
-  std::string standard_output;
-};
-
-std::runtime_error errno_error(std::string const& action) {
-  return std::runtime_error(action + ": " + std::generic_category().message(errno));
-}
-
-base::ProcessId wait_for_child(base::ProcessId const child_pid, int& status) {
-  base::ProcessId result;
-  do {
-    result = base::ProcessId(::waitpid(child_pid.value(), &status, 0));
-  } while (result.is_error() && errno == EINTR);
-  return result;
-}
-
-int exit_code_from_status(int const status) {
-  if (WIFEXITED(status)) {
-    return WEXITSTATUS(status);
-  }
-  if (WIFSIGNALED(status)) {
-    return 128 + WTERMSIG(status);
-  }
-  return 1;
-}
-
-std::vector<char*> command_argv(std::vector<std::string> const& command) {
-  std::vector<char*> argv;
-  argv.reserve(command.size() + 1);
-  for (std::string const& argument : command) {
-    argv.push_back(const_cast<char*>(argument.c_str()));
-  }
-  argv.push_back(nullptr);
-  return argv;
-}
-
-CommandResult run_command(std::vector<std::string> const& command,
-                          bool const capture_standard_output) {
-  if (command.empty()) {
-    throw std::invalid_argument("command must not be empty");
-  }
-
-  std::array<int, 2> raw_pipe{-1, -1};
-  if (capture_standard_output && ::pipe(raw_pipe.data()) != 0) {
-    throw errno_error("create git output pipe");
-  }
-  base::OwnedFileDescriptor read_end(capture_standard_output ? base::FileDescriptor(raw_pipe[0])
-                                                             : base::FileDescriptor{});
-  base::OwnedFileDescriptor write_end(capture_standard_output ? base::FileDescriptor(raw_pipe[1])
-                                                              : base::FileDescriptor{});
-
-  base::ProcessId const child_pid(::fork());
-  if (child_pid.is_error()) {
-    throw errno_error("fork git command");
-  }
-  if (child_pid.is_child_process()) {
-    if (capture_standard_output) {
-      read_end.reset();
-      if (::dup2(write_end.get().value(), STDOUT_FILENO) < 0) {
-        _exit(126);
-      }
-      write_end.reset();
-    }
-
-    std::vector<char*> argv = command_argv(command);
-    ::execvp(argv[0], argv.data());
-    _exit(127);
-  }
-
-  write_end.reset();
-  std::string output;
-  if (capture_standard_output) {
-    std::array<char, 4096> buffer{};
-    while (true) {
-      ssize_t const count = ::read(read_end.get().value(), buffer.data(), buffer.size());
-      if (count > 0) {
-        output.append(buffer.data(), static_cast<std::size_t>(count));
-        continue;
-      }
-      if (count == 0) {
-        break;
-      }
-      if (errno != EINTR) {
-        throw errno_error("read git command output");
-      }
-    }
-  }
-
-  int status = 0;
-  base::ProcessId const waited = wait_for_child(child_pid, status);
-  if (waited.value() != child_pid.value()) {
-    throw errno_error("wait for git command");
-  }
-  return {.exit_code = exit_code_from_status(status), .standard_output = std::move(output)};
-}
-
-void require_success(CommandResult const& result, std::string const& action) {
-  if (result.exit_code != 0) {
-    throw std::runtime_error(action + " failed with exit code " + std::to_string(result.exit_code));
+void require_success(process::CommandResult const& result, std::string const& action) {
+  if (!result.exit_status.succeeded()) {
+    throw std::runtime_error(action + " failed with exit code " +
+                             std::to_string(result.exit_status.value()));
   }
 }
 
@@ -302,17 +199,17 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
     }
 
     progress << "Cloning bare repository...\n";
-    CommandResult const clone = run_command(
+    process::CommandResult const clone = process::run_command(
         {git_executable, "clone", "--bare", trimmed(*request.clone_url), (root / ".bare").string()},
-        false);
-    if (clone.exit_code != 0) {
+        process::StandardOutputMode::INHERIT);
+    if (!clone.exit_status.succeeded()) {
       std::error_code cleanup_error;
       std::filesystem::remove_all(root / ".bare", cleanup_error);
       if (created_root) {
         std::filesystem::remove(root, cleanup_error);
       }
       throw std::runtime_error("git clone --bare failed with exit code " +
-                               std::to_string(clone.exit_code));
+                               std::to_string(clone.exit_status.value()));
     }
     cloned = true;
     state = RepositoryRootState::RECOVERABLE_BARE_ROOT;
@@ -323,9 +220,9 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
   }
 
   std::filesystem::path const bare_directory = root / ".bare";
-  CommandResult const bare_check = run_command(
+  process::CommandResult const bare_check = process::run_command(
       {git_executable, "--git-dir", bare_directory.string(), "rev-parse", "--is-bare-repository"},
-      true);
+      process::StandardOutputMode::CAPTURE);
   require_success(bare_check, "validate bare repository");
   if (trimmed(bare_check.standard_output) != "true") {
     throw std::runtime_error("repository .bare directory is not a bare Git repository");
@@ -333,38 +230,39 @@ void WorktreeRepositoryRegistrar::register_repository(RepositoryRegistrationRequ
 
   if (cloned || state == RepositoryRootState::RECOVERABLE_BARE_ROOT) {
     progress << "Configuring remote branches...\n";
-    require_success(run_command({git_executable, "--git-dir", bare_directory.string(), "config",
-                                 "remote.origin.fetch", std::string(REMOTE_FETCH_REFSPEC)},
-                                false),
-                    "configure remote fetch");
-    progress << "Fetching remote branches...\n";
     require_success(
-        run_command({git_executable, "--git-dir", bare_directory.string(), "fetch", "origin"},
-                    false),
-        "fetch remote branches");
+        process::run_command({git_executable, "--git-dir", bare_directory.string(), "config",
+                              "remote.origin.fetch", std::string(REMOTE_FETCH_REFSPEC)},
+                             process::StandardOutputMode::INHERIT),
+        "configure remote fetch");
+    progress << "Fetching remote branches...\n";
+    require_success(process::run_command(
+                        {git_executable, "--git-dir", bare_directory.string(), "fetch", "origin"},
+                        process::StandardOutputMode::INHERIT),
+                    "fetch remote branches");
   }
 
-  CommandResult const default_branch = run_command(
+  process::CommandResult const default_branch = process::run_command(
       {git_executable, "--git-dir", bare_directory.string(), "symbolic-ref", "--quiet", "HEAD"},
-      true);
+      process::StandardOutputMode::CAPTURE);
   require_success(default_branch, "resolve default branch");
   std::string const default_branch_ref = trimmed(default_branch.standard_output);
   if (!default_branch_ref.starts_with("refs/heads/")) {
     throw std::runtime_error("repository does not expose a default branch");
   }
-  CommandResult const default_branch_commit =
-      run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse", "--verify",
-                   "--quiet", default_branch_ref + "^{commit}"},
-                  true);
+  process::CommandResult const default_branch_commit =
+      process::run_command({git_executable, "--git-dir", bare_directory.string(), "rev-parse",
+                            "--verify", "--quiet", default_branch_ref + "^{commit}"},
+                           process::StandardOutputMode::CAPTURE);
   require_success(default_branch_commit, "resolve default branch commit");
   if (trimmed(default_branch_commit.standard_output).empty()) {
     throw std::runtime_error("repository default branch does not resolve to a commit");
   }
 
-  CommandResult const worktree_list =
-      run_command({git_executable, "--git-dir", bare_directory.string(), "worktree", "list",
-                   "--porcelain", "-z"},
-                  true);
+  process::CommandResult const worktree_list =
+      process::run_command({git_executable, "--git-dir", bare_directory.string(), "worktree",
+                            "list", "--porcelain", "-z"},
+                           process::StandardOutputMode::CAPTURE);
   require_success(worktree_list, "list repository worktrees");
   merge_repository(registry, root, available_git_worktree_paths(worktree_list.standard_output));
 
