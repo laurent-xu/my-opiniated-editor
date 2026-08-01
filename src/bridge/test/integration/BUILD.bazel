@@ -5,7 +5,11 @@ BRIDGE_SUITE_VISIBILITY = ["//src/bridge:__pkg__"]
 
 py_library(
     name = "bridge_test_support",
-    srcs = ["bridge_test_support.py"],
+    srcs = [
+        "bridge_process.py",
+        "bridge_test_support.py",
+        "websocket_client.py",
+    ],
     data = ["//src/bridge:parent_ws_bridge_integration_runtime"],
 )
 
