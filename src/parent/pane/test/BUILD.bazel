@@ -42,6 +42,16 @@ cc_test(
 )
 
 cc_test(
+    name = "pane_navigation_test",
+    srcs = ["pane_navigation_test.cc"],
+    visibility = ["//src/parent/pane:__pkg__"],
+    deps = [
+        "//src/parent/pane:pane_navigation",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
     name = "pane_selection_test",
     srcs = ["pane_selection_test.cc"],
     visibility = ["//src/parent/pane:__pkg__"],

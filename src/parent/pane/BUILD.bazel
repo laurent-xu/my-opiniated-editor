@@ -60,6 +60,17 @@ cc_library(
 )
 
 cc_library(
+    name = "pane_navigation",
+    srcs = ["pane_navigation.cc"],
+    hdrs = ["pane_navigation.h"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+    deps = [":pane_geometry"],
+)
+
+cc_library(
     name = "pane_selection",
     srcs = ["pane_selection.cc"],
     hdrs = ["pane_selection.h"],
@@ -84,6 +95,7 @@ test_suite(
         "//src/parent/pane/test:pane_geometry_test",
         "//src/parent/pane/test:pane_layout_test",
         "//src/parent/pane/test:pane_layout_types_test",
+        "//src/parent/pane/test:pane_navigation_test",
         "//src/parent/pane/test:pane_resize_test",
         "//src/parent/pane/test:pane_selection_test",
         "//src/parent/pane/test:pane_test",
