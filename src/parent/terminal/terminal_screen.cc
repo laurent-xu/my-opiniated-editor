@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "src/parent/terminal/terminal_cell_style.h"
+#include "src/parent/terminal/terminal_snapshot_line.h"
 
 namespace moe::parent {
 
@@ -20,7 +21,6 @@ namespace {
 constexpr std::size_t MAX_SCROLLBACK_LINES = 10000;
 constexpr std::string_view CLEAR_TERMINAL_AND_SCROLLBACK = "\x1b[0m\x1b[H\x1b[2J\x1b[3J";
 constexpr std::string_view CLEAR_VISIBLE_SCREEN = "\x1b[0m\x1b[H\x1b[2J";
-constexpr std::string_view ERASE_TO_END_OF_LINE = "\x1b[K";
 constexpr std::string_view DISABLE_AUTOWRAP = "\x1b[?7l";
 constexpr std::string_view ENABLE_AUTOWRAP = "\x1b[?7h";
 constexpr std::string_view ENTER_ALTERNATE_SCREEN = "\x1b[?1049h";
@@ -29,18 +29,7 @@ constexpr std::string_view ENABLE_REVERSE_SCREEN = "\x1b[?5h";
 constexpr std::string_view DISABLE_REVERSE_SCREEN = "\x1b[?5l";
 constexpr std::string_view SHOW_CURSOR = "\x1b[?25h";
 constexpr std::string_view HIDE_CURSOR = "\x1b[?25l";
-constexpr std::uint32_t UNICODE_REPLACEMENT_CHARACTER = 0xFFFDU;
 constexpr std::size_t MAX_PENDING_CONTROL_SEQUENCE_INTRODUCER_BYTES = 128;
-
-struct CellRange {
-  int first_col = 0;
-  int last_col = 0;
-};
-
-struct SnapshotLineBounds {
-  int last_rendered = -1;
-  int last_text = -1;
-};
 
 struct ControlSequenceIntroducerSequence {
   std::size_t start = 0;
@@ -75,80 +64,6 @@ int checked_rows(TerminalSize const size) {
 int checked_cols(TerminalSize const size) {
   validate_size(size);
   return size.cols;
-}
-
-void append_utf8(std::string& output, std::uint32_t const codepoint) {
-  if (codepoint == 0 || codepoint == UNICODE_REPLACEMENT_CHARACTER) {
-    return;
-  }
-  if ((codepoint >= 0xD800U && codepoint <= 0xDFFFU) || codepoint > 0x10FFFFU) {
-    return;
-  }
-  std::uint32_t const value = codepoint;
-  if (value <= 0x7F) {
-    output.push_back(static_cast<char>(value));
-    return;
-  }
-  if (value <= 0x7FF) {
-    output.push_back(static_cast<char>(0xC0U | (value >> 6U)));
-    output.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
-    return;
-  }
-  if (value <= 0xFFFF) {
-    output.push_back(static_cast<char>(0xE0U | (value >> 12U)));
-    output.push_back(static_cast<char>(0x80U | ((value >> 6U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
-    return;
-  }
-  output.push_back(static_cast<char>(0xF0U | (value >> 18U)));
-  output.push_back(static_cast<char>(0x80U | ((value >> 12U) & 0x3FU)));
-  output.push_back(static_cast<char>(0x80U | ((value >> 6U) & 0x3FU)));
-  output.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
-}
-
-bool cell_has_text(VTermScreenCell const& cell) { return cell.chars[0] != 0; }
-
-using RowFillStyles = std::vector<std::optional<CellStyle>>;
-
-std::optional<CellStyle> row_fill_style_at(RowFillStyles const* const row_fill_styles,
-                                           int const col) {
-  if (row_fill_styles == nullptr || col < 0 ||
-      static_cast<std::size_t>(col) >= row_fill_styles->size()) {
-    return std::nullopt;
-  }
-  return (*row_fill_styles)[static_cast<std::size_t>(col)];
-}
-
-CellStyle effective_cell_style(VTermScreenCell const& cell,
-                               std::optional<CellStyle> const fill_style) {
-  CellStyle const cell_style = cell_style_from(cell);
-  if (!fill_style.has_value()) {
-    return cell_style;
-  }
-  if (cell.width == 0 || (!cell_has_text(cell) && cell_style.is_default())) {
-    return *fill_style;
-  }
-  if (fill_style->background.is_default() || !cell_style.background.is_default()) {
-    return cell_style;
-  }
-
-  CellStyle merged_style = cell_style;
-  merged_style.background = fill_style->background;
-  return merged_style;
-}
-
-bool cell_should_be_rendered(VTermScreenCell const& cell, CellStyle const& style) {
-  return cell.width != 0 && (cell_has_text(cell) || !style.is_default());
-}
-
-void append_cell_text(std::string& line, VTermScreenCell const& cell) {
-  if (!cell_has_text(cell)) {
-    line.push_back(' ');
-    return;
-  }
-  for (std::uint32_t const character : cell.chars) {
-    append_utf8(line, character);
-  }
 }
 
 bool is_utf8_continuation(unsigned char const byte) { return byte >= 0x80U && byte <= 0xBFU; }
@@ -294,108 +209,6 @@ bool is_erase_sequence(ControlSequenceIntroducerSequence const sequence) {
   return sequence.mode >= 0 && (sequence.command == 'K' || sequence.command == 'J');
 }
 
-int last_rendered_cell_index(int const cols, VTermScreenCell const* const cells,
-                             RowFillStyles const* const row_fill_styles) {
-  int last_rendered = -1;
-  for (int col = 0; col < cols; ++col) {
-    if (cell_should_be_rendered(
-            cells[col],
-            effective_cell_style(cells[col], row_fill_style_at(row_fill_styles, col)))) {
-      last_rendered = col;
-    }
-  }
-  return last_rendered;
-}
-
-int last_text_cell_index(int const cols, VTermScreenCell const* const cells) {
-  int last_text = -1;
-  for (int col = 0; col < cols; ++col) {
-    if (cells[col].width != 0 && cell_has_text(cells[col])) {
-      last_text = col;
-    }
-  }
-  return last_text;
-}
-
-bool blank_cells_have_same_style(CellRange const range, VTermScreenCell const* const cells,
-                                 RowFillStyles const* const row_fill_styles,
-                                 CellStyle const& style) {
-  for (int col = range.first_col; col <= range.last_col; ++col) {
-    VTermScreenCell const& cell = cells[col];
-    if (cell.width == 0 || cell_has_text(cell) ||
-        !(effective_cell_style(cell, row_fill_style_at(row_fill_styles, col)) == style)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool should_erase_to_end_of_line(int const cols, VTermScreenCell const* const cells,
-                                 RowFillStyles const* const row_fill_styles,
-                                 SnapshotLineBounds const bounds) {
-  if (bounds.last_rendered != cols - 1) {
-    return false;
-  }
-
-  int const first_trailing_blank = bounds.last_text + 1;
-  if (first_trailing_blank > bounds.last_rendered) {
-    return false;
-  }
-
-  CellStyle const trailing_style = effective_cell_style(
-      cells[first_trailing_blank], row_fill_style_at(row_fill_styles, first_trailing_blank));
-  return !trailing_style.is_default() &&
-         blank_cells_have_same_style(
-             CellRange{.first_col = first_trailing_blank, .last_col = bounds.last_rendered}, cells,
-             row_fill_styles, trailing_style);
-}
-
-std::string cells_to_snapshot_line(int const cols, VTermScreenCell const* const cells,
-                                   RowFillStyles const* const row_fill_styles = nullptr,
-                                   bool const allow_erase_to_end_of_line = true) {
-  int const last_rendered = last_rendered_cell_index(cols, cells, row_fill_styles);
-  if (last_rendered < 0) {
-    return "";
-  }
-
-  int const last_text = last_text_cell_index(cols, cells);
-  bool const erase_to_end_of_line =
-      allow_erase_to_end_of_line &&
-      should_erase_to_end_of_line(
-          cols, cells, row_fill_styles,
-          SnapshotLineBounds{.last_rendered = last_rendered, .last_text = last_text});
-  int const last_cell_to_write = erase_to_end_of_line ? last_text : last_rendered;
-
-  std::string line;
-  CellStyle current_style;
-  for (int col = 0; col <= last_cell_to_write; ++col) {
-    VTermScreenCell const& cell = cells[col];
-    if (cell.width == 0) {
-      continue;
-    }
-    CellStyle const next_style =
-        effective_cell_style(cell, row_fill_style_at(row_fill_styles, col));
-    if (!(next_style == current_style)) {
-      line.append(sgr_sequence(next_style));
-      current_style = next_style;
-    }
-    append_cell_text(line, cell);
-  }
-  if (erase_to_end_of_line) {
-    CellStyle const erase_style = effective_cell_style(
-        cells[last_text + 1], row_fill_style_at(row_fill_styles, last_text + 1));
-    if (!(erase_style == current_style)) {
-      line.append(sgr_sequence(erase_style));
-      current_style = erase_style;
-    }
-    line.append(ERASE_TO_END_OF_LINE);
-  }
-  if (!current_style.is_default()) {
-    line.append(sgr_sequence(CellStyle{}));
-  }
-  return line;
-}
-
 int ignore_damage(VTermRect const /*rect*/, void* const /*user*/) { return 1; }
 
 int ignore_movecursor(VTermPos const /*pos*/, VTermPos const /*oldpos*/, int const /*visible*/,
@@ -429,11 +242,11 @@ struct TerminalScreen::LineFillTracker {
   void resize(TerminalSize const next_size) {
     size = next_size;
     row_styles.assign(static_cast<std::size_t>(size.rows),
-                      RowFillStyles(static_cast<std::size_t>(size.cols)));
+                      TerminalRowFillStyles(static_cast<std::size_t>(size.cols)));
   }
 
   void clear_all() {
-    for (RowFillStyles& row : row_styles) {
+    for (TerminalRowFillStyles& row : row_styles) {
       std::ranges::fill(row, std::nullopt);
     }
   }
@@ -445,7 +258,7 @@ struct TerminalScreen::LineFillTracker {
 
     int const clamped_start = clamp_to_screen(start_col, size.cols);
     int const clamped_end = clamp_to_screen(end_col, size.cols);
-    RowFillStyles& row_style = row_styles[static_cast<std::size_t>(row)];
+    TerminalRowFillStyles& row_style = row_styles[static_cast<std::size_t>(row)];
     for (int col = clamped_start; col <= clamped_end; ++col) {
       std::optional<CellStyle>& cell_style = row_style[static_cast<std::size_t>(col)];
       if (style.is_default()) {
@@ -469,7 +282,7 @@ struct TerminalScreen::LineFillTracker {
   }
 
   void move_rect(RectMove const& move) {
-    std::vector<RowFillStyles> const old_row_styles = row_styles;
+    std::vector<TerminalRowFillStyles> const old_row_styles = row_styles;
     VTermRect const dest = move.dest;
     VTermRect const src = move.src;
     int const height = std::min(dest.end_row - dest.start_row, src.end_row - src.start_row);
@@ -485,7 +298,7 @@ struct TerminalScreen::LineFillTracker {
         continue;
       }
 
-      RowFillStyles& dest_row_styles = row_styles[static_cast<std::size_t>(dest_row)];
+      TerminalRowFillStyles& dest_row_styles = row_styles[static_cast<std::size_t>(dest_row)];
       for (int col_offset = 0; col_offset < width; ++col_offset) {
         int const dest_col = dest.start_col + col_offset;
         int const src_col = src.start_col + col_offset;
@@ -506,7 +319,7 @@ struct TerminalScreen::LineFillTracker {
     clear_source_cells_outside_dest(move);
   }
 
-  [[nodiscard]] RowFillStyles const* row(int const row) const {
+  [[nodiscard]] TerminalRowFillStyles const* row(int const row) const {
     if (row < 0 || row >= size.rows) {
       return nullptr;
     }
@@ -521,7 +334,7 @@ struct TerminalScreen::LineFillTracker {
         continue;
       }
 
-      RowFillStyles& row_style = row_styles[static_cast<std::size_t>(row)];
+      TerminalRowFillStyles& row_style = row_styles[static_cast<std::size_t>(row)];
       for (int col = src.start_col; col < src.end_col; ++col) {
         if (col < 0 || col >= size.cols ||
             vterm_rect_contains(dest, VTermPos{.row = row, .col = col}) != 0) {
@@ -533,7 +346,7 @@ struct TerminalScreen::LineFillTracker {
   }
 
   TerminalSize size{};
-  std::vector<RowFillStyles> row_styles;
+  std::vector<TerminalRowFillStyles> row_styles;
 };
 
 TerminalScreen::TerminalScreen(TerminalSize const size)
@@ -837,7 +650,7 @@ void TerminalScreen::append_blank_region(std::string& output, TerminalPosition c
 
 void TerminalScreen::push_scrollback_line(int const cols, void const* const cells) {
   scrollback_lines.push_back(
-      cells_to_snapshot_line(cols, static_cast<VTermScreenCell const*>(cells)));
+      render_terminal_snapshot_line(cols, static_cast<VTermScreenCell const*>(cells)));
   while (scrollback_lines.size() > MAX_SCROLLBACK_LINES) {
     scrollback_lines.pop_front();
   }
@@ -854,8 +667,8 @@ std::string TerminalScreen::screen_row_snapshot_line(int const row,
     static_cast<void>(vterm_screen_get_cell(screen, VTermPos{.row = row, .col = col},
                                             &cells[static_cast<std::size_t>(col)]));
   }
-  return cells_to_snapshot_line(rendered_columns, cells.data(), line_fill_tracker->row(row),
-                                allow_erase_to_end_of_line);
+  return render_terminal_snapshot_line(rendered_columns, cells.data(), line_fill_tracker->row(row),
+                                       allow_erase_to_end_of_line);
 }
 
 std::string TerminalScreen::cursor_position_sequence(int const row, int const col) {
