@@ -4,7 +4,7 @@
 #include <string_view>
 #include <vector>
 
-#include "src/parent/input/parent_input_event.h"
+#include "src/parent/input/event/parent_input_event.h"
 
 namespace moe::parent {
 

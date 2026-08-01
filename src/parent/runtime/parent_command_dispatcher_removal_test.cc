@@ -4,12 +4,12 @@
 #include <string>
 
 #include "gtest/gtest.h"
-#include "src/parent/input/begin_tray_action_command.h"
-#include "src/parent/input/confirmation_decision.h"
-#include "src/parent/input/resolve_tray_action_command.h"
-#include "src/parent/input/toggle_command_mode_command.h"
-#include "src/parent/input/toggle_worktree_overlay_command.h"
-#include "src/parent/input/tray_action_intent.h"
+#include "src/parent/input/command/begin_tray_action_command.h"
+#include "src/parent/input/command/confirmation_decision.h"
+#include "src/parent/input/command/resolve_tray_action_command.h"
+#include "src/parent/input/command/toggle_command_mode_command.h"
+#include "src/parent/input/command/toggle_worktree_overlay_command.h"
+#include "src/parent/input/command/tray_action_intent.h"
 #include "src/parent/runtime/parent_command_dispatcher.h"
 #include "src/parent/runtime/parent_command_dispatcher_config.h"
 #include "src/parent/runtime/parent_command_dispatcher_test_support.h"

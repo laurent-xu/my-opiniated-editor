@@ -31,7 +31,7 @@
 #include "src/bridge/server/pty_websocket_hub.h"
 #include "src/bridge/socket_io.h"
 #include "src/bridge/websocket_protocol.h"
-#include "src/parent/input/parent_input_command.h"
+#include "src/parent/input/command/parent_input_command.h"
 #include "src/parent/input/parent_input_protocol.h"
 
 namespace moe::bridge {

@@ -21,9 +21,9 @@
 #include <vector>
 
 #include "src/base/file_descriptor.h"
-#include "src/parent/input/parent_input_command.h"
+#include "src/parent/input/command/parent_input_command.h"
+#include "src/parent/input/event/parent_input_event.h"
 #include "src/parent/input/parent_input_decoder.h"
-#include "src/parent/input/parent_input_event.h"
 #include "src/parent/overlay/path_picker_overlay.h"
 #include "src/parent/runtime/parent_command_dispatcher.h"
 #include "src/parent/runtime/parent_command_dispatcher_config.h"

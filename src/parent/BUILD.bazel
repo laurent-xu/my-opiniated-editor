@@ -5,7 +5,8 @@ cc_library(
     deps = [
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
-        "//src/parent/input:parent_input_commands",
+        "//src/parent/input/command:parent_input_commands",
+        "//src/parent/input/event:parent_input_events",
         "//src/parent/input:parent_input_decoder",
         "//src/parent/overlay:path_picker_overlay",
         "//src/parent/runtime:parent_command_dispatcher",

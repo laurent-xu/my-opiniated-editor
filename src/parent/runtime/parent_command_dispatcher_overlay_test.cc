@@ -4,10 +4,10 @@
 #include <string_view>
 
 #include "gtest/gtest.h"
-#include "src/parent/input/navigate_overlay_command.h"
-#include "src/parent/input/overlay_navigation.h"
-#include "src/parent/input/toggle_command_mode_command.h"
-#include "src/parent/input/toggle_worktree_overlay_command.h"
+#include "src/parent/input/command/navigate_overlay_command.h"
+#include "src/parent/input/command/overlay_navigation.h"
+#include "src/parent/input/command/toggle_command_mode_command.h"
+#include "src/parent/input/command/toggle_worktree_overlay_command.h"
 #include "src/parent/overlay/overlay_footer.h"
 #include "src/parent/runtime/parent_command_dispatcher.h"
 #include "src/parent/runtime/parent_command_dispatcher_test_support.h"

@@ -8,7 +8,7 @@
 #include <variant>
 
 #include "gtest/gtest.h"
-#include "src/parent/input/parent_input_command.h"
+#include "src/parent/input/command/parent_input_command.h"
 
 namespace {
 

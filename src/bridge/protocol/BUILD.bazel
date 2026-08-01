@@ -26,7 +26,7 @@ cc_library(
     deps = [
         ":browser_terminal_input",
         ":browser_terminal_resize",
-        "//src/parent/input:parent_input_commands",
+        "//src/parent/input/command:parent_input_commands",
     ],
 )
 

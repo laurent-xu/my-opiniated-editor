@@ -2,8 +2,8 @@
 
 #include <variant>
 
-#include "src/parent/input/command_input_event.h"
-#include "src/parent/input/literal_input_event.h"
+#include "src/parent/input/event/command_input_event.h"
+#include "src/parent/input/event/literal_input_event.h"
 
 namespace moe::parent {
 

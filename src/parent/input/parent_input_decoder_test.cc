@@ -7,8 +7,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "src/parent/input/parent_input_command.h"
-#include "src/parent/input/parent_input_event.h"
+#include "src/parent/input/command/parent_input_command.h"
+#include "src/parent/input/event/parent_input_event.h"
 
 namespace {
 

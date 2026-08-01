@@ -1,0 +1,13 @@
+cc_library(
+    name = "parent_input_events",
+    hdrs = [
+        "command_input_event.h",
+        "literal_input_event.h",
+        "parent_input_event.h",
+    ],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/input:__pkg__",
+    ],
+    deps = ["//src/parent/input/command:parent_input_commands"],
+)

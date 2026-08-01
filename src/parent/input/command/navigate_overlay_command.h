@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/parent/input/overlay_navigation.h"
+#include "src/parent/input/command/overlay_navigation.h"
 
 namespace moe::parent {
 

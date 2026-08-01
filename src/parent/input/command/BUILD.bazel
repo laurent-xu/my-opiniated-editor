@@ -1,0 +1,24 @@
+cc_library(
+    name = "parent_input_commands",
+    hdrs = [
+        "begin_tray_action_command.h",
+        "confirmation_decision.h",
+        "navigate_overlay_command.h",
+        "overlay_navigation.h",
+        "parent_input_command.h",
+        "resolve_tray_action_command.h",
+        "switch_anonymous_tray_command.h",
+        "toggle_command_mode_command.h",
+        "toggle_worktree_overlay_command.h",
+        "tray_action_intent.h",
+    ],
+    visibility = [
+        "//src/bridge:__pkg__",
+        "//src/bridge/protocol:__pkg__",
+        "//src/parent:__pkg__",
+        "//src/parent/input:__pkg__",
+        "//src/parent/input/event:__pkg__",
+        "//src/parent/runtime:__pkg__",
+    ],
+    deps = ["//src/parent/tray:tray_identity"],
+)

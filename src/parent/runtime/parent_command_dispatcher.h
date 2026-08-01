@@ -1,7 +1,7 @@
 #pragma once
 
 #include "src/base/terminal_size.h"
-#include "src/parent/input/parent_input_command.h"
+#include "src/parent/input/command/parent_input_command.h"
 #include "src/parent/runtime/parent_command_dispatch_effects.h"
 #include "src/parent/runtime/parent_command_dispatcher_config.h"
 
