@@ -10,11 +10,11 @@
 
 #include "src/base/terminal_size.h"
 #include "src/parent/overlay/overlay.h"
-#include "src/parent/terminal/screen/terminal_screen.h"
 
 namespace moe::parent {
 
 class PathPickerProcess;
+class TerminalScreen;
 
 [[nodiscard]] std::string configured_fzf_executable();
 
@@ -54,7 +54,7 @@ class PathPickerOverlay : public Overlay {
   std::vector<std::filesystem::path> candidate_paths;
   base::TerminalSize parent_terminal_size;
   base::TerminalSize picker_terminal_size;
-  TerminalScreen terminal_screen;
+  std::unique_ptr<TerminalScreen> terminal_screen;
   std::optional<std::filesystem::path> selection;
   std::optional<std::size_t> selection_index;
   std::optional<std::size_t> highlighted_candidate_index;

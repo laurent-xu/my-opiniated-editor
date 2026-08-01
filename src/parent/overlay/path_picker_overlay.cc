@@ -12,6 +12,7 @@
 
 #include "src/parent/overlay/path_picker_process.h"
 #include "src/parent/terminal/screen/terminal_position.h"
+#include "src/parent/terminal/screen/terminal_screen.h"
 
 namespace moe::parent {
 namespace {
@@ -61,7 +62,7 @@ PathPickerOverlay::PathPickerOverlay(std::unique_ptr<PathPickerProcess> process_
       candidate_paths(std::move(candidates)),
       parent_terminal_size(parent_size),
       picker_terminal_size(picker_size_for(parent_size)),
-      terminal_screen(picker_terminal_size) {
+      terminal_screen(std::make_unique<TerminalScreen>(picker_terminal_size)) {
   if (!candidate_paths.empty()) {
     highlighted_candidate_index = 0;
   }
@@ -77,7 +78,7 @@ bool PathPickerOverlay::read_process_output() {
     return false;
   }
   ingest_focus_notifications(*output);
-  terminal_screen.ingest(*output);
+  terminal_screen->ingest(*output);
   return true;
 }
 
@@ -100,7 +101,7 @@ void PathPickerOverlay::resize(base::TerminalSize const size) {
   }
 
   picker_terminal_size = next_picker_size;
-  terminal_screen.resize(next_picker_size);
+  terminal_screen->resize(next_picker_size);
   process->resize(next_picker_size);
 }
 
@@ -109,7 +110,7 @@ std::optional<base::FileDescriptor> PathPickerOverlay::process_file_descriptor()
 }
 
 std::string PathPickerOverlay::redraw_output() const {
-  return terminal_screen.render_region_snapshot(
+  return terminal_screen->render_region_snapshot(
       TerminalPosition{.row = available_region_above().rows, .column = 0});
 }
 
