@@ -17,6 +17,7 @@
 #include "src/parent/tray/tray_preview_request.h"
 #include "src/parent/tray/tray_snapshot.h"
 #include "src/parent/worktree/overlay/terminal_text_field.h"
+#include "src/parent/worktree/overlay/workflow/worktree_overlay_workflow_state.h"
 
 namespace moe::parent {
 
@@ -55,22 +56,6 @@ class WorktreeManagementOverlay : public Overlay {
   void update_session_trays(std::vector<TraySnapshot> const& session_trays);
 
  private:
-  enum class Mode : std::uint8_t {
-    SWITCH_WORKTREE,
-    ADD_WORKTREE,
-    ADD_REPOSITORY,
-  };
-
-  enum class Stage : std::uint8_t {
-    SWITCH_WORKTREE,
-    WORKTREE_REPOSITORY,
-    WORKTREE_BRANCH,
-    REPOSITORY_ROOT,
-    REPOSITORY_CLONE_URL,
-    RUNNING,
-    RESULT,
-  };
-
   enum class InputSequenceState : std::uint8_t {
     NORMAL,
     ESCAPE,
@@ -84,19 +69,12 @@ class WorktreeManagementOverlay : public Overlay {
                             std::vector<TraySnapshot> const& session_trays,
                             base::TerminalSize size);
 
-  [[nodiscard]] Stage current_stage() const;
-  [[nodiscard]] Stage& mutable_current_stage();
-  [[nodiscard]] TerminalTextField* active_text_field();
-  [[nodiscard]] TerminalTextField const* active_text_field() const;
-  [[nodiscard]] std::string& active_error_message();
-  [[nodiscard]] std::string const& active_error_message() const;
   [[nodiscard]] std::string footer_output() const;
   [[nodiscard]] base::TerminalSize dialog_terminal_size() const;
   [[nodiscard]] std::string dialog_redraw_output() const;
   [[nodiscard]] std::string picker_action_output() const;
   [[nodiscard]] std::optional<std::filesystem::path> selected_repository_root() const;
   void load_repositories();
-  void reset_mode_state();
   void cycle_mode(int direction);
   void activate_mode();
   void start_switch_worktree_picker();
@@ -121,18 +99,10 @@ class WorktreeManagementOverlay : public Overlay {
   std::string git_executable;
   std::string fzf_executable;
   base::TerminalSize size;
-  Mode mode = Mode::SWITCH_WORKTREE;
-  Stage worktree_stage = Stage::WORKTREE_REPOSITORY;
-  Stage repository_stage = Stage::REPOSITORY_ROOT;
-  TerminalTextField branch_field;
-  TerminalTextField repository_root_field;
-  TerminalTextField clone_url_field;
+  WorktreeOverlayWorkflowState workflow_state;
   std::string mode_switch_sequence;
   InputSequenceState input_sequence_state = InputSequenceState::NORMAL;
   std::string input_control_sequence_parameters;
-  std::string switch_worktree_error_message;
-  std::string worktree_error_message;
-  std::string repository_error_message;
   std::vector<std::filesystem::path> repositories;
   std::vector<TrayId> session_tray_ids;
   std::vector<TrayId> switch_candidate_tray_ids;

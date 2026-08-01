@@ -2,6 +2,7 @@ cc_library(
     name = "terminal_text_field",
     srcs = ["terminal_text_field.cc"],
     hdrs = ["terminal_text_field.h"],
+    visibility = ["//src/parent/worktree/overlay/workflow:__pkg__"],
 )
 
 cc_library(
@@ -67,6 +68,7 @@ cc_library(
         "//src/parent/worktree:worktree_provisioner",
         "//src/parent/worktree:worktree_registry_store",
         "//src/parent/worktree:worktree_repository_registrar",
+        "//src/parent/worktree/overlay/workflow:worktree_overlay_workflow_state",
     ],
 )
 

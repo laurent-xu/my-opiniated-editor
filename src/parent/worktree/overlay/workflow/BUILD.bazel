@@ -1,0 +1,21 @@
+cc_library(
+    name = "worktree_overlay_workflow_state",
+    srcs = ["worktree_overlay_workflow_state.cc"],
+    hdrs = [
+        "worktree_overlay_mode.h",
+        "worktree_overlay_stage.h",
+        "worktree_overlay_workflow_state.h",
+    ],
+    visibility = ["//src/parent/worktree/overlay:__pkg__"],
+    deps = ["//src/parent/worktree/overlay:terminal_text_field"],
+)
+
+cc_test(
+    name = "worktree_overlay_workflow_state_test",
+    srcs = ["worktree_overlay_workflow_state_test.cc"],
+    deps = [
+        ":worktree_overlay_workflow_state",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

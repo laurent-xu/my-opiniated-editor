@@ -25,6 +25,8 @@
 namespace moe::parent {
 
 using base::TerminalSize;
+using Mode = WorktreeOverlayMode;
+using Stage = WorktreeOverlayStage;
 
 namespace {
 
@@ -104,7 +106,7 @@ WorktreeManagementOverlay::WorktreeManagementOverlay(std::filesystem::path execu
 WorktreeManagementOverlay::~WorktreeManagementOverlay() = default;
 
 void WorktreeManagementOverlay::write_input(std::string_view const bytes) {
-  if (current_stage() == Stage::RUNNING) {
+  if (workflow_state.current_stage() == Stage::RUNNING) {
     helper_process->write(bytes);
     return;
   }
@@ -132,13 +134,13 @@ bool WorktreeManagementOverlay::refresh_process_state() {
     picker = nullptr;
     full_redraw_requested = true;
     if (!selected.has_value()) {
-      active_error_message() = "No path selected";
+      workflow_state.active_error_message() = "No path selected";
       return true;
     }
-    if (mode == Mode::SWITCH_WORKTREE) {
+    if (workflow_state.mode() == Mode::SWITCH_WORKTREE) {
       if (!selected_index.has_value() || *selected_index >= switch_candidate_tray_ids.size() ||
           *selected_index >= switch_candidate_available.size()) {
-        switch_worktree_error_message = "Selected tray is unavailable";
+        workflow_state.error_message(Mode::SWITCH_WORKTREE) = "Selected tray is unavailable";
         return true;
       }
       if (!switch_candidate_available[*selected_index]) {
@@ -147,19 +149,20 @@ bool WorktreeManagementOverlay::refresh_process_state() {
         return true;
       }
       tray_to_open = switch_candidate_tray_ids[*selected_index];
-      switch_worktree_error_message.clear();
-    } else if (mode == Mode::ADD_WORKTREE) {
+      workflow_state.error_message(Mode::SWITCH_WORKTREE).clear();
+    } else if (workflow_state.mode() == Mode::ADD_WORKTREE) {
       selected_repository = *selected;
-      worktree_error_message.clear();
-      worktree_stage = Stage::WORKTREE_BRANCH;
+      workflow_state.error_message(Mode::ADD_WORKTREE).clear();
+      workflow_state.set_current_stage(Stage::WORKTREE_BRANCH);
     }
     return true;
   }
-  if (current_stage() != Stage::RUNNING || !helper_process->refresh_process_state()) {
+  if (workflow_state.current_stage() != Stage::RUNNING ||
+      !helper_process->refresh_process_state()) {
     return false;
   }
-  mutable_current_stage() = Stage::RESULT;
-  if (helper_process->result_succeeded() && mode == Mode::ADD_WORKTREE) {
+  workflow_state.set_current_stage(Stage::RESULT);
+  if (helper_process->result_succeeded() && workflow_state.mode() == Mode::ADD_WORKTREE) {
     if (!pending_worktree_path.has_value()) {
       throw std::logic_error("successful worktree provision is missing its path");
     }
@@ -192,7 +195,7 @@ std::optional<TrayId> WorktreeManagementOverlay::take_tray_to_open() {
 }
 
 std::optional<TrayPreviewRequest> WorktreeManagementOverlay::preview_request() const {
-  if (mode != Mode::SWITCH_WORKTREE || picker == nullptr) {
+  if (workflow_state.mode() != Mode::SWITCH_WORKTREE || picker == nullptr) {
     return std::nullopt;
   }
   std::optional<std::size_t> const index = picker->highlighted_index();
@@ -209,7 +212,7 @@ std::optional<TrayPreviewRequest> WorktreeManagementOverlay::preview_request() c
 }
 
 std::optional<TrayId> WorktreeManagementOverlay::highlighted_tray_id() const {
-  if (mode != Mode::SWITCH_WORKTREE || picker == nullptr) {
+  if (workflow_state.mode() != Mode::SWITCH_WORKTREE || picker == nullptr) {
     return std::nullopt;
   }
   std::optional<std::size_t> const index = picker->highlighted_index();
@@ -256,7 +259,7 @@ void WorktreeManagementOverlay::set_picker_action_error(std::string message) {
 }
 
 void WorktreeManagementOverlay::refresh_worktree_picker() {
-  if (mode != Mode::SWITCH_WORKTREE) {
+  if (workflow_state.mode() != Mode::SWITCH_WORKTREE) {
     return;
   }
   tray_action_confirmation.reset();
@@ -279,83 +282,11 @@ void WorktreeManagementOverlay::update_session_trays(
     return;
   }
   session_tray_ids = std::move(next_ids);
-  if (mode == Mode::SWITCH_WORKTREE && picker != nullptr) {
+  if (workflow_state.mode() == Mode::SWITCH_WORKTREE && picker != nullptr) {
     picker = nullptr;
     start_switch_worktree_picker();
     full_redraw_requested = true;
   }
-}
-
-WorktreeManagementOverlay::Stage WorktreeManagementOverlay::current_stage() const {
-  switch (mode) {
-    case Mode::SWITCH_WORKTREE:
-      return Stage::SWITCH_WORKTREE;
-    case Mode::ADD_WORKTREE:
-      return worktree_stage;
-    case Mode::ADD_REPOSITORY:
-      return repository_stage;
-  }
-  return Stage::SWITCH_WORKTREE;
-}
-
-WorktreeManagementOverlay::Stage& WorktreeManagementOverlay::mutable_current_stage() {
-  if (mode == Mode::ADD_WORKTREE) {
-    return worktree_stage;
-  }
-  if (mode == Mode::ADD_REPOSITORY) {
-    return repository_stage;
-  }
-  throw std::logic_error("switch-worktree mode does not have a mutable stage");
-}
-
-TerminalTextField* WorktreeManagementOverlay::active_text_field() {
-  switch (current_stage()) {
-    case Stage::WORKTREE_BRANCH:
-      return &branch_field;
-    case Stage::REPOSITORY_ROOT:
-      return &repository_root_field;
-    case Stage::REPOSITORY_CLONE_URL:
-      return &clone_url_field;
-    default:
-      return nullptr;
-  }
-}
-
-TerminalTextField const* WorktreeManagementOverlay::active_text_field() const {
-  switch (current_stage()) {
-    case Stage::WORKTREE_BRANCH:
-      return &branch_field;
-    case Stage::REPOSITORY_ROOT:
-      return &repository_root_field;
-    case Stage::REPOSITORY_CLONE_URL:
-      return &clone_url_field;
-    default:
-      return nullptr;
-  }
-}
-
-std::string& WorktreeManagementOverlay::active_error_message() {
-  switch (mode) {
-    case Mode::SWITCH_WORKTREE:
-      return switch_worktree_error_message;
-    case Mode::ADD_WORKTREE:
-      return worktree_error_message;
-    case Mode::ADD_REPOSITORY:
-      return repository_error_message;
-  }
-  return switch_worktree_error_message;
-}
-
-std::string const& WorktreeManagementOverlay::active_error_message() const {
-  switch (mode) {
-    case Mode::SWITCH_WORKTREE:
-      return switch_worktree_error_message;
-    case Mode::ADD_WORKTREE:
-      return worktree_error_message;
-    case Mode::ADD_REPOSITORY:
-      return repository_error_message;
-  }
-  return switch_worktree_error_message;
 }
 
 std::optional<std::filesystem::path> WorktreeManagementOverlay::selected_repository_root() const {
@@ -364,39 +295,22 @@ std::optional<std::filesystem::path> WorktreeManagementOverlay::selected_reposit
 
 void WorktreeManagementOverlay::load_repositories() {
   repositories.clear();
-  worktree_error_message.clear();
+  workflow_state.error_message(Mode::ADD_WORKTREE).clear();
   try {
     persistence::WorktreeRegistry const registry = WorktreeRegistryStore(registry_path).load();
     for (persistence::Repository const& repository : registry.repositories()) {
       repositories.emplace_back(repository.root_path());
     }
     if (repositories.empty()) {
-      worktree_error_message = "No registered repositories";
+      workflow_state.error_message(Mode::ADD_WORKTREE) = "No registered repositories";
     }
   } catch (std::exception const& error) {
-    worktree_error_message = error.what();
+    workflow_state.error_message(Mode::ADD_WORKTREE) = error.what();
   }
 }
 
-void WorktreeManagementOverlay::reset_mode_state() {
-  worktree_stage = Stage::WORKTREE_REPOSITORY;
-  repository_stage = Stage::REPOSITORY_ROOT;
-  branch_field.clear();
-  repository_root_field.clear();
-  clone_url_field.clear();
-  selected_repository.reset();
-  repository_root.reset();
-  pending_worktree_path.reset();
-  switch_worktree_error_message.clear();
-  repository_error_message.clear();
-  helper_process->clear();
-  tray_action_confirmation.reset();
-  picker_action_error.clear();
-  load_repositories();
-}
-
 std::string WorktreeManagementOverlay::footer_output() const {
-  return render_overlay_footer(MODE_LABELS, static_cast<std::size_t>(mode), size);
+  return render_overlay_footer(MODE_LABELS, static_cast<std::size_t>(workflow_state.mode()), size);
 }
 
 TerminalSize WorktreeManagementOverlay::dialog_terminal_size() const {
@@ -407,11 +321,14 @@ TerminalSize WorktreeManagementOverlay::dialog_terminal_size() const {
 }
 
 void WorktreeManagementOverlay::cycle_mode(int const direction) {
-  int constexpr MODE_COUNT = 3;
-  int const current = static_cast<int>(mode);
-  int const next = (current + direction + MODE_COUNT) % MODE_COUNT;
-  reset_mode_state();
-  mode = static_cast<Mode>(next);
+  selected_repository.reset();
+  repository_root.reset();
+  pending_worktree_path.reset();
+  helper_process->clear();
+  tray_action_confirmation.reset();
+  picker_action_error.clear();
+  workflow_state.cycle_mode(direction);
+  load_repositories();
   activate_mode();
 }
 
@@ -421,9 +338,10 @@ void WorktreeManagementOverlay::activate_mode() {
   mode_switch_sequence.clear();
   input_sequence_state = InputSequenceState::NORMAL;
   input_control_sequence_parameters.clear();
-  if (mode == Mode::SWITCH_WORKTREE) {
+  if (workflow_state.mode() == Mode::SWITCH_WORKTREE) {
     start_switch_worktree_picker();
-  } else if (mode == Mode::ADD_WORKTREE && worktree_stage == Stage::WORKTREE_REPOSITORY) {
+  } else if (workflow_state.mode() == Mode::ADD_WORKTREE &&
+             workflow_state.current_stage() == Stage::WORKTREE_REPOSITORY) {
     start_repository_picker();
   }
   if (picker_was_active && picker == nullptr) {
@@ -458,28 +376,28 @@ void WorktreeManagementOverlay::start_switch_worktree_picker() {
       switch_candidate_available.push_back(true);
     }
     if (candidates.empty()) {
-      switch_worktree_error_message = "No available tracked worktrees";
+      workflow_state.error_message(Mode::SWITCH_WORKTREE) = "No available tracked worktrees";
       return;
     }
-    switch_worktree_error_message.clear();
+    workflow_state.error_message(Mode::SWITCH_WORKTREE).clear();
     picker =
         PathPickerOverlay::start(fzf_executable, candidates, "Worktree> ", dialog_terminal_size());
   } catch (std::exception const& error) {
-    switch_worktree_error_message = error.what();
+    workflow_state.error_message(Mode::SWITCH_WORKTREE) = error.what();
   }
 }
 
 void WorktreeManagementOverlay::start_repository_picker() {
   if (repositories.empty()) {
-    worktree_error_message = "No registered repositories";
+    workflow_state.error_message(Mode::ADD_WORKTREE) = "No registered repositories";
     return;
   }
   try {
-    worktree_error_message.clear();
+    workflow_state.error_message(Mode::ADD_WORKTREE).clear();
     picker = PathPickerOverlay::start(fzf_executable, repositories, "Repository> ",
                                       dialog_terminal_size());
   } catch (std::exception const& error) {
-    worktree_error_message = error.what();
+    workflow_state.error_message(Mode::ADD_WORKTREE) = error.what();
   }
 }
 
@@ -488,10 +406,10 @@ void WorktreeManagementOverlay::write_mode_input(std::string_view const bytes) {
     picker->write_input(bytes);
     return;
   }
-  if (current_stage() == Stage::RESULT) {
+  if (workflow_state.current_stage() == Stage::RESULT) {
     return;
   }
-  if (current_stage() == Stage::SWITCH_WORKTREE) {
+  if (workflow_state.current_stage() == Stage::SWITCH_WORKTREE) {
     if (bytes.find('\r') != std::string_view::npos || bytes.find('\n') != std::string_view::npos) {
       start_switch_worktree_picker();
     }
@@ -601,17 +519,17 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
     return prompt.substr(first_visible, width);
   };
 
-  Stage const stage = current_stage();
+  Stage const stage = workflow_state.current_stage();
   if (stage == Stage::SWITCH_WORKTREE) {
     if (height > 2) {
-      lines[2] = switch_worktree_error_message;
+      lines[2] = workflow_state.error_message(Mode::SWITCH_WORKTREE);
     }
     if (height > 5) {
       lines[5] = "Enter: reopen selector | Tab: next mode";
     }
   } else if (stage == Stage::WORKTREE_REPOSITORY) {
     if (height > 1) {
-      lines[1] = worktree_error_message;
+      lines[1] = workflow_state.error_message(Mode::ADD_WORKTREE);
     }
     if (height > 6) {
       lines[6] = "Enter: reopen selector | Tab: next mode";
@@ -621,13 +539,13 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
       lines[1] = visible_tail(selected_repository->string(), width);
     }
     if (height > 2) {
-      lines[2] = worktree_error_message;
+      lines[2] = workflow_state.error_message(Mode::ADD_WORKTREE);
     }
     if (height > 4) {
       lines[4] = "Branch:";
     }
-    if (height > 5 && active_text_field() != nullptr) {
-      lines[5] = displayed_input(*active_text_field());
+    if (height > 5 && workflow_state.active_text_field() != nullptr) {
+      lines[5] = displayed_input(*workflow_state.active_text_field());
     }
     if (height > 6) {
       lines[6] = "Enter: continue | Tab: mode";
@@ -637,13 +555,13 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
       lines[1] = visible_tail(repository_root->string(), width);
     }
     if (height > 2) {
-      lines[2] = repository_error_message;
+      lines[2] = workflow_state.error_message(Mode::ADD_REPOSITORY);
     }
     if (height > 4) {
       lines[4] = stage == Stage::REPOSITORY_ROOT ? "Repository root:" : "Clone URL:";
     }
-    if (height > 5 && active_text_field() != nullptr) {
-      lines[5] = displayed_input(*active_text_field());
+    if (height > 5 && workflow_state.active_text_field() != nullptr) {
+      lines[5] = displayed_input(*workflow_state.active_text_field());
     }
     if (height > 6) {
       lines[6] = "Enter: continue | Tab: mode";
@@ -679,8 +597,8 @@ std::string WorktreeManagementOverlay::dialog_redraw_output() const {
                        columns);
   }
 
-  if (active_text_field() != nullptr && stage != Stage::RUNNING && stage != Stage::RESULT &&
-      height > 5) {
+  if (workflow_state.active_text_field() != nullptr && stage != Stage::RUNNING &&
+      stage != Stage::RESULT && height > 5) {
     output += position_cursor(first_row + 5, static_cast<int>(input_cursor_column));
     output += "\x1b[?25h";
   }
@@ -716,51 +634,51 @@ void WorktreeManagementOverlay::write_editing_input(unsigned char const byte) {
     return;
   }
 
-  TerminalTextField* const field = active_text_field();
+  TerminalTextField* const field = workflow_state.active_text_field();
   if (field == nullptr) {
     return;
   }
   if (byte == BACKSPACE || byte == '\b') {
     field->backspace();
-    active_error_message().clear();
+    workflow_state.active_error_message().clear();
     return;
   }
   if (byte >= 0x20U) {
     field->insert(byte);
-    active_error_message().clear();
+    workflow_state.active_error_message().clear();
   }
 }
 
 void WorktreeManagementOverlay::handle_input_control_sequence(unsigned char const final_byte) {
   if (final_byte == 'D') {
-    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+    if (TerminalTextField* const field = workflow_state.active_text_field(); field != nullptr) {
       field->move_cursor_left();
     }
   } else if (final_byte == 'C') {
-    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+    if (TerminalTextField* const field = workflow_state.active_text_field(); field != nullptr) {
       field->move_cursor_right();
     }
   } else if (final_byte == 'H' ||
              (final_byte == '~' && (input_control_sequence_parameters == "1" ||
                                     input_control_sequence_parameters == "7"))) {
-    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+    if (TerminalTextField* const field = workflow_state.active_text_field(); field != nullptr) {
       field->move_cursor_to_start();
     }
   } else if (final_byte == 'F' ||
              (final_byte == '~' && (input_control_sequence_parameters == "4" ||
                                     input_control_sequence_parameters == "8"))) {
-    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+    if (TerminalTextField* const field = workflow_state.active_text_field(); field != nullptr) {
       field->move_cursor_to_end();
     }
   } else if (final_byte == '~' && input_control_sequence_parameters == "3") {
-    if (TerminalTextField* const field = active_text_field(); field != nullptr) {
+    if (TerminalTextField* const field = workflow_state.active_text_field(); field != nullptr) {
       field->delete_at_cursor();
     }
   }
 }
 
 void WorktreeManagementOverlay::submit_input() {
-  switch (current_stage()) {
+  switch (workflow_state.current_stage()) {
     case Stage::WORKTREE_REPOSITORY:
       submit_worktree_repository();
       break;
@@ -783,52 +701,52 @@ void WorktreeManagementOverlay::submit_worktree_repository() {
     start_repository_picker();
     return;
   }
-  worktree_error_message.clear();
-  worktree_stage = Stage::WORKTREE_BRANCH;
+  workflow_state.error_message(Mode::ADD_WORKTREE).clear();
+  workflow_state.set_current_stage(Stage::WORKTREE_BRANCH);
 }
 
 void WorktreeManagementOverlay::submit_worktree_branch() {
-  std::string const branch = trimmed(branch_field.value());
+  std::string const branch = trimmed(workflow_state.branch_field().value());
   try {
     std::optional<std::filesystem::path> const selected_repository = selected_repository_root();
     if (!selected_repository.has_value()) {
       throw std::logic_error("selected repository is missing");
     }
     pending_worktree_path = derived_worktree_path(*selected_repository, branch);
-    branch_field.set_value(branch);
-    worktree_error_message.clear();
+    workflow_state.branch_field().set_value(branch);
+    workflow_state.error_message(Mode::ADD_WORKTREE).clear();
     start_worktree_provision();
   } catch (std::exception const& error) {
-    worktree_error_message = error.what();
+    workflow_state.error_message(Mode::ADD_WORKTREE) = error.what();
   }
 }
 
 void WorktreeManagementOverlay::submit_repository_root() {
   try {
-    repository_root = resolved_path(repository_root_field, "repository root");
+    repository_root = resolved_path(workflow_state.repository_root_field(), "repository root");
     RepositoryRootState const state = inspect_repository_root(*repository_root);
-    repository_error_message.clear();
+    workflow_state.error_message(Mode::ADD_REPOSITORY).clear();
     if (state == RepositoryRootState::EMPTY) {
-      repository_stage = Stage::REPOSITORY_CLONE_URL;
+      workflow_state.set_current_stage(Stage::REPOSITORY_CLONE_URL);
       return;
     }
     start_registration(std::nullopt);
   } catch (std::exception const& error) {
-    repository_error_message = error.what();
+    workflow_state.error_message(Mode::ADD_REPOSITORY) = error.what();
   }
 }
 
 void WorktreeManagementOverlay::submit_clone_url() {
-  std::string const clone_url = trimmed(clone_url_field.value());
+  std::string const clone_url = trimmed(workflow_state.clone_url_field().value());
   if (clone_url.empty()) {
-    repository_error_message = "Clone URL must not be empty";
+    workflow_state.error_message(Mode::ADD_REPOSITORY) = "Clone URL must not be empty";
     return;
   }
-  repository_error_message.clear();
+  workflow_state.error_message(Mode::ADD_REPOSITORY).clear();
   try {
     start_registration(clone_url);
   } catch (std::exception const& error) {
-    repository_error_message = error.what();
+    workflow_state.error_message(Mode::ADD_REPOSITORY) = error.what();
   }
 }
 
@@ -847,7 +765,7 @@ void WorktreeManagementOverlay::start_registration(std::optional<std::string> cl
   }
 
   helper_process->start(command, working_directory, size);
-  repository_stage = Stage::RUNNING;
+  workflow_state.set_current_stage(Stage::RUNNING);
 }
 
 void WorktreeManagementOverlay::start_worktree_provision() {
@@ -856,12 +774,16 @@ void WorktreeManagementOverlay::start_worktree_provision() {
     throw std::logic_error("worktree provision inputs are missing");
   }
   std::vector<std::string> const command{
-      parent_executable.string(),    "--provision-worktree", registry_path.string(),
-      selected_repository->string(), branch_field.value(),   pending_worktree_path->string(),
+      parent_executable.string(),
+      "--provision-worktree",
+      registry_path.string(),
+      selected_repository->string(),
+      workflow_state.branch_field().value(),
+      pending_worktree_path->string(),
   };
 
   helper_process->start(command, working_directory, size);
-  worktree_stage = Stage::RUNNING;
+  workflow_state.set_current_stage(Stage::RUNNING);
 }
 
 std::filesystem::path WorktreeManagementOverlay::resolved_path(
