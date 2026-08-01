@@ -1,17 +1,24 @@
 cc_library(
-    name = "command_runner",
-    srcs = [
-        "command_runner.cc",
-        "process_exit_status.cc",
+    name = "process_exit_status",
+    srcs = ["process_exit_status.cc"],
+    hdrs = ["process_exit_status.h"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/terminal:__pkg__",
     ],
+)
+
+cc_library(
+    name = "command_runner",
+    srcs = ["command_runner.cc"],
     hdrs = [
         "command_result.h",
         "command_runner.h",
-        "process_exit_status.h",
         "standard_output_mode.h",
     ],
     visibility = ["//src/parent/worktree:__pkg__"],
     deps = [
+        ":process_exit_status",
         "//src/base:file_descriptor",
         "//src/base:owned_file_descriptor",
         "//src/base:process_id",
