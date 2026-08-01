@@ -135,6 +135,20 @@ TEST(ParentInputDecoderTest, DecodesEveryOverlayNavigationIncludingEnter) {
   }
 }
 
+TEST(ParentInputDecoderTest, DecodesPaneCommandsWithoutForwardingTheirBytes) {
+  moe::parent::ParentInputDecoder decoder;
+  std::vector<moe::parent::ParentInputEvent> const events =
+      decoder.consume(command_bytes('v') + command_bytes('m') + command_bytes('\r'));
+
+  ASSERT_EQ(events.size(), 3U);
+  EXPECT_EQ(std::get<moe::parent::PaneCommand>(command_event(events[0])).action,
+            moe::parent::PaneCommandAction::SPLIT_LEFT_TO_RIGHT);
+  EXPECT_EQ(std::get<moe::parent::PaneCommand>(command_event(events[1])).action,
+            moe::parent::PaneCommandAction::TOGGLE_MOVE);
+  EXPECT_EQ(std::get<moe::parent::PaneCommand>(command_event(events[2])).action,
+            moe::parent::PaneCommandAction::CONFIRM_MOVE);
+}
+
 TEST(ParentInputDecoderTest, DecodesToggleClearRemoveConfirmAndCancelCommands) {
   moe::parent::ParentInputDecoder decoder;
   std::string bytes;

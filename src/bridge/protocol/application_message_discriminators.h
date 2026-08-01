@@ -9,6 +9,7 @@ inline constexpr char TOGGLE_WORKTREE_OVERLAY = '3';
 inline constexpr char TOGGLE_COMMAND_MODE = '5';
 inline constexpr char WORKTREE_PICKER_ACTION = '6';
 inline constexpr char OVERLAY_NAVIGATION = '7';
+inline constexpr char PANE_ACTION = '8';
 
 }  // namespace moe::bridge::protocol::browser_to_bridge_discriminator
 

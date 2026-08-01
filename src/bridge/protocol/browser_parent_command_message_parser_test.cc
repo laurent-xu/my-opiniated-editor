@@ -127,4 +127,38 @@ TEST(BrowserApplicationMessageParserTest, ParsesEveryOverlayNavigationAction) {
   }
 }
 
+TEST(BrowserApplicationMessageParserTest, ParsesEveryPaneAction) {
+  using Action = moe::parent::PaneCommandAction;
+  constexpr std::array<std::pair<std::string_view, Action>, 17> CASES{{
+      {"8up", Action::UP},
+      {"8down", Action::DOWN},
+      {"8left", Action::LEFT},
+      {"8right", Action::RIGHT},
+      {"8splitLeftToRight", Action::SPLIT_LEFT_TO_RIGHT},
+      {"8splitAboveBelow", Action::SPLIT_ABOVE_BELOW},
+      {"8toggleSelectionOrSwap", Action::TOGGLE_SELECTION_OR_SWAP},
+      {"8promote", Action::PROMOTE},
+      {"8descend", Action::DESCEND},
+      {"8grow", Action::GROW},
+      {"8shrink", Action::SHRINK},
+      {"8equalize", Action::EQUALIZE},
+      {"8toggleMove", Action::TOGGLE_MOVE},
+      {"8confirmMove", Action::CONFIRM_MOVE},
+      {"8rotate", Action::ROTATE},
+      {"8toggleMaximize", Action::TOGGLE_MAXIMIZE},
+      {"8close", Action::CLOSE},
+  }};
+
+  for (auto const& [message, expected_action] : CASES) {
+    expect_parent_command<moe::parent::PaneCommand>(
+        message, [message, expected_action](moe::parent::PaneCommand const& command) {
+          EXPECT_EQ(command.action, expected_action) << message;
+        });
+  }
+
+  for (std::string_view const message : {"8", "8Up", "8left ", "8toggleCollapse", "8unknown"}) {
+    expect_parse_error({.message = message, .expected_error = "pane action is invalid"});
+  }
+}
+
 }  // namespace

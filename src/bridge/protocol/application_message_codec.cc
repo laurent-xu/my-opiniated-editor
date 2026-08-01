@@ -51,6 +51,9 @@ std::optional<BrowserToBridgeMessage> decode_browser_to_bridge_message(
     case browser_to_bridge_discriminator::OVERLAY_NAVIGATION:
       type = BrowserToBridgeMessage::Type::OVERLAY_NAVIGATION;
       break;
+    case browser_to_bridge_discriminator::PANE_ACTION:
+      type = BrowserToBridgeMessage::Type::PANE_ACTION;
+      break;
     default:
       return std::nullopt;
   }

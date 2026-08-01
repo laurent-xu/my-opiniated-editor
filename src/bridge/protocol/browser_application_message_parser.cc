@@ -102,6 +102,62 @@ parent::ParentInputCommand parse_overlay_navigation(std::string_view const navig
   throw std::runtime_error("worktree overlay navigation is invalid");
 }
 
+parent::ParentInputCommand parse_pane_action(std::string_view const action) {
+  using Action = parent::PaneCommandAction;
+  if (action == "up") {
+    return parent::PaneCommand{.action = Action::UP};
+  }
+  if (action == "down") {
+    return parent::PaneCommand{.action = Action::DOWN};
+  }
+  if (action == "left") {
+    return parent::PaneCommand{.action = Action::LEFT};
+  }
+  if (action == "right") {
+    return parent::PaneCommand{.action = Action::RIGHT};
+  }
+  if (action == "splitLeftToRight") {
+    return parent::PaneCommand{.action = Action::SPLIT_LEFT_TO_RIGHT};
+  }
+  if (action == "splitAboveBelow") {
+    return parent::PaneCommand{.action = Action::SPLIT_ABOVE_BELOW};
+  }
+  if (action == "toggleSelectionOrSwap") {
+    return parent::PaneCommand{.action = Action::TOGGLE_SELECTION_OR_SWAP};
+  }
+  if (action == "promote") {
+    return parent::PaneCommand{.action = Action::PROMOTE};
+  }
+  if (action == "descend") {
+    return parent::PaneCommand{.action = Action::DESCEND};
+  }
+  if (action == "grow") {
+    return parent::PaneCommand{.action = Action::GROW};
+  }
+  if (action == "shrink") {
+    return parent::PaneCommand{.action = Action::SHRINK};
+  }
+  if (action == "equalize") {
+    return parent::PaneCommand{.action = Action::EQUALIZE};
+  }
+  if (action == "toggleMove") {
+    return parent::PaneCommand{.action = Action::TOGGLE_MOVE};
+  }
+  if (action == "confirmMove") {
+    return parent::PaneCommand{.action = Action::CONFIRM_MOVE};
+  }
+  if (action == "rotate") {
+    return parent::PaneCommand{.action = Action::ROTATE};
+  }
+  if (action == "toggleMaximize") {
+    return parent::PaneCommand{.action = Action::TOGGLE_MAXIMIZE};
+  }
+  if (action == "close") {
+    return parent::PaneCommand{.action = Action::CLOSE};
+  }
+  throw std::runtime_error("pane action is invalid");
+}
+
 }  // namespace
 
 std::optional<BrowserApplicationMessage> parse_browser_application_message(
@@ -129,6 +185,8 @@ std::optional<BrowserApplicationMessage> parse_browser_application_message(
       return BrowserApplicationMessage{parse_worktree_picker_action(decoded->payload)};
     case Type::OVERLAY_NAVIGATION:
       return BrowserApplicationMessage{parse_overlay_navigation(decoded->payload)};
+    case Type::PANE_ACTION:
+      return BrowserApplicationMessage{parse_pane_action(decoded->payload)};
   }
   throw std::logic_error("invalid browser-to-bridge message type");
 }

@@ -16,7 +16,7 @@ using moe::bridge::protocol::BrowserTerminalResize;
 using moe::bridge::protocol::test::expect_parse_error;
 
 TEST(BrowserApplicationMessageParserTest, IgnoresEmptyReservedAndUnknownMessages) {
-  for (std::string_view const message : {"", "4reserved", "8unknown", "xunknown"}) {
+  for (std::string_view const message : {"", "4reserved", "9unknown", "xunknown"}) {
     EXPECT_FALSE(moe::bridge::protocol::parse_browser_application_message(message).has_value());
   }
 }

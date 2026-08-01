@@ -5,6 +5,7 @@ cc_library(
         "confirmation_decision.h",
         "navigate_overlay_command.h",
         "overlay_navigation.h",
+        "pane_command.h",
         "parent_input_command.h",
         "resolve_tray_action_command.h",
         "switch_anonymous_tray_command.h",

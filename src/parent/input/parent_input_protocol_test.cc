@@ -16,6 +16,8 @@ using moe::parent::BeginTrayActionCommand;
 using moe::parent::ConfirmationDecision;
 using moe::parent::NavigateOverlayCommand;
 using moe::parent::OverlayNavigation;
+using moe::parent::PaneCommand;
+using moe::parent::PaneCommandAction;
 using moe::parent::ParentInputCommand;
 using moe::parent::ResolveTrayActionCommand;
 using moe::parent::SwitchAnonymousTrayCommand;
@@ -117,8 +119,41 @@ TEST(ParentInputProtocolTest, DecodesEveryFixedCommandToItsTypedMeaning) {
   }
 }
 
+TEST(ParentInputProtocolTest, EncodesAndDecodesEveryPaneAction) {
+  constexpr std::array<std::pair<PaneCommandAction, char>, 17> CASES{{
+      {PaneCommandAction::UP, 'i'},
+      {PaneCommandAction::DOWN, 'k'},
+      {PaneCommandAction::LEFT, 'j'},
+      {PaneCommandAction::RIGHT, 'l'},
+      {PaneCommandAction::SPLIT_LEFT_TO_RIGHT, 'v'},
+      {PaneCommandAction::SPLIT_ABOVE_BELOW, 'h'},
+      {PaneCommandAction::TOGGLE_SELECTION_OR_SWAP, 's'},
+      {PaneCommandAction::PROMOTE, '['},
+      {PaneCommandAction::DESCEND, ']'},
+      {PaneCommandAction::GROW, '+'},
+      {PaneCommandAction::SHRINK, '-'},
+      {PaneCommandAction::EQUALIZE, '='},
+      {PaneCommandAction::TOGGLE_MOVE, 'm'},
+      {PaneCommandAction::CONFIRM_MOVE, '\r'},
+      {PaneCommandAction::ROTATE, 't'},
+      {PaneCommandAction::TOGGLE_MAXIMIZE, 'z'},
+      {PaneCommandAction::CLOSE, 'x'},
+  }};
+
+  for (auto const& [action, command_byte] : CASES) {
+    std::array<char, 2> const encoded =
+        moe::parent::encode_parent_input_command(PaneCommand{.action = action});
+    EXPECT_EQ(encoded,
+              (std::array<char, 2>{static_cast<char>(PARENT_COMMAND_PREFIX), command_byte}));
+
+    ParentInputCommand const decoded = require_value(
+        moe::parent::decode_parent_input_command(static_cast<std::uint8_t>(command_byte)));
+    EXPECT_EQ(std::get<PaneCommand>(decoded).action, action);
+  }
+}
+
 TEST(ParentInputProtocolTest, RejectsBytesWithoutAParentCommandMeaning) {
-  for (std::uint8_t const byte : std::array<std::uint8_t, 5>{0x00U, 0x18U, '0', 'q', 0xFFU}) {
+  for (std::uint8_t const byte : std::array<std::uint8_t, 6>{0x00U, 0x18U, '0', 'f', 'q', 0xFFU}) {
     EXPECT_FALSE(moe::parent::decode_parent_input_command(byte).has_value());
   }
 }

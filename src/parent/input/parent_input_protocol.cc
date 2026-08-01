@@ -43,6 +43,44 @@ char command_byte(ParentInputCommand const& command) {
               return 'M';
           }
           throw std::logic_error("invalid overlay navigation");
+        } else if constexpr (std::is_same_v<Command, PaneCommand>) {
+          switch (value.action) {
+            case PaneCommandAction::UP:
+              return 'i';
+            case PaneCommandAction::DOWN:
+              return 'k';
+            case PaneCommandAction::LEFT:
+              return 'j';
+            case PaneCommandAction::RIGHT:
+              return 'l';
+            case PaneCommandAction::SPLIT_LEFT_TO_RIGHT:
+              return 'v';
+            case PaneCommandAction::SPLIT_ABOVE_BELOW:
+              return 'h';
+            case PaneCommandAction::TOGGLE_SELECTION_OR_SWAP:
+              return 's';
+            case PaneCommandAction::PROMOTE:
+              return '[';
+            case PaneCommandAction::DESCEND:
+              return ']';
+            case PaneCommandAction::GROW:
+              return '+';
+            case PaneCommandAction::SHRINK:
+              return '-';
+            case PaneCommandAction::EQUALIZE:
+              return '=';
+            case PaneCommandAction::TOGGLE_MOVE:
+              return 'm';
+            case PaneCommandAction::CONFIRM_MOVE:
+              return '\r';
+            case PaneCommandAction::ROTATE:
+              return 't';
+            case PaneCommandAction::TOGGLE_MAXIMIZE:
+              return 'z';
+            case PaneCommandAction::CLOSE:
+              return 'x';
+          }
+          throw std::logic_error("invalid pane command action");
         }
       },
       command);
@@ -90,6 +128,40 @@ std::optional<ParentInputCommand> decode_parent_input_command(std::uint8_t const
       return NavigateOverlayCommand{.navigation = OverlayNavigation::BACKTAB};
     case 'M':
       return NavigateOverlayCommand{.navigation = OverlayNavigation::ENTER};
+    case 'i':
+      return PaneCommand{.action = PaneCommandAction::UP};
+    case 'k':
+      return PaneCommand{.action = PaneCommandAction::DOWN};
+    case 'j':
+      return PaneCommand{.action = PaneCommandAction::LEFT};
+    case 'l':
+      return PaneCommand{.action = PaneCommandAction::RIGHT};
+    case 'v':
+      return PaneCommand{.action = PaneCommandAction::SPLIT_LEFT_TO_RIGHT};
+    case 'h':
+      return PaneCommand{.action = PaneCommandAction::SPLIT_ABOVE_BELOW};
+    case 's':
+      return PaneCommand{.action = PaneCommandAction::TOGGLE_SELECTION_OR_SWAP};
+    case '[':
+      return PaneCommand{.action = PaneCommandAction::PROMOTE};
+    case ']':
+      return PaneCommand{.action = PaneCommandAction::DESCEND};
+    case '+':
+      return PaneCommand{.action = PaneCommandAction::GROW};
+    case '-':
+      return PaneCommand{.action = PaneCommandAction::SHRINK};
+    case '=':
+      return PaneCommand{.action = PaneCommandAction::EQUALIZE};
+    case 'm':
+      return PaneCommand{.action = PaneCommandAction::TOGGLE_MOVE};
+    case '\r':
+      return PaneCommand{.action = PaneCommandAction::CONFIRM_MOVE};
+    case 't':
+      return PaneCommand{.action = PaneCommandAction::ROTATE};
+    case 'z':
+      return PaneCommand{.action = PaneCommandAction::TOGGLE_MAXIMIZE};
+    case 'x':
+      return PaneCommand{.action = PaneCommandAction::CLOSE};
     default:
       return std::nullopt;
   }

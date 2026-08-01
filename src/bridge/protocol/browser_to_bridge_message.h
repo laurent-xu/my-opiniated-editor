@@ -14,6 +14,7 @@ struct BrowserToBridgeMessage {
     TOGGLE_COMMAND_MODE,
     WORKTREE_PICKER_ACTION,
     OVERLAY_NAVIGATION,
+    PANE_ACTION,
   };
 
   Type type;
