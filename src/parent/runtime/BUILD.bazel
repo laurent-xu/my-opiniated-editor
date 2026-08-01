@@ -1,0 +1,7 @@
+cc_library(
+    name = "raw_terminal_mode_guard",
+    srcs = ["raw_terminal_mode_guard.cc"],
+    hdrs = ["raw_terminal_mode_guard.h"],
+    visibility = ["//src/parent:__pkg__"],
+    deps = ["//src/base:file_descriptor"],
+)

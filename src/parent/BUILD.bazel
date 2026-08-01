@@ -30,6 +30,7 @@ cc_library(
         "//src/base:process_id",
         "//src/base:terminal_size",
         "//src/parent/input:parent_input_decoder",
+        "//src/parent/runtime:raw_terminal_mode_guard",
         "//src/parent/terminal:content_pty_session",
         "//src/parent/terminal:terminal_screen",
         "//src/parent/tray:tray_identity",

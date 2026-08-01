@@ -4,7 +4,6 @@
 #include <poll.h>
 #include <pwd.h>
 #include <sys/ioctl.h>
-#include <termios.h>
 #include <unistd.h>
 
 #include <array>
@@ -28,6 +27,7 @@
 #include "src/parent/input/parent_input_event.h"
 #include "src/parent/parent_status.h"
 #include "src/parent/path_picker_overlay.h"
+#include "src/parent/runtime/raw_terminal_mode_guard.h"
 #include "src/parent/tray_manager.h"
 #include "src/parent/worktree/repository_registration_request.h"
 #include "src/parent/worktree/worktree_provision_request.h"
@@ -52,41 +52,6 @@ constexpr base::FileDescriptor PARENT_INPUT_DESCRIPTOR{STDIN_FILENO};
 constexpr base::FileDescriptor PARENT_OUTPUT_DESCRIPTOR{STDOUT_FILENO};
 
 std::sig_atomic_t volatile stop_requested = 0;
-
-class RawTerminalModeGuard {
- public:
-  explicit RawTerminalModeGuard(base::FileDescriptor const terminal) : terminal(terminal) {
-    if (!terminal.is_valid() || isatty(terminal.value()) == 0) {
-      return;
-    }
-    if (tcgetattr(terminal.value(), &original_mode) != 0) {
-      throw std::runtime_error(std::string("failed to read terminal mode: ") +
-                               std::strerror(errno));
-    }
-
-    termios raw_mode = original_mode;
-    cfmakeraw(&raw_mode);
-    if (tcsetattr(terminal.value(), TCSANOW, &raw_mode) != 0) {
-      throw std::runtime_error(std::string("failed to set raw terminal mode: ") +
-                               std::strerror(errno));
-    }
-    should_restore = true;
-  }
-
-  RawTerminalModeGuard(RawTerminalModeGuard const&) = delete;
-  RawTerminalModeGuard& operator=(RawTerminalModeGuard const&) = delete;
-
-  ~RawTerminalModeGuard() {
-    if (should_restore) {
-      static_cast<void>(tcsetattr(terminal.value(), TCSANOW, &original_mode));
-    }
-  }
-
- private:
-  base::FileDescriptor terminal;
-  termios original_mode{};
-  bool should_restore = false;
-};
 
 bool has_value(char const* value) { return value != nullptr && value[0] != '\0'; }
 
