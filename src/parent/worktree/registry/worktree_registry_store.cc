@@ -1,4 +1,4 @@
-#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 
 #include <fcntl.h>
 #include <unistd.h>

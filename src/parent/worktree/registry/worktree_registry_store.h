@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 
-#include "src/parent/worktree/worktree_registry.pb.h"
+#include "src/parent/worktree/registry/worktree_registry.pb.h"
 
 namespace moe::parent {
 

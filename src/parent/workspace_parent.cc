@@ -34,8 +34,8 @@
 #include "src/parent/tray/tray_id_kind.h"
 #include "src/parent/tray/tray_manager.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_helper_commands.h"
-#include "src/parent/worktree/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_repository_registrar.h"
 
 namespace moe::parent {

@@ -5,6 +5,7 @@ cc_library(
         "//src/parent:__pkg__",
         "//src/parent/runtime:__pkg__",
         "//src/parent/worktree:__pkg__",
+        "//src/parent/worktree/registry:__pkg__",
     ],
 )
 
@@ -15,5 +16,6 @@ cc_library(
         "//src/parent/runtime:__pkg__",
         "//src/parent/worktree:__pkg__",
         "//src/parent/worktree/overlay:__pkg__",
+        "//src/parent/worktree/registry:__pkg__",
     ],
 )

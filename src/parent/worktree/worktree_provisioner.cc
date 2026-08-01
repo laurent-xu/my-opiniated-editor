@@ -14,10 +14,10 @@
 #include <utility>
 #include <vector>
 
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 #include "src/parent/worktree/worktree_provision_kind.h"
 #include "src/parent/worktree/worktree_provision_request.h"
 #include "src/parent/worktree/worktree_provision_result.h"
-#include "src/parent/worktree/worktree_registry_store.h"
 #include "src/process/command_runner.h"
 
 namespace moe::parent {

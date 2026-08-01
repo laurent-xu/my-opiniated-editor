@@ -1,29 +1,3 @@
-proto_library(
-    name = "worktree_registry_proto",
-    srcs = ["worktree_registry.proto"],
-)
-
-cc_proto_library(
-    name = "worktree_registry_cc_proto",
-    deps = [":worktree_registry_proto"],
-)
-
-cc_library(
-    name = "worktree_registry_store",
-    srcs = ["worktree_registry_store.cc"],
-    hdrs = ["worktree_registry_store.h"],
-    visibility = [
-        "//src/parent:__pkg__",
-        "//src/parent/runtime:__pkg__",
-        "//src/parent/worktree/overlay:__pkg__",
-    ],
-    deps = [
-        ":worktree_registry_cc_proto",
-        "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
-    ],
-)
-
 cc_library(
     name = "repository_registration_request",
     hdrs = ["repository_registration_request.h"],
@@ -51,7 +25,7 @@ cc_library(
         ":git_worktree_list",
         ":repository_registration_request",
         ":repository_root_state",
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "//src/process:command_runner",
     ],
 )
@@ -72,7 +46,7 @@ cc_library(
     ],
     deps = [
         ":git_worktree_list",
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "//src/process:command_runner",
     ],
 )
@@ -90,7 +64,7 @@ cc_library(
     ],
     deps = [
         ":git_worktree_list",
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "//src/base:process_id",
         "//src/process:process_exit_status",
     ],
@@ -141,7 +115,7 @@ cc_library(
         "//src/parent/worktree/overlay:__pkg__",
     ],
     deps = [
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         ":worktree_provision_kind",
         ":worktree_provision_request",
         ":worktree_provision_result",
@@ -160,6 +134,7 @@ cc_test(
         ":worktree_provision_result",
         "//src/parent/test/support:environment_guard",
         "//src/parent/test/support:test_paths",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],
@@ -180,7 +155,7 @@ cc_test(
     srcs = ["worktree_remover_test.cc"],
     data = ["//test/fixtures:fake_git"],
     deps = [
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         ":worktree_remover",
         "//src/parent/test/support:environment_guard",
         "//src/parent/test/support:test_paths",
@@ -189,16 +164,9 @@ cc_test(
     tags = ["integration"],
 )
 
-cc_test(
+test_suite(
     name = "worktree_registry_store_test",
-    srcs = ["worktree_registry_store_test.cc"],
-    deps = [
-        ":worktree_registry_store",
-        "//src/parent/test/support:environment_guard",
-        "//src/parent/test/support:test_paths",
-        "@googletest//:gtest_main",
-    ],
-    tags = ["unit"],
+    tests = ["//src/parent/worktree/registry:worktree_registry_store_test"],
 )
 
 cc_test(
@@ -207,7 +175,7 @@ cc_test(
     data = ["//test/fixtures:fake_git"],
     deps = [
         ":repository_registration_request",
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         ":worktree_repository_registrar",
         "//src/parent/test/support:environment_guard",
         "//src/parent/test/support:test_paths",
@@ -222,7 +190,7 @@ cc_test(
     data = ["//test/fixtures:fake_git"],
     deps = [
         ":worktree_candidate_finder",
-        ":worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "//src/parent/test/support:environment_guard",
         "//src/parent/test/support:test_paths",
         "@googletest//:gtest_main",

@@ -1,0 +1,38 @@
+proto_library(
+    name = "worktree_registry_proto",
+    srcs = ["worktree_registry.proto"],
+)
+
+cc_proto_library(
+    name = "worktree_registry_cc_proto",
+    deps = [":worktree_registry_proto"],
+)
+
+cc_library(
+    name = "worktree_registry_store",
+    srcs = ["worktree_registry_store.cc"],
+    hdrs = ["worktree_registry_store.h"],
+    visibility = [
+        "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
+        "//src/parent/worktree:__pkg__",
+        "//src/parent/worktree/overlay:__pkg__",
+    ],
+    deps = [
+        ":worktree_registry_cc_proto",
+        "//src/base:file_descriptor",
+        "//src/base:owned_file_descriptor",
+    ],
+)
+
+cc_test(
+    name = "worktree_registry_store_test",
+    srcs = ["worktree_registry_store_test.cc"],
+    deps = [
+        ":worktree_registry_store",
+        "//src/parent/test/support:environment_guard",
+        "//src/parent/test/support:test_paths",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

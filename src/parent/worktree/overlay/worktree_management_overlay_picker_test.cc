@@ -16,7 +16,7 @@
 #include "src/parent/tray/tray_snapshot.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay_test_support.h"
-#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 
 namespace {
 

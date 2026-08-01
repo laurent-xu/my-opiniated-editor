@@ -18,7 +18,7 @@
 #include "src/parent/tray/tray_manager.h"
 #include "src/parent/tray/tray_manager_test_support.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
-#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 
 namespace {
 

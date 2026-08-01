@@ -15,9 +15,9 @@
 #include <vector>
 
 #include "src/parent/worktree/git_worktree_list.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 #include "src/parent/worktree/repository_registration_request.h"
 #include "src/parent/worktree/repository_root_state.h"
-#include "src/parent/worktree/worktree_registry_store.h"
 #include "src/process/command_runner.h"
 
 namespace moe::parent {

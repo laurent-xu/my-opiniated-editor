@@ -95,7 +95,7 @@ cc_test(
         "//src/parent/tray:tray_manager",
         "//src/parent/tray:tray_manager_test_support",
         "//src/parent/worktree/overlay:worktree_management_overlay",
-        "//src/parent/worktree:worktree_registry_store",
+        "//src/parent/worktree/registry:worktree_registry_store",
         "@googletest//:gtest_main",
     ],
     tags = ["integration"],

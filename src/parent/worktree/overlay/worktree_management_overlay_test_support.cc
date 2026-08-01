@@ -3,7 +3,7 @@
 #include "src/base/process_id.h"
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray/tray_number.h"
-#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 
 namespace moe::parent::test_support {
 namespace {

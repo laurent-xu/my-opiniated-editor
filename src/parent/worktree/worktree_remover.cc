@@ -16,7 +16,7 @@
 
 #include "src/base/process_id.h"
 #include "src/parent/worktree/git_worktree_list.h"
-#include "src/parent/worktree/worktree_registry_store.h"
+#include "src/parent/worktree/registry/worktree_registry_store.h"
 #include "src/process/process_exit_status.h"
 
 namespace moe::parent {
