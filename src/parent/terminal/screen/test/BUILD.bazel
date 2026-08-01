@@ -1,0 +1,98 @@
+cc_test(
+    name = "terminal_line_fill_tracker_test",
+    srcs = ["terminal_line_fill_tracker_test.cc"],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [
+        "//src/base:terminal_size",
+        "//src/parent/terminal/screen:terminal_line_fill_tracker",
+        "//src/parent/terminal/snapshot:terminal_cell_style",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+TERMINAL_SCREEN_BEHAVIOR_TESTS = [
+    "terminal_screen_background_test",
+    "terminal_screen_erase_background_test",
+    "terminal_screen_mode_test",
+    "terminal_screen_redraw_test",
+    "terminal_screen_region_test",
+    "terminal_screen_utf8_test",
+]
+
+[
+    cc_test(
+        name = test_name,
+        srcs = [test_name + ".cc"],
+        visibility = ["//src/parent/terminal:__pkg__"],
+        deps = [
+            "//src/parent/terminal/screen:terminal_screen",
+            "@googletest//:gtest_main",
+        ],
+        tags = ["unit"],
+    )
+    for test_name in TERMINAL_SCREEN_BEHAVIOR_TESTS
+]
+
+test_suite(
+    name = "terminal_screen_test",
+    tests = [":" + test_name for test_name in TERMINAL_SCREEN_BEHAVIOR_TESTS],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    tags = ["unit"],
+)
+
+cc_test(
+    name = "utf8_complete_prefix_test",
+    srcs = ["utf8_complete_prefix_test.cc"],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [
+        "//src/parent/terminal/screen:utf8_complete_prefix",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)
+
+cc_library(
+    name = "terminal_screen_snapshot_test_support",
+    testonly = True,
+    hdrs = ["terminal_screen_snapshot_test_support.h"],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [
+        "//src/base:terminal_size",
+        "//src/parent/terminal/screen:terminal_position",
+        "//src/parent/terminal/screen:terminal_screen",
+    ],
+)
+
+[
+    cc_test(
+        name = test_name,
+        srcs = [test_name + ".cc"],
+        visibility = ["//src/parent/terminal:__pkg__"],
+        deps = [
+            ":terminal_screen_snapshot_test_support",
+            "//src/base:terminal_size",
+            "//src/parent/terminal/screen:terminal_position",
+            "@googletest//:gtest_main",
+        ],
+        tags = ["unit"],
+    )
+    for test_name in [
+        "terminal_screen_color_snapshot_test",
+        "terminal_screen_erase_snapshot_test",
+        "terminal_screen_state_snapshot_test",
+    ]
+]
+
+cc_test(
+    name = "terminal_screen_region_snapshot_test",
+    srcs = ["terminal_screen_region_snapshot_test.cc"],
+    visibility = ["//src/parent/terminal:__pkg__"],
+    deps = [
+        "//src/base:terminal_size",
+        "//src/parent/terminal/screen:terminal_position",
+        "//src/parent/terminal/screen:terminal_screen",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

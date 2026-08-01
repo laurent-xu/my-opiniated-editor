@@ -51,8 +51,8 @@ cc_library(
         ":path_picker_process",
         "//src/base:file_descriptor",
         "//src/base:terminal_size",
-        "//src/parent/terminal:terminal_position",
-        "//src/parent/terminal:terminal_screen",
+        "//src/parent/terminal/screen:terminal_position",
+        "//src/parent/terminal/screen:terminal_screen",
     ],
 )
 

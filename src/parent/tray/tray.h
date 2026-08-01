@@ -8,7 +8,7 @@
 
 #include "src/base/file_descriptor.h"
 #include "src/base/terminal_size.h"
-#include "src/parent/terminal/terminal_screen.h"
+#include "src/parent/terminal/screen/terminal_screen.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray/tray_snapshot.h"

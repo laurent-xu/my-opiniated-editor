@@ -1,4 +1,4 @@
-#include "src/parent/terminal/terminal_line_fill_tracker.h"
+#include "src/parent/terminal/screen/terminal_line_fill_tracker.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "src/base/terminal_size.h"
+#include "src/parent/terminal/screen/terminal_rect_move.h"
 #include "src/parent/terminal/snapshot/terminal_cell_style.h"
 #include "src/parent/terminal/snapshot/terminal_row_fill_styles.h"
-#include "src/parent/terminal/terminal_rect_move.h"
 
 namespace moe::parent {
 namespace {

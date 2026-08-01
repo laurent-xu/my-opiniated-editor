@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "src/parent/overlay/path_picker_process.h"
-#include "src/parent/terminal/terminal_position.h"
+#include "src/parent/terminal/screen/terminal_position.h"
 
 namespace moe::parent {
 namespace {

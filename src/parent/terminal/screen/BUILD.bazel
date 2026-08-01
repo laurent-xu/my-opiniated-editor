@@ -1,0 +1,61 @@
+cc_library(
+    name = "terminal_line_fill_tracker",
+    srcs = ["terminal_line_fill_tracker.cc"],
+    hdrs = [
+        "terminal_line_fill_tracker.h",
+        "terminal_rect_move.h",
+    ],
+    visibility = [
+        "//src/parent/terminal:__pkg__",
+        "//src/parent/terminal/screen/test:__pkg__",
+    ],
+    deps = [
+        "//src/base:terminal_size",
+        "//src/parent/terminal/snapshot:terminal_cell_style",
+        "//src/parent/terminal/snapshot:terminal_row_fill_styles",
+        "//third_party/system:libvterm_neovim",
+    ],
+)
+
+cc_library(
+    name = "terminal_position",
+    hdrs = ["terminal_position.h"],
+    visibility = [
+        "//src/parent/overlay:__pkg__",
+        "//src/parent/terminal:__pkg__",
+        "//src/parent/terminal/screen/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "terminal_screen",
+    srcs = ["terminal_screen.cc"],
+    hdrs = ["terminal_screen.h"],
+    visibility = [
+        "//src/parent/overlay:__pkg__",
+        "//src/parent/terminal:__pkg__",
+        "//src/parent/terminal/screen/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+    deps = [
+        ":terminal_line_fill_tracker",
+        ":terminal_position",
+        ":utf8_complete_prefix",
+        "//src/base:terminal_size",
+        "//src/parent/terminal/control_sequence:control_sequence_introducer_parser",
+        "//src/parent/terminal/snapshot:terminal_cell_style",
+        "//src/parent/terminal/snapshot:terminal_snapshot_line",
+        "//third_party/system:libvterm_neovim",
+    ],
+)
+
+cc_library(
+    name = "utf8_complete_prefix",
+    srcs = ["utf8_complete_prefix.cc"],
+    hdrs = ["utf8_complete_prefix.h"],
+    visibility = [
+        "//src/parent/terminal:__pkg__",
+        "//src/parent/terminal/screen/test:__pkg__",
+    ],
+)

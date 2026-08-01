@@ -17,25 +17,15 @@ cc_library(
     ],
 )
 
-cc_library(
+alias(
     name = "terminal_line_fill_tracker",
-    srcs = ["terminal_line_fill_tracker.cc"],
-    hdrs = [
-        "terminal_line_fill_tracker.h",
-        "terminal_rect_move.h",
-    ],
+    actual = "//src/parent/terminal/screen:terminal_line_fill_tracker",
     visibility = ["//src/parent/terminal:__pkg__"],
-    deps = [
-        "//src/base:terminal_size",
-        "//src/parent/terminal/snapshot:terminal_cell_style",
-        "//src/parent/terminal/snapshot:terminal_row_fill_styles",
-        "//third_party/system:libvterm_neovim",
-    ],
 )
 
-cc_library(
+alias(
     name = "terminal_position",
-    hdrs = ["terminal_position.h"],
+    actual = "//src/parent/terminal/screen:terminal_position",
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/overlay:__pkg__",
@@ -43,31 +33,19 @@ cc_library(
     ],
 )
 
-cc_library(
+alias(
     name = "terminal_screen",
-    srcs = ["terminal_screen.cc"],
-    hdrs = ["terminal_screen.h"],
+    actual = "//src/parent/terminal/screen:terminal_screen",
     visibility = [
         "//src/parent:__pkg__",
         "//src/parent/overlay:__pkg__",
         "//src/parent/tray:__pkg__",
     ],
-    deps = [
-        ":terminal_line_fill_tracker",
-        ":terminal_position",
-        ":utf8_complete_prefix",
-        "//src/base:terminal_size",
-        "//src/parent/terminal/control_sequence:control_sequence_introducer_parser",
-        "//src/parent/terminal/snapshot:terminal_cell_style",
-        "//src/parent/terminal/snapshot:terminal_snapshot_line",
-        "//third_party/system:libvterm_neovim",
-    ],
 )
 
-cc_library(
+alias(
     name = "utf8_complete_prefix",
-    srcs = ["utf8_complete_prefix.cc"],
-    hdrs = ["utf8_complete_prefix.h"],
+    actual = "//src/parent/terminal/screen:utf8_complete_prefix",
     visibility = ["//src/parent/terminal:__pkg__"],
 )
 
@@ -79,13 +57,10 @@ test_suite(
     tags = ["unit"],
 )
 
-cc_test(
+test_suite(
     name = "terminal_line_fill_tracker_test",
-    srcs = ["terminal_line_fill_tracker_test.cc"],
-    deps = [
-        ":terminal_line_fill_tracker",
-        "//src/parent/terminal/snapshot:terminal_cell_style",
-        "@googletest//:gtest_main",
+    tests = [
+        "//src/parent/terminal/screen/test:terminal_line_fill_tracker_test",
     ],
     tags = ["unit"],
 )
@@ -100,13 +75,9 @@ TERMINAL_SCREEN_BEHAVIOR_TESTS = [
 ]
 
 [
-    cc_test(
+    test_suite(
         name = test_name,
-        srcs = [test_name + ".cc"],
-        deps = [
-            ":terminal_screen",
-            "@googletest//:gtest_main",
-        ],
+        tests = ["//src/parent/terminal/screen/test:" + test_name],
         tags = ["unit"],
     )
     for test_name in TERMINAL_SCREEN_BEHAVIOR_TESTS
@@ -114,7 +85,9 @@ TERMINAL_SCREEN_BEHAVIOR_TESTS = [
 
 test_suite(
     name = "terminal_screen_test",
-    tests = [":" + test_name for test_name in TERMINAL_SCREEN_BEHAVIOR_TESTS],
+    tests = [
+        "//src/parent/terminal/screen/test:terminal_screen_test",
+    ],
     tags = ["unit"],
 )
 
@@ -126,35 +99,23 @@ test_suite(
     tags = ["unit"],
 )
 
-cc_test(
+test_suite(
     name = "utf8_complete_prefix_test",
-    srcs = ["utf8_complete_prefix_test.cc"],
-    deps = [
-        ":utf8_complete_prefix",
-        "@googletest//:gtest_main",
+    tests = [
+        "//src/parent/terminal/screen/test:utf8_complete_prefix_test",
     ],
     tags = ["unit"],
 )
 
-cc_library(
+alias(
     name = "terminal_screen_snapshot_test_support",
-    testonly = True,
-    hdrs = ["terminal_screen_snapshot_test_support.h"],
-    deps = [
-        ":terminal_position",
-        ":terminal_screen",
-    ],
+    actual = "//src/parent/terminal/screen/test:terminal_screen_snapshot_test_support",
 )
 
 [
-    cc_test(
+    test_suite(
         name = test_name,
-        srcs = [test_name + ".cc"],
-        deps = [
-            ":terminal_position",
-            ":terminal_screen_snapshot_test_support",
-            "@googletest//:gtest_main",
-        ],
+        tests = ["//src/parent/terminal/screen/test:" + test_name],
         tags = ["unit"],
     )
     for test_name in [

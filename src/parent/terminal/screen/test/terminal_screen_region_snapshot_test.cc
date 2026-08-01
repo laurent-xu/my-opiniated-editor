@@ -2,8 +2,8 @@
 
 #include "gtest/gtest.h"
 #include "src/base/terminal_size.h"
-#include "src/parent/terminal/terminal_position.h"
-#include "src/parent/terminal/terminal_screen.h"
+#include "src/parent/terminal/screen/terminal_position.h"
+#include "src/parent/terminal/screen/terminal_screen.h"
 
 namespace {
 

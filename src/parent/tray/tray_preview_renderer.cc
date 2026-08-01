@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-#include "src/parent/terminal/terminal_screen.h"
+#include "src/parent/terminal/screen/terminal_screen.h"
 #include "src/parent/tray/tray.h"
 #include "src/parent/tray/tray_id_kind.h"
 
