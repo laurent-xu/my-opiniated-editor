@@ -102,6 +102,55 @@ class HttpsProxyTest(unittest.TestCase):
             proxy.server_close()
             upstream.server_close()
 
+    def test_failed_authentication_globally_delays_the_next_attempt(self):
+        current_time = [100.0]
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), UpstreamHandler)
+        proxy = ProxyServer(
+            ("127.0.0.1", 0),
+            upstream.server_port,
+            self.record,
+            monotonic_time=lambda: current_time[0],
+        )
+        threads = [
+            threading.Thread(target=upstream.serve_forever, daemon=True),
+            threading.Thread(target=proxy.serve_forever, daemon=True),
+        ]
+        for thread in threads:
+            thread.start()
+
+        def request(password):
+            connection = http.client.HTTPConnection("127.0.0.1", proxy.server_port)
+            connection.request(
+                "GET",
+                "/health",
+                headers={"Authorization": basic_authorization(USERNAME, password)},
+            )
+            response = connection.getresponse()
+            status = response.status
+            retry_after = response.getheader("Retry-After")
+            response.read()
+            connection.close()
+            return status, retry_after
+
+        try:
+            self.assertEqual(request("wrong"), (401, None))
+            self.assertEqual(
+                proxy.authenticate(basic_authorization(USERNAME, PASSWORD)),
+                (False, 3),
+            )
+            self.assertEqual(request(PASSWORD), (429, "3"))
+
+            current_time[0] += 2
+            self.assertEqual(request(PASSWORD), (429, "1"))
+
+            current_time[0] += 1
+            self.assertEqual(request(PASSWORD), (200, None))
+        finally:
+            proxy.shutdown()
+            upstream.shutdown()
+            proxy.server_close()
+            upstream.server_close()
+
     def test_websocket_upgrade_is_authenticated_and_tunneled(self):
         listener = socket.socket()
         listener.bind(("127.0.0.1", 0))

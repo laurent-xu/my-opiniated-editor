@@ -33,7 +33,10 @@ The files are:
 
 The browser will require a one-time exception for the self-signed certificate.
 It caches successful Basic Auth credentials for the origin, so it does not ask
-again on every HTTP request, reload, or WebSocket reconnect.
+again on every HTTP request, reload, or WebSocket reconnect. After a failed
+credential check, the proxy waits three seconds before accepting another
+authentication attempt from any client. The proxy enforces this cooldown on
+the server with a monotonic clock.
 
 ## Install Both LAN Ports
 

@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import math
 import os
 from pathlib import Path
 import secrets
@@ -21,12 +22,15 @@ import ssl
 import subprocess
 import tempfile
 import threading
+import time
+from typing import Callable
 
 
 SCRYPT_N = 16_384
 SCRYPT_R = 8
 SCRYPT_P = 1
 PASSWORD_FORMAT = "moe-scrypt-v1"
+AUTHENTICATION_RETRY_DELAY_SECONDS = 3
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -260,10 +264,30 @@ class ProxyServer(ThreadingHTTPServer):
         address: tuple[str, int],
         upstream_port: int,
         password_record: PasswordRecord,
+        monotonic_time: Callable[[], float] = time.monotonic,
     ) -> None:
         super().__init__(address, ProxyHandler)
         self.upstream_port = upstream_port
         self.password_record = password_record
+        self._monotonic_time = monotonic_time
+        self._authentication_lock = threading.Lock()
+        self._authentication_retry_deadline: float | None = None
+
+    def authenticate(self, authorization: str | None) -> tuple[bool, int | None]:
+        if authorization is None:
+            return False, None
+        with self._authentication_lock:
+            now = self._monotonic_time()
+            retry_deadline = self._authentication_retry_deadline
+            if retry_deadline is not None and now < retry_deadline:
+                return False, max(1, math.ceil(retry_deadline - now))
+            if verify_basic_authorization(authorization, self.password_record):
+                self._authentication_retry_deadline = None
+                return True, None
+            self._authentication_retry_deadline = (
+                self._monotonic_time() + AUTHENTICATION_RETRY_DELAY_SECONDS
+            )
+            return False, None
 
 
 class ProxyHandler(BaseHTTPRequestHandler):
@@ -283,9 +307,22 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._proxy_request()
 
     def _proxy_request(self) -> None:
-        if not verify_basic_authorization(
-            self.headers.get("Authorization"), self.proxy_server.password_record
-        ):
+        authenticated, retry_after = self.proxy_server.authenticate(
+            self.headers.get("Authorization")
+        )
+        if not authenticated:
+            if retry_after is not None:
+                body = b"authentication retry not yet allowed\n"
+                self.send_response(429)
+                self.send_header("Retry-After", str(retry_after))
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Connection", "close")
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(body)
+                self.close_connection = True
+                return
             body = b"authentication required\n"
             self.send_response(401)
             self.send_header("WWW-Authenticate", 'Basic realm="My Opiniated Editor"')
