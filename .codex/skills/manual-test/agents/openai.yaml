@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manual Test"
+  short_description: "Rebase, resolve conflicts, restart port 7683"
+  default_prompt: "Use $manual-test to rebase this worktree onto origin/main, resolve conflicts, and restart bridge port 7683."
