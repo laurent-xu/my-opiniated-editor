@@ -46,7 +46,8 @@ services so port 7683 always runs the rebased worktree.
    - Stage only the paths resolved in this pass. Use `git add -- <paths>` for
      retained files and `git rm -- <paths>` only when deletion is the intended
      merged result.
-   - Continue non-interactively with `GIT_EDITOR=true git rebase --continue`.
+   - Continue non-interactively with
+     `git -c core.editor=true rebase --continue`.
      Repeat until the rebase completes. Do not use `git rebase --skip` unless
      inspection proves the replayed commit is already fully present upstream.
 

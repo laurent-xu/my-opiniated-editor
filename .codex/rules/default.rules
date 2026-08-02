@@ -98,6 +98,125 @@ prefix_rule(
 )
 
 prefix_rule(
+    pattern = ["git", "branch", "--show-current"],
+    decision = "allow",
+    justification = "Let the manual-test skill verify that it is operating on a named feature branch.",
+    match = [
+        "git branch --show-current",
+    ],
+    not_match = [
+        "git branch --delete feature",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "status"],
+    decision = "allow",
+    justification = "Let the manual-test skill inspect worktree and rebase state.",
+    match = [
+        "git status --short --branch",
+        "git status --short",
+    ],
+    not_match = [
+        "git reset --hard HEAD",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "fetch", "origin", "main"],
+    decision = "allow",
+    justification = "Let the manual-test skill update only the origin/main remote-tracking branch before rebasing.",
+    match = [
+        "git fetch origin main",
+    ],
+    not_match = [
+        "git fetch another-remote main",
+        "git push origin main",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rebase", ["main", "origin/main", "--continue"]],
+    decision = "allow",
+    justification = "Let the manual-test skill rebase onto main or origin/main and continue after resolving conflicts.",
+    match = [
+        "git rebase main",
+        "git rebase origin/main",
+        "git rebase --continue",
+    ],
+    not_match = [
+        "git rebase --skip",
+        "git rebase another-branch",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "-c", "core.editor=true", "rebase", "--continue"],
+    decision = "allow",
+    justification = "Let the manual-test skill continue a conflict-resolved rebase without opening an editor.",
+    match = [
+        "git -c core.editor=true rebase --continue",
+    ],
+    not_match = [
+        "git -c core.editor=true rebase --skip",
+        "git -c alias.run=!sh run",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "show"],
+    decision = "allow",
+    justification = "Let the manual-test skill inspect replayed commits and conflict stages.",
+    match = [
+        "git show REBASE_HEAD",
+        "git show :1:src/bridge/server.cc",
+        "git show :2:src/bridge/server.cc",
+        "git show :3:src/bridge/server.cc",
+    ],
+    not_match = [
+        "git reset --hard HEAD",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rm", "--"],
+    decision = "allow",
+    justification = "Let the manual-test skill stage an intended deletion while resolving a rebase conflict.",
+    match = [
+        "git rm -- src/bridge/obsolete.cc",
+    ],
+    not_match = [
+        "git rm -r .",
+        "rm src/bridge/obsolete.cc",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "merge-base", "--is-ancestor", "origin/main", "HEAD"],
+    decision = "allow",
+    justification = "Let the manual-test skill verify that the rebased branch contains origin/main.",
+    match = [
+        "git merge-base --is-ancestor origin/main HEAD",
+    ],
+    not_match = [
+        "git merge-base --is-ancestor another-branch HEAD",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rev-parse", ["--show-toplevel", "HEAD"]],
+    decision = "allow",
+    justification = "Let the manual-test skill locate the selected worktree and report its deployed HEAD commit.",
+    match = [
+        "git rev-parse --show-toplevel",
+        "git rev-parse HEAD",
+    ],
+    not_match = [
+        "git rev-parse another-branch",
+    ],
+)
+
+prefix_rule(
     pattern = ["git", "commit"],
     decision = "allow",
     justification = "Create a requested local commit; repository instructions still control when commits are in scope.",
