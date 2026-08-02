@@ -10,6 +10,7 @@ py_test(
         "my-opiniated-editor-bridge@.service",
         "restart_bridge.sh",
         "run_bridge.sh",
+        "run_https_proxy.sh",
     ],
     tags = ["unit"],
 )

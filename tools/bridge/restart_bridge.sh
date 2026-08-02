@@ -34,5 +34,10 @@ systemd_worktree="${systemd_worktree//\"/\\\"}"
 printf '[Service]\nEnvironment="MOE_BRIDGE_WORKTREE=%s"\n' "${systemd_worktree}" |
   systemctl --user edit --runtime --stdin --drop-in=50-worktree.conf \
     "${bridge_service}"
+printf \
+  '[Service]\nEnvironment="MOE_BRIDGE_WORKTREE=%s"\nExecStart=\nExecStart="%s/tools/bridge/run_https_proxy.sh" ${MOE_BRIDGE_HTTP_PORT} %%i\n' \
+  "${systemd_worktree}" "${systemd_worktree}" |
+  systemctl --user edit --runtime --stdin --drop-in=50-worktree.conf \
+    "${https_service}"
 systemctl --user restart "${bridge_service}"
 systemctl --user restart "${https_service}"

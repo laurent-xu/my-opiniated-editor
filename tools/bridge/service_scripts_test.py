@@ -18,6 +18,7 @@ class ServiceScriptsTest(unittest.TestCase):
     def test_bridge_scripts_are_valid_bash(self):
         for script in [
             "tools/bridge/run_bridge.sh",
+            "tools/bridge/run_https_proxy.sh",
             "tools/bridge/restart_bridge.sh",
         ]:
             with self.subTest(script=script):
@@ -29,6 +30,7 @@ class ServiceScriptsTest(unittest.TestCase):
     def test_bridge_scripts_require_port_arguments(self):
         invocations = [
             ("tools/bridge/run_bridge.sh", ["17682"]),
+            ("tools/bridge/run_https_proxy.sh", ["17682"]),
             ("tools/bridge/restart_bridge.sh", []),
         ]
         for script, arguments in invocations:
@@ -64,6 +66,24 @@ class ServiceScriptsTest(unittest.TestCase):
         parent = worktree / "bazel-bin" / "src" / "parent" / "workspace_parent"
         parent.parent.mkdir(parents=True)
         parent.touch()
+
+    def prepare_https_runner(self, repo_root: Path) -> Path:
+        runner = repo_root / "tools" / "bridge" / "run_https_proxy.sh"
+        runner.parent.mkdir(parents=True)
+        shutil.copyfile(runfile_path("tools/bridge/run_https_proxy.sh"), runner)
+        runner.chmod(0o755)
+        return runner
+
+    def prepare_proxy_worktree(self, worktree: Path) -> None:
+        proxy = worktree / "tools" / "bridge" / "https_proxy.py"
+        proxy.parent.mkdir(parents=True)
+        proxy.write_text(
+            "#!/usr/bin/env bash\n"
+            'printf "cwd=%s\\n" "$PWD" > "$MOE_TEST_LOG"\n'
+            'printf "arg=%s\\n" "$@" >> "$MOE_TEST_LOG"\n',
+            encoding="utf-8",
+        )
+        proxy.chmod(0o755)
 
     def runner_environment(self, state_root: Path, log_path: Path) -> dict[str, str]:
         return {
@@ -130,7 +150,41 @@ class ServiceScriptsTest(unittest.TestCase):
                         output,
                     )
 
-    def test_service_uses_main_worktree(self):
+    def test_https_runner_uses_selected_worktree(self):
+        for selection_source in ["argument", "service environment"]:
+            with self.subTest(selection_source=selection_source):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    root = Path(temp_dir)
+                    repo_root = root / "main"
+                    selected_worktree = root / "feature worktree"
+                    runner = self.prepare_https_runner(repo_root)
+                    self.prepare_proxy_worktree(selected_worktree)
+                    log_path = root / "runner.log"
+                    command = [self.bash, runner, "18765", "8765"]
+                    env = {
+                        **os.environ,
+                        "MOE_TEST_LOG": str(log_path),
+                    }
+                    if selection_source == "argument":
+                        command.append(selected_worktree)
+                    else:
+                        env["MOE_BRIDGE_WORKTREE"] = str(selected_worktree)
+
+                    subprocess.run(command, env=env, check=True)
+
+                    self.assertEqual(
+                        log_path.read_text(encoding="utf-8").splitlines(),
+                        [
+                            f"cwd={selected_worktree}",
+                            "arg=serve",
+                            "arg=--http-port",
+                            "arg=18765",
+                            "arg=--https-port",
+                            "arg=8765",
+                        ],
+                    )
+
+    def test_services_use_main_launchers(self):
         service = Path(
             runfile_path("tools/bridge/my-opiniated-editor-bridge@.service")
         ).read_text(encoding="utf-8")
@@ -154,7 +208,7 @@ class ServiceScriptsTest(unittest.TestCase):
             https_service,
         )
         self.assertIn(
-            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/https_proxy.py serve --http-port ${MOE_BRIDGE_HTTP_PORT} --https-port %i\n",
+            "ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_https_proxy.sh ${MOE_BRIDGE_HTTP_PORT} %i\n",
             https_service,
         )
 
@@ -204,6 +258,11 @@ class ServiceScriptsTest(unittest.TestCase):
                     f"systemctl cwd={selected_worktree} args=--user edit --runtime --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge@8765.service",
                     "systemctl stdin=[Service]",
                     f'systemctl stdin=Environment="MOE_BRIDGE_WORKTREE={selected_worktree}"',
+                    f"systemctl cwd={selected_worktree} args=--user edit --runtime --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge-https@8765.service",
+                    "systemctl stdin=[Service]",
+                    f'systemctl stdin=Environment="MOE_BRIDGE_WORKTREE={selected_worktree}"',
+                    "systemctl stdin=ExecStart=",
+                    f'systemctl stdin=ExecStart="{selected_worktree}/tools/bridge/run_https_proxy.sh" ${{MOE_BRIDGE_HTTP_PORT}} %i',
                     f"systemctl cwd={selected_worktree} args=--user restart my-opiniated-editor-bridge@8765.service",
                     f"systemctl cwd={selected_worktree} args=--user restart my-opiniated-editor-bridge-https@8765.service",
                 ],

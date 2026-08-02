@@ -9,7 +9,7 @@ Type=simple
 WorkingDirectory=%h/my-opiniated-editor/main
 EnvironmentFile=-%h/.config/my-opiniated-editor/bridge.env
 EnvironmentFile=%h/.config/my-opiniated-editor/bridge-%i.env
-ExecStart=%h/my-opiniated-editor/main/tools/bridge/https_proxy.py serve --http-port ${MOE_BRIDGE_HTTP_PORT} --https-port %i
+ExecStart=%h/my-opiniated-editor/main/tools/bridge/run_https_proxy.sh ${MOE_BRIDGE_HTTP_PORT} %i
 Restart=on-failure
 RestartSec=2
 
