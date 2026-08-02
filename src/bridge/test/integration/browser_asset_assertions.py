@@ -84,10 +84,11 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("terminal.loadAddon(webglAddon)", client_js)
     test_case.assertIn('console.warn("WebGL terminal renderer unavailable"', client_js)
     test_case.assertIn(
-        "new WebSocket(`${protocol}//${window.location.host}${websocketPath}`",
+        "new WebSocket(`${protocol}//${window.location.host}/ws`",
         client_js,
     )
-    test_case.assertIn("new URLSearchParams(window.location.search)", client_js)
+    test_case.assertNotIn("?token=", client_js)
+    test_case.assertNotIn("window.location.search", client_js)
     test_case.assertIn(
         "const payload = decoder.decode(bytes.slice(1), { stream: true })",
         client_js,

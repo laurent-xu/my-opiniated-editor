@@ -13,7 +13,6 @@ cc_library(
     deps = [
         ":socket_io",
         "//src/base:file_descriptor",
-        "//src/base:owned_file_descriptor",
     ],
 )
 
@@ -96,7 +95,7 @@ filegroup(
 test_suite(
     name = "parent_ws_bridge_integration_test",
     tests = [
-        "//src/bridge/test/integration:authentication_configuration_integration_test",
+        "//src/bridge/test/integration:bridge_configuration_integration_test",
         "//src/bridge/test/integration:browser_input_routing_integration_test",
         "//src/bridge/test/integration:browser_lifecycle_integration_test",
         "//src/bridge/test/integration:tray_workflows_integration_test",

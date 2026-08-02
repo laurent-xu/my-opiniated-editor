@@ -8,8 +8,6 @@ std::string browser_client_js() {
   return std::string(R"JS((async () => {
   const terminalElement = document.getElementById("terminal");
   const statusElement = document.getElementById("status");
-  const token = new URLSearchParams(window.location.search).get("token") || "";
-  const websocketPath = token ? `/ws?token=${encodeURIComponent(token)}` : "/ws";
 
   async function awaitTerminalFont() {
     if (!document.fonts || !document.fonts.load) {
@@ -54,7 +52,7 @@ std::string browser_client_js() {
   const decoder = new TextDecoder();
   const statusDecoder = new TextDecoder();
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(`${protocol}//${window.location.host}${websocketPath}`, "workspace-pty");
+  const socket = new WebSocket(`${protocol}//${window.location.host}/ws`, "workspace-pty");
   socket.binaryType = "arraybuffer";
   let connectionState = "connecting";
   let activeTrayLabel = "tray 1";

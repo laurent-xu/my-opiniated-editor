@@ -35,9 +35,9 @@ Current automated coverage:
   WebSocket clients can attach to one parent PTY and receive the same output.
 - `//src/bridge:parent_ws_bridge_integration_test` verifies the bridge serves
   the thin browser client assets.
-- `//src/bridge:parent_ws_bridge_integration_test` verifies token-protected
-  HTTP/WebSocket attach and rejects non-loopback binds without a token or
-  explicit unsafe override.
+- `//src/bridge:parent_ws_bridge_integration_test` verifies token-free browser
+  and WebSocket URLs, rejects non-loopback binds, and rejects the removed unsafe
+  override.
 - `//tools/bridge:https_proxy_test` verifies authenticated HTTP forwarding and
   WebSocket tunneling through the HTTPS proxy boundary.
 - Manual browser check on 2026-07-07 confirmed the network page loads, status

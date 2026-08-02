@@ -35,10 +35,8 @@ Current owned bridge endpoints:
   The parent sends these events to the bridge over a dedicated inherited pipe,
   separate from terminal output. The bridge caches the latest status and sends
   it to every connected or newly attached WebSocket.
-- When `--token` is configured, `/`, `/health`, and `/ws` require the token.
-  The browser client carries it from `/?token=<token>` to `/ws?token=<token>`.
-  Static `/client.js` and `/style.css` are not sensitive and remain fetchable
-  without the token.
+- The browser connects directly to `/ws`; bridge URLs do not carry
+  authentication credentials.
 - Multiple clients can connect to `/ws` at the same time. A single PTY reader
   broadcasts parent output to all clients; each client can send input or resize
   frames back to the parent PTY. New clients receive the recent terminal
@@ -182,14 +180,12 @@ actual workflow rather than carrying a speculative clipboard protocol now.
 
 ## Authentication
 
-For localhost-only development, a random session token is enough.
-
 Current implementation:
 
-- Loopback binds may run without a token for local development.
-- Non-loopback binds, including `0.0.0.0`, require `--token <secret>` unless
-  `--allow-unauthenticated-network` is passed.
-- The token is a development guard, not the final remote-access security model.
+- The C++ bridge is unauthenticated plumbing and accepts only loopback
+  interfaces.
+- Non-loopback binds, including `0.0.0.0`, are rejected without an override.
+- Browser and WebSocket URLs do not carry authentication credentials.
 
 For remote access:
 
@@ -201,8 +197,8 @@ For remote access:
   channel.
 
 The current LAN service path satisfies the first three requirements with the
-HTTPS/auth proxy. The bridge's `--token` option remains a localhost development
-guard and is not used by the service deployment.
+HTTPS/auth proxy. Service deployments keep the unauthenticated C++ bridge on a
+loopback-only upstream port.
 
 ## Compatibility Policy
 

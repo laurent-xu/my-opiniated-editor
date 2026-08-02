@@ -85,13 +85,8 @@ void send_health(OwnedFileDescriptor const& client, ParentPtySession const& sess
 }
 
 void handle_client(OwnedFileDescriptor client, ParentPtySession const& session,
-                   ServerConfig const& config, server::PtyWebsocketHub& hub) {
+                   server::PtyWebsocketHub& hub) {
   HttpRequest const request = read_http_request(client.get());
-  if (path_requires_authentication(request.path) &&
-      !request_has_auth_token(request, config.auth_token)) {
-    send_unauthorized(client);
-    return;
-  }
 
   if (request.path == "/") {
     send_http_response(client.get(), "200 OK", "text/html; charset=utf-8", browser_html());
@@ -179,8 +174,7 @@ void request_server_stop() { keep_running = 0; }
 
 void print_usage(std::ostream& output) {
   output << "usage: parent_ws_bridge --parent <path> [--cwd <path>] "
-            "--state-directory <path> [--interface <addr>] [--port <port>] [--token <secret>] "
-            "[--allow-unauthenticated-network]\n";
+            "--state-directory <path> [--interface <addr>] [--port <port>]\n";
 }
 
 ServerConfig parse_args(int const argc, char** argv) {
@@ -214,13 +208,6 @@ ServerConfig parse_args(int const argc, char** argv) {
         throw std::runtime_error("invalid port: " + value);
       }
       config.port = *port;
-    } else if (arg == "--token") {
-      config.auth_token = require_value(arg);
-      if (config.auth_token.empty()) {
-        throw std::runtime_error("--token must not be empty");
-      }
-    } else if (arg == "--allow-unauthenticated-network") {
-      config.allow_unauthenticated_network = true;
     } else if (arg == "--help" || arg == "-h") {
       print_usage(std::cout);
       std::exit(0);
@@ -241,10 +228,8 @@ void run_server(ServerConfig const& config) {
   if (!config.state_directory.is_absolute()) {
     throw std::runtime_error("--state-directory must be absolute");
   }
-  if (!is_loopback_interface(config.interface) && config.auth_token.empty() &&
-      !config.allow_unauthenticated_network) {
-    throw std::runtime_error(
-        "network bind requires --token <secret> or --allow-unauthenticated-network");
+  if (!is_loopback_interface(config.interface)) {
+    throw std::runtime_error("--interface must be a loopback IPv4 address");
   }
   if (::setenv(PARENT_STATE_DIRECTORY_ENVIRONMENT, config.state_directory.c_str(), 1) != 0) {
     throw errno_error("set parent state directory failed");
@@ -279,9 +264,9 @@ void run_server(ServerConfig const& config) {
     }
 
     OwnedFileDescriptor client = accept_client(listener);
-    std::thread([client = std::move(client), &config, session = session.get(), &hub]() mutable {
+    std::thread([client = std::move(client), session = session.get(), &hub]() mutable {
       try {
-        handle_client(std::move(client), *session, config, hub);
+        handle_client(std::move(client), *session, hub);
       } catch (std::exception const& error) {
         std::cerr << "client error: " << error.what() << '\n';
       }

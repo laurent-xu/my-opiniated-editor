@@ -12,17 +12,14 @@ def shell_marker_command(marker: str) -> bytes:
 
 
 class WebSocketClient:
-    def __init__(self, port: int, token: str | None = None):
+    def __init__(self, port: int):
         self.sock = socket.create_connection(("127.0.0.1", port), timeout=5)
         self.sock.settimeout(5)
         self.pending = b""
 
         key = base64.b64encode(os.urandom(16)).decode()
-        path = "/ws"
-        if token is not None:
-            path = f"/ws?token={token}"
         request = (
-            f"GET {path} HTTP/1.1\r\n"
+            "GET /ws HTTP/1.1\r\n"
             f"Host: 127.0.0.1:{port}\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"

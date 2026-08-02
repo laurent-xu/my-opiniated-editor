@@ -68,8 +68,8 @@ Current coverage:
   WebSocket clients attached to the same parent PTY receive the same output.
 - The same integration test verifies the owned bridge serves the thin browser
   client assets and that the JS includes xterm.js setup and `/ws` connection.
-- The same integration test verifies token-protected HTTP/WebSocket attach and
-  rejects non-loopback binds without a token or explicit unsafe override.
+- The same integration test verifies token-free browser/WebSocket URLs and
+  rejects non-loopback binds and the removed unsafe override.
 - `//tools/bridge:https_proxy_test` verifies scrypt password records, rejects
   missing or incorrect Basic Auth, forwards authorized HTTP, and tunnels an
   authenticated WebSocket upgrade to the loopback bridge port.

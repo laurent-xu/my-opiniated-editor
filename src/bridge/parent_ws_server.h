@@ -16,8 +16,6 @@ struct ServerConfig {
   std::filesystem::path parent_binary;
   std::filesystem::path working_directory = std::filesystem::current_path();
   std::filesystem::path state_directory;
-  std::string auth_token;
-  bool allow_unauthenticated_network = false;
 };
 
 void request_server_stop();

@@ -35,8 +35,8 @@ Already done:
   and browser reload can fetch assets while an older WebSocket is still open.
 - Owned bridge serves a thin browser client at `/` using xterm.js, `/ws`, and
   resize frames.
-- Network binding for the owned bridge requires `--token` unless an explicit
-  unsafe override is passed.
+- The owned bridge accepts only loopback interfaces; public access goes through
+  the authenticated HTTPS proxy.
 - Service deployments now put a small Python HTTPS/auth proxy on public LAN
   ports and keep each plain-HTTP C++ bridge on a loopback-only upstream port.
   The proxy verifies a scrypt password record from `~/.secrets` and tunnels

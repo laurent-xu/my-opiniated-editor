@@ -14,8 +14,8 @@ py_library(
 )
 
 py_test(
-    name = "authentication_configuration_integration_test",
-    srcs = ["authentication_configuration_integration_test.py"],
+    name = "bridge_configuration_integration_test",
+    srcs = ["bridge_configuration_integration_test.py"],
     size = BRIDGE_TEST_SIZE,
     tags = BRIDGE_TEST_TAGS,
     visibility = BRIDGE_SUITE_VISIBILITY,

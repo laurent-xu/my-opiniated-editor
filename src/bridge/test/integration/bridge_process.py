@@ -48,13 +48,9 @@ def wait_for_health(
     port: int,
     process: subprocess.Popen,
     timeout_seconds: float = 10.0,
-    token: str | None = None,
 ) -> dict:
     deadline = time.monotonic() + timeout_seconds
-    path = "/health"
-    if token is not None:
-        path = f"/health?token={token}"
-    url = f"http://127.0.0.1:{port}{path}"
+    url = f"http://127.0.0.1:{port}/health"
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stdout, stderr = process.communicate()

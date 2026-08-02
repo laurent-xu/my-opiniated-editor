@@ -61,8 +61,9 @@ Current progress:
   same parent output.
 - The owned bridge serves `/`, `/client.js`, and `/style.css`; the browser
   client loads xterm.js, connects to `/ws`, and forwards keyboard input/resize.
-- The owned bridge can bind to a network interface, but non-loopback binds now
-  require `--token` unless an explicit unsafe override is passed.
+- The owned bridge accepts only loopback interfaces. Authentication and public
+  network binding belong to the HTTPS proxy, so bridge HTTP and WebSocket URLs
+  carry no token.
 - The service deployment terminates HTTPS and Basic Auth in a small Python
   proxy on LAN ports `7682` and `7683`; matching C++ bridges use loopback-only
   HTTP ports `17682` and `17683`. Password verification uses an scrypt record

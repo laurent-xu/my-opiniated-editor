@@ -44,8 +44,8 @@ As of 2026-07-07:
   and parked until HTTPS/reverse-proxy support exists.
 - The owned bridge now serves a thin xterm.js browser client that connects to
   `/ws`.
-- Non-loopback owned bridge binds require a development token unless an
-  explicit unsafe override is passed.
+- The owned bridge accepts only loopback interfaces. Public access goes through
+  the authenticated HTTPS proxy.
 - Service deployments keep the owned C++ bridge on loopback HTTP and use a
   standalone Python process for HTTPS termination, scrypt-backed Basic Auth,
   and HTTP/WebSocket proxying. This proxy is transport plumbing and owns no PTY

@@ -2,14 +2,12 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import urllib.error
 import unittest
 
 sys.path.append(os.path.dirname(__file__))
 
 from bridge_test_support import (
     WebSocketClient,
-    fetch_text,
     free_loopback_port,
     register_worktree_repository,
     runfile_path,
@@ -19,7 +17,7 @@ from bridge_test_support import (
 )
 
 
-class AuthenticationConfigurationIntegrationTest(unittest.TestCase):
+class BridgeConfigurationIntegrationTest(unittest.TestCase):
     def test_bridge_instances_do_not_share_worktree_registry_state(self):
         first_port = free_loopback_port()
         second_port = free_loopback_port()
@@ -87,32 +85,7 @@ class AuthenticationConfigurationIntegrationTest(unittest.TestCase):
             stop_bridge(first_process)
             stop_bridge(second_process)
 
-    def test_token_protects_http_and_websocket_endpoints(self):
-        port = free_loopback_port()
-        process = start_bridge(port, extra_args=["--token", "devsecret"])
-
-        client = None
-        try:
-            health = wait_for_health(port, process, token="devsecret")
-            self.assertTrue(health["ok"])
-
-            with self.assertRaises(urllib.error.HTTPError) as caught:
-                fetch_text(port, "/health")
-            self.assertEqual(caught.exception.code, 401)
-
-            html = fetch_text(port, "/?token=devsecret")
-            self.assertIn("/client.js", html)
-
-            client = WebSocketClient(port, token="devsecret")
-            client.send_shell_marker("__moe_token_client__")
-            output = client.read_terminal_output_until("__moe_token_client__")
-            self.assertIn("__moe_token_client__", output)
-        finally:
-            if client is not None:
-                client.close()
-            stop_bridge(process)
-
-    def test_network_bind_requires_token_or_explicit_unsafe_override(self):
+    def test_network_bind_rejects_non_loopback_interface(self):
         process = subprocess.Popen(
             [
                 runfile_path("src/bridge/parent_ws_bridge"),
@@ -136,7 +109,23 @@ class AuthenticationConfigurationIntegrationTest(unittest.TestCase):
 
         self.assertNotEqual(process.returncode, 0)
         self.assertEqual(stdout, "")
-        self.assertIn("network bind requires --token", stderr)
+        self.assertIn("--interface must be a loopback IPv4 address", stderr)
+
+    def test_unauthenticated_network_override_is_not_accepted(self):
+        process = subprocess.run(
+            [
+                runfile_path("src/bridge/parent_ws_bridge"),
+                "--allow-unauthenticated-network",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(process.returncode, 0)
+        self.assertEqual(process.stdout, "")
+        self.assertIn(
+            "unknown argument: --allow-unauthenticated-network", process.stderr
+        )
 
 
 if __name__ == "__main__":
