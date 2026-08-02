@@ -168,6 +168,10 @@ std::string browser_client_js() {
     return event.key === "Escape" || event.code === "Escape" || event.keyCode === 27;
   }
 
+  function isShiftEscapeKey(event) {
+    return isEscapeKey(event) && event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+  }
+
   function isModifierOnlyKey(event) {
     return event.key === "Shift" || event.key === "Control" || event.key === "Alt" ||
       event.key === "Meta" || event.code === "ShiftLeft" || event.code === "ShiftRight" ||
@@ -289,6 +293,9 @@ std::string browser_client_js() {
   }
 
   function classifyTerminalKey(event, state) {
+    if (isShiftEscapeKey(event) && state === KeyboardState.TERMINAL) {
+      return { type: KeyActionType.TERMINAL_INPUT, data: "\x1b" };
+    }
     if (isEscapeKey(event)) {
       return { type: KeyActionType.TOGGLE_COMMAND_MODE };
     }

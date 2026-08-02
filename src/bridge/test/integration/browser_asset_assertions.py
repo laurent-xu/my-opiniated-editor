@@ -108,6 +108,11 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertNotIn("setCommandMode", client_js)
     test_case.assertIn("activeTrayLabel = status.trayLabel", client_js)
     test_case.assertIn('event.key === "Escape"', client_js)
+    test_case.assertIn(
+        "return isEscapeKey(event) && event.shiftKey && !event.altKey && "
+        "!event.ctrlKey && !event.metaKey",
+        client_js,
+    )
     test_case.assertIn('event.key === "Shift"', client_js)
     test_case.assertIn('TERMINAL: "terminal"', client_js)
     test_case.assertIn('COMMAND: "command"', client_js)
@@ -119,6 +124,14 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("classifyTrayConfirmationAction", client_js)
     test_case.assertIn("classifyOverlayNavigationAction", client_js)
     test_case.assertIn("function classifyTerminalKey(event, state)", client_js)
+    expected_escape_routing = """\
+    if (isShiftEscapeKey(event) && state === KeyboardState.TERMINAL) {
+      return { type: KeyActionType.TERMINAL_INPUT, data: "\\x1b" };
+    }
+    if (isEscapeKey(event)) {
+      return { type: KeyActionType.TOGGLE_COMMAND_MODE };
+    }"""
+    test_case.assertIn(expected_escape_routing, client_js)
     test_case.assertIn(
         "const state = commandMode ? KeyboardState.COMMAND : KeyboardState.TERMINAL",
         client_js,

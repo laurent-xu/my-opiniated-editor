@@ -23,6 +23,8 @@ review before starting the next milestone.
 
 ## Shortcuts
 
+- Outside command mode, `Shift+Esc`: forward a literal Escape to the focused
+  pane or overlay.
 - `Esc`, `Shift+1` through `Shift+9`: switch anonymous trays.
 - `Esc`, `Shift+W`: toggle the active tray's worktree overlay.
 - In command mode while the Worktrees picker is visible, `Shift+C`: ask for
