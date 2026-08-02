@@ -31,18 +31,45 @@ Current owned bridge endpoints:
   command byte `3` with an empty payload. The manager contains worktree
   switching, worktree creation, and repository registration. Toggling
   parent-owned command mode uses command byte `5` with an empty payload.
+  Worktree confirmation actions use command byte `6`, overlay navigation uses
+  command byte `7`, and typed pane actions use command byte `8`. Pane actions
+  name intent such as `splitLeftToRight`, `toggleSelectionOrSwap`,
+  `toggleMove`, `confirmMove`, and `rotate`; the bridge does not interpret or
+  own the resulting layout.
+- Browser pane viewport reports use command byte `9` followed by the tray key,
+  pane ID, rows, and columns in a compact binary payload. The bridge frames the
+  report onto the parent view socket. The parent accepts reports for an active
+  pane view or a visible inactive-tray preview and ignores unknown tray or pane
+  identities.
 - Server status frames use command byte `1` plus a `parent.status` JSON object.
   The parent sends these events to the bridge over a dedicated inherited pipe,
   separate from terminal output. The bridge caches the latest status and sends
   it to every connected or newly attached WebSocket.
+  Status includes the parent-owned pane interaction mode (`none`, `selection`,
+  `moveTarget`, `moveDrop`, or `swapTarget`) and the selected source-node
+  count, allowing contextual browser hints and reconnect without browser-owned
+  pane state.
+- Server pane output frames use command byte `2`. Their payload identifies the
+  parent tray and pane, followed by the child PTY bytes unchanged. The bridge
+  keeps message boundaries and a bounded reconnect backlog but does not
+  interpret pane topology.
+- Parent status includes the active normalized N-ary `paneView`, focused pane,
+  maximize state, selection, and move highlighting. The browser treats this as
+  a view description and retains one xterm.js instance for each pane ID.
+- While the worktree picker highlights a live tray, parent status also includes
+  a read-only `panePreview` with terminal-grid geometry and that tray's pane
+  view. The browser mounts the same pane DOM primitives and xterm.js instances
+  used by the normal tray, so separators stay one CSS pixel and raw child PTY
+  output continues incrementally beneath the picker.
 - The browser connects directly to `/ws`; bridge URLs do not carry
   authentication credentials.
 - Multiple clients can connect to `/ws` at the same time. A single PTY reader
   broadcasts parent output to all clients; each client can send input or resize
   frames back to the parent PTY. New clients receive the recent terminal
   backlog so refresh/reconnect does not start from a blank terminal surface.
-  Command mode, active tray identity, and active overlay identity come from the
-  parent status event rather than per-browser guesses.
+  Command mode, active tray identity, active overlay identity, and pane
+  interaction state come from the parent status event rather than per-browser
+  guesses.
 
 Current service transport:
 

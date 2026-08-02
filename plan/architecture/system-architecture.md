@@ -5,7 +5,8 @@
 ```text
 Browser client
   thin TypeScript host
-  one xterm.js terminal surface
+  one xterm.js surface per terminal pane
+  one parent-PTY overlay/fallback surface
   optional status/control overlay
         |
         | HTTPS + WebSocket
@@ -14,9 +15,9 @@ Bridge server
   serves browser assets
   authenticates browser sessions
   exposes one primary PTY byte stream
-  forwards resize/input/output
+  relays tagged raw pane streams and viewport sizes
         |
-        | parent PTY + optional control sideband
+        | parent PTY + typed pane-view sideband
         v
 C++ parent workspace/editor app
   command registry
@@ -24,7 +25,7 @@ C++ parent workspace/editor app
   tiling and pane model
   workspace/session graph
   git workspace model
-  terminal renderer
+  terminal screen models and overlay renderer
   file index
   editor state and edits
   LSP client manager
@@ -49,8 +50,10 @@ Reasoning:
 
 - You want to own the productivity surface in C++, including tiling, editing,
   sessions, and agent supervision.
-- A single parent PTY keeps the bridge simple and avoids making the browser
-  responsible for process/session topology.
+- A single parent process and parent PTY keep the bridge simple and avoid
+  making the browser responsible for process/session topology. Tagged pane
+  streams let xterm.js consume child PTY bytes without moving pane ownership
+  into the browser.
 - Agent plans and plan sections need stable IDs and comments.
 - Diagnostics should be objects that link to files, symbols, targets, and
   actions.
@@ -73,7 +76,7 @@ The C++ parent workspace app owns:
 - Tiling and pane focus.
 - File and symbol indexing.
 - Editor state and edit transactions.
-- Terminal rendering for the main workspace UI.
+- Terminal screen models, snapshots, and parent-owned overlay rendering.
 - Child PTY lifecycle for shells and agent CLIs.
 - LSP process lifecycle and protocol handling.
 - Build/test/lint task execution.
@@ -90,15 +93,16 @@ plumbing.
 
 ## Parent And Content PTYs
 
-The bridge serves one parent PTY. That PTY is the rendering surface for the C++
-workspace app.
+The bridge serves one parent PTY as the overlay and compatibility rendering
+surface for the C++ workspace app. A small typed sideband carries pane-tagged
+raw output and browser viewport sizes over the same browser connection.
 
 Shells, agent CLIs, and temporary terminal programs run in separate content
 PTYs owned by the parent app. A content PTY is only a byte stream; it does not
 retain a redrawable screen or scrollback by itself. For every content PTY, the
-parent app owns a terminal screen model that consumes the PTY output. When the
-active tray changes, the parent app redraws the selected model into the parent
-PTY.
+parent app owns a terminal screen model and forwards the same raw bytes to that
+pane's browser xterm.js instance. The browser mirrors parent-published layout
+state and never decides process topology, focus, selection, or layout mutation.
 
 Do not reconstruct tray contents by replaying a raw byte backlog. Byte replay is
 lossy, can truncate history, and can replay obsolete terminal control sequences
@@ -108,11 +112,12 @@ instead of the current screen state.
 
 The browser owns:
 
-- Rendering the parent terminal stream through xterm.js.
+- Rendering each tagged pane stream through its persistent xterm.js instance.
+- Rendering the parent PTY for overlays and compatibility fallback.
 - Keyboard event capture.
 - Passing keyboard input to the parent app.
 - Connection-local transient UI state.
-- Resize events.
+- Outer-surface and exact per-pane viewport resize events.
 - Optional status/control overlay.
 
 The parent owns command mode, active tray identity, and workspace overlay

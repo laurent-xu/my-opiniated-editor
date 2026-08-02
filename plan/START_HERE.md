@@ -6,7 +6,8 @@ docs as references, not as required pre-reading.
 ## Current Direction
 
 - Build an owned C++ parent workspace/editor app.
-- Serve it through one primary browser PTY.
+- Serve it through one primary browser session and parent PTY, with tagged raw
+  streams for parent-owned terminal panes.
 - Shells, agents, panes, editor state, git workspace state, plans, and
   diagnostics are owned by the parent app.
 - The browser bridge is plumbing: terminal rendering, WebSocket, auth, and
@@ -26,6 +27,16 @@ Already done:
 - Process-boundary fake-agent integration test.
 - Parent app currently execs the user's configured login shell so the browser
   serves a usable shell while the real editor is still being built.
+- Each tray now owns a normalized N-ary pane layout with an independent child
+  PTY and terminal screen per leaf. The parent keeps all child PTYs drained and
+  sends their raw bytes through a tagged view stream. The browser mirrors the
+  parent tree with one xterm.js instance per leaf; the outer PTY remains the
+  overlay and compatibility surface.
+- Shift-first command-mode pane controls now cover split, focus, contiguous
+  same-level selection, group resize/equalize, rotate, maximize,
+  close, and previewed move/swap with explicit confirmation.
+- Pane layout, focus, selection, and move state are parent-owned, tray-local,
+  and preserved across browser reconnect.
 - C++ `ParentPtySession` using `forkpty`, with tests for shell I/O, strong
   parent process identity, and PTY size validation errors.
 - Minimal owned C++ WebSocket bridge with `/health` and `/ws`, tested for

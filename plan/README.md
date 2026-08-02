@@ -6,9 +6,9 @@ keyboard-first, AI-agent-native development workspace.
 ## Current Recommendation
 
 Build an owned C++ parent workspace/editor process and serve that process
-through one primary browser PTY. The browser bridge should be thin: xterm.js for
-the terminal surface and WebSocket for bytes/control. Browser clipboard support
-is parked until the network path runs under HTTPS.
+through one primary browser session. The browser bridge should be thin:
+xterm.js for terminal surfaces and WebSocket for bytes/control. Browser
+clipboard support is parked until the network path runs under HTTPS.
 
 The C++ parent process owns tiling, editor behavior, shell panes, agent panes,
 LSP/build state, plan review, and command routing. Shells and coding-agent CLIs
@@ -29,8 +29,9 @@ Recommended first stack:
 - Bridge: build the persistent path in C++ around `ParentPtySession`.
 - Browser UI: thin xterm.js host served by the owned bridge, with TypeScript
   still deferred until the browser side grows beyond the static shell.
-- Terminal surface: one primary xterm.js instance attached to the parent C++
-  app's PTY.
+- Terminal surfaces: one xterm.js instance per parent-owned terminal pane, fed
+  its raw tagged child-PTY stream. The primary parent PTY remains the fallback
+  and overlay surface.
 - Editor: owned C++ editor inside the parent app. CodeMirror 6 is deferred to a
   later optional browser-native view adapter if it becomes useful.
 - C++ tooling: clangd, clang-format, clang-tidy, Bazel-generated
@@ -56,6 +57,7 @@ Recommended first stack:
 - [Language and Build Tooling](architecture/language-build-tooling.md)
 - [Project Build Runtime](architecture/project-build-runtime.md)
 - [MVP Roadmap](implementation/mvp-roadmap.md)
+- [Pane Story Plan, Version 2](implementation/pane-story-plan.md)
 - [Worktree Tray Plan](implementation/worktree-tray-plan.md)
 - [Bazel Setup Plan](implementation/bazel-setup-plan.md)
 - [Risks and Open Questions](implementation/risks-and-open-questions.md)

@@ -91,7 +91,8 @@ Unit tests:
 
 - Command registry lookup and dispatch.
 - Keymap resolution and modal state.
-- Pane tree split/focus/swap/promote.
+- Normalized N-ary pane split/focus/selection/resize/rotate/move/swap,
+  including exact integer percentage totals and preview-before-confirm.
 - Session registry create/focus/archive transitions.
 - Workspace metadata and selected diff base persistence.
 - Persistence serialization for simple workspace state.
@@ -100,7 +101,7 @@ Unit tests:
 Integration tests:
 
 - Start parent app, create panes through keyboard commands, reconnect, and
-  verify layout state survives.
+  verify parent-owned pane interaction state survives.
 - Send sideband clipboard/status messages while parent app is active.
 
 Exit gate:

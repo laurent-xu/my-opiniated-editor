@@ -48,9 +48,11 @@ parent-rendered mode footer stays on the bottom row while either the fzf dialog
 or a form dialog is drawn independently above it. Changing modes resets every
 mode to its initial selector or form. The Worktrees picker also includes every
 anonymous tray used in the current session as `/anonymous/N`. Its highlighted
-tray is previewed above fzf; a registered worktree without an in-session tray
-has a dark preview. Opening the overlay leaves command mode so typing, arrows,
-and Enter are routed to it. `Esc` continues to toggle command mode without
+tray is previewed above fzf with the same one-pixel DOM separators and live PTY
+rendering as the normal tray; the preview itself is read-only. A registered
+worktree without an in-session tray has a dark preview. Opening the overlay
+leaves command mode so typing, arrows, and Enter are routed to fzf. `Esc`
+continues to toggle command mode without
 closing the overlay. Arrows, `Tab`, `Shift+Tab`, and `Enter` continue navigating
 or selecting from the overlay while command mode is active. From command mode,
 `Shift+W` closes the overlay and leaves command mode active.

@@ -74,16 +74,23 @@ capture more shortcuts and handle persistent clipboard writes.
 
 ## Tiling
 
-The layout manager should support:
+The current terminal-pane interaction contract is specified in
+[Pane Story Plan, Version 2](../implementation/pane-story-plan.md). Its core
+rules are:
 
-- Split focused pane horizontally or vertically.
-- Move focus by direction.
-- Swap panes.
-- Promote pane to full view.
-- Pin pane.
-- Create scratch pane.
-- Restore previous layout.
-- Save named layout per workspace.
+- Use a normalized N-ary layout tree, not a binary split tree.
+- Store integer sibling percentages that always total 100.
+- Select only contiguous complete nodes at one direct-parent level.
+- Move complete nodes through explicit source, target, preview, and confirm
+  stages; swap uses one complete source and target.
+- Use Shift-first command-mode bindings so unshifted keys remain available for
+  editor and clipboard commands.
+- Support focus, split, close, group resize, equalize, rotate, maximize, move,
+  and swap.
+- Do not provide undo or redo for layout mutations.
+
+Named layouts, pinning, scratch-pane types, and parent-restart persistence are
+future stories rather than part of this pane milestone.
 
 Panes should contain objects, not just components:
 

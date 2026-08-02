@@ -62,7 +62,7 @@ Rent the parts that are important but not the core differentiator:
 - Browser runtime and DOM.
 - WebSocket transport.
 - PTY library.
-- xterm.js for the parent workspace terminal surface.
+- xterm.js for parent-owned terminal pane surfaces and the parent overlay PTY.
 - CodeMirror 6 only as a later optional browser-native editor/view adapter.
 - Browser extension APIs for persistent clipboard permission.
 - TLS/reverse proxy/auth building blocks.
