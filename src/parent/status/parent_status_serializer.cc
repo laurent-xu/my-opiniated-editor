@@ -16,6 +16,22 @@ std::string_view overlay_name(ParentOverlayKind const overlay) {
   return "none";
 }
 
+std::string_view pane_mode_name(ParentPaneMode const mode) {
+  switch (mode) {
+    case ParentPaneMode::NONE:
+      return "none";
+    case ParentPaneMode::SELECTION:
+      return "selection";
+    case ParentPaneMode::MOVE_TARGET:
+      return "moveTarget";
+    case ParentPaneMode::MOVE_DROP:
+      return "moveDrop";
+    case ParentPaneMode::SWAP_TARGET:
+      return "swapTarget";
+  }
+  return "none";
+}
+
 void append_json_string(std::string& output, std::string_view const value) {
   constexpr std::array<char, 16> HEX_DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7',
                                                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
@@ -69,6 +85,10 @@ std::string serialize_parent_status(ParentStatus const& status) {
   append_json_string(output, status.active_tray.label());
   output.append(R"(,"overlay":)");
   append_json_string(output, overlay_name(status.overlay));
+  output.append(R"(,"paneMode":)");
+  append_json_string(output, pane_mode_name(status.pane_mode));
+  output.append(R"(,"paneSelectedNodes":)");
+  output.append(std::to_string(status.pane_selected_nodes));
   output.push_back('}');
   return output;
 }

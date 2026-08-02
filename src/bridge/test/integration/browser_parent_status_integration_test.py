@@ -29,6 +29,8 @@ class BrowserParentStatusIntegrationTest(unittest.TestCase):
                 "commandMode": False,
                 "trayKey": "anonymous:1",
                 "trayLabel": "tray 1",
+                "paneMode": "none",
+                "paneSelectedNodes": 0,
             }
             first_client.read_parent_status_until(initial_status)
             second_client.read_parent_status_until(initial_status)
@@ -47,8 +49,18 @@ class BrowserParentStatusIntegrationTest(unittest.TestCase):
             first_client.read_parent_status_until(tray_status)
             second_client.read_parent_status_until(tray_status)
 
+            second_client.send_pane_action("splitLeftToRight")
+            second_client.send_pane_action("toggleSelectionOrSwap")
+            pane_status = {
+                **tray_status,
+                "paneMode": "selection",
+                "paneSelectedNodes": 1,
+            }
+            first_client.read_parent_status_until(pane_status)
+            second_client.read_parent_status_until(pane_status)
+
             reconnected_client = WebSocketClient(port)
-            reconnected_client.read_parent_status_until(tray_status)
+            reconnected_client.read_parent_status_until(pane_status)
         finally:
             if first_client is not None:
                 first_client.close()

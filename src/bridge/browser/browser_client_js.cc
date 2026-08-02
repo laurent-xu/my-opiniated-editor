@@ -58,6 +58,8 @@ std::string browser_client_js() {
   let activeTrayLabel = "tray 1";
   let commandMode = false;
   let activeOverlay = "none";
+  let paneMode = "none";
+  let paneSelectedNodes = 0;
 
   const KeyboardState = Object.freeze({
     TERMINAL: "terminal",
@@ -102,8 +104,32 @@ std::string browser_client_js() {
 
   function renderStatus() {
     const parts = [connectionState, activeTrayLabel];
+    if (activeOverlay === "worktreeManagement") {
+      parts.push("worktrees");
+    } else if (paneMode === "selection") {
+      parts.push(`selection ${paneSelectedNodes}`);
+    } else if (paneMode === "moveTarget") {
+      parts.push(`move ${paneSelectedNodes}: choose target`);
+    } else if (paneMode === "moveDrop") {
+      parts.push(`move ${paneSelectedNodes}: choose side`);
+    } else if (paneMode === "swapTarget") {
+      parts.push("swap: choose target");
+    }
     if (commandMode) {
       parts.push("command");
+      if (activeOverlay === "worktreeManagement") {
+        parts.push("Arrows navigate; Shift+C clear; Shift+R remove");
+      } else if (paneMode === "selection") {
+        parts.push("Shift+Arrows range; Shift+[ ] level; Shift++/- size; Shift+M move");
+      } else if (paneMode === "moveTarget") {
+        parts.push("Shift+Arrows target; Shift+[ ] level; Shift+Enter lock; Shift+M cancel");
+      } else if (paneMode === "moveDrop") {
+        parts.push("Shift+Arrows side; Shift+Enter confirm; Shift+M cancel");
+      } else if (paneMode === "swapTarget") {
+        parts.push("Shift+Arrows target; Shift+Enter confirm; Shift+S move; Shift+M cancel");
+      } else {
+        parts.push("Shift+V/H split; Shift+S select; Shift+M move");
+      }
     }
     statusElement.textContent = parts.join(" | ");
   }
@@ -123,6 +149,12 @@ std::string browser_client_js() {
     }
     if (typeof status.overlay === "string") {
       activeOverlay = status.overlay;
+    }
+    if (typeof status.paneMode === "string") {
+      paneMode = status.paneMode;
+    }
+    if (Number.isInteger(status.paneSelectedNodes) && status.paneSelectedNodes >= 0) {
+      paneSelectedNodes = status.paneSelectedNodes;
     }
     renderStatus();
   }

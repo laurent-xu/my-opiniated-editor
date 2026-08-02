@@ -137,6 +137,28 @@ ParentOverlayKind active_overlay_kind(TrayManager const& trays) {
   return ParentOverlayKind::NONE;
 }
 
+ParentPaneMode active_pane_mode(TrayManager const& trays) {
+  std::optional<PaneMoveSession> const& move = trays.active_pane_move_session();
+  if (move.has_value()) {
+    if (move->operation() == PaneMoveOperation::SWAP) {
+      return ParentPaneMode::SWAP_TARGET;
+    }
+    return move->stage() == PaneMoveStage::TARGET ? ParentPaneMode::MOVE_TARGET
+                                                  : ParentPaneMode::MOVE_DROP;
+  }
+  return trays.active_pane_selection().has_value() ? ParentPaneMode::SELECTION
+                                                   : ParentPaneMode::NONE;
+}
+
+std::size_t active_pane_selected_nodes(TrayManager const& trays) {
+  std::optional<PaneMoveSession> const& move = trays.active_pane_move_session();
+  if (move.has_value()) {
+    return move->source().nodes().size();
+  }
+  std::optional<PaneSelection> const& selection = trays.active_pane_selection();
+  return selection.has_value() ? selection->nodes().size() : 0U;
+}
+
 void publish_parent_status(TrayManager const& trays, bool const command_mode,
                            std::optional<base::FileDescriptor> const status_descriptor) {
   if (!status_descriptor.has_value()) {
@@ -147,6 +169,8 @@ void publish_parent_status(TrayManager const& trays, bool const command_mode,
       .command_mode = command_mode,
       .active_tray = trays.active_id(),
       .overlay = active_overlay_kind(trays),
+      .pane_mode = active_pane_mode(trays),
+      .pane_selected_nodes = active_pane_selected_nodes(trays),
   });
   message.push_back('\n');
   write_all(*status_descriptor, message);

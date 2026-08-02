@@ -105,12 +105,23 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('let activeTrayLabel = "tray 1"', client_js)
     test_case.assertIn("let commandMode = false", client_js)
     test_case.assertIn('let activeOverlay = "none"', client_js)
+    test_case.assertIn('let paneMode = "none"', client_js)
+    test_case.assertIn("let paneSelectedNodes = 0", client_js)
     test_case.assertNotIn("let worktreeManagerOpen", client_js)
     test_case.assertIn('parts.push("command")', client_js)
     test_case.assertNotIn("activeTrayNumber", client_js)
     test_case.assertNotIn("setCommandMode", client_js)
     test_case.assertIn("activeTrayLabel = status.trayLabel", client_js)
     test_case.assertIn("activeOverlay = status.overlay", client_js)
+    test_case.assertIn("paneMode = status.paneMode", client_js)
+    test_case.assertIn("paneSelectedNodes = status.paneSelectedNodes", client_js)
+    test_case.assertIn(
+        'parts.push("Shift+V/H split; Shift+S select; Shift+M move")', client_js
+    )
+    test_case.assertIn(
+        'parts.push("Shift+Arrows side; Shift+Enter confirm; Shift+M cancel")',
+        client_js,
+    )
     test_case.assertIn('event.key === "Escape"', client_js)
     test_case.assertIn(
         "return isEscapeKey(event) && event.shiftKey && !event.altKey && "
