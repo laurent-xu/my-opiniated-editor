@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Build first, then restart one port-keyed systemd user service.
-if [[ "$#" -ne 1 || ! "$1" =~ ^[0-9]{1,5}$ ]]; then
-  echo "usage: $0 <port>" >&2
+if [[ "$#" -lt 1 || "$#" -gt 2 || ! "$1" =~ ^[0-9]{1,5}$ ]]; then
+  echo "usage: $0 <port> [worktree]" >&2
   exit 2
 fi
 port="$((10#$1))"
@@ -14,13 +14,25 @@ fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../.." && pwd)"
+worktree_argument="${2:-${repo_root}}"
+if [[ ! -d "${worktree_argument}" ]]; then
+  echo "worktree must be an existing directory: ${worktree_argument}" >&2
+  exit 2
+fi
+worktree="$(cd -- "${worktree_argument}" && pwd -P)"
 
-cd "${repo_root}"
+cd "${worktree}"
 
 bazel --batch build \
   //src/bridge:parent_ws_bridge \
   //src/parent:workspace_parent
 
+bridge_service="my-opiniated-editor-bridge@${port}.service"
+https_service="my-opiniated-editor-bridge-https@${port}.service"
+systemd_worktree="${worktree//\\/\\\\}"
+systemd_worktree="${systemd_worktree//\"/\\\"}"
 systemctl --user daemon-reload
-systemctl --user restart "my-opiniated-editor-bridge@${port}.service"
-systemctl --user restart "my-opiniated-editor-bridge-https@${port}.service"
+systemctl --user set-property --runtime "${bridge_service}" \
+  "Environment=\"MOE_BRIDGE_WORKTREE=${systemd_worktree}\""
+systemctl --user restart "${bridge_service}"
+systemctl --user restart "${https_service}"

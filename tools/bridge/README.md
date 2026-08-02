@@ -71,7 +71,7 @@ Their commands receive both ports explicitly; there is no arithmetic port
 mapping in either launcher:
 
 ```text
-run_bridge.sh <http-port> <https-port>
+run_bridge.sh <http-port> <https-port> [worktree]
 https_proxy.py serve --http-port <http-port> --https-port <https-port>
 ```
 
@@ -107,7 +107,14 @@ Restart one complete HTTP/HTTPS pair after rebuilding:
 ```bash
 tools/bridge/restart_bridge.sh 7682
 tools/bridge/restart_bridge.sh 7683
+tools/bridge/restart_bridge.sh 7683 /path/to/worktree
 ```
+
+The optional worktree path selects the checkout whose prebuilt bridge and
+parent binaries run for that public port. `restart_bridge.sh` builds that
+checkout and keeps the selection on the HTTP bridge service instance until
+reboot or the next restart helper invocation. Without the argument, each
+script uses the checkout that contains the invoked script.
 
 Restarting the C++ bridge also restarts that instance's parent PTY. Browser
 reload and WebSocket reconnect do not.

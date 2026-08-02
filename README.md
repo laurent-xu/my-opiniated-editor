@@ -37,7 +37,8 @@ the background when it grows beyond 10 GiB.
 Run once from a shell:
 
 ```bash
-tools/bridge/run_bridge.sh 7682
+tools/bridge/run_bridge.sh 17682 7682
+tools/bridge/run_bridge.sh 17683 7683 /path/to/worktree
 ```
 
 For boot startup and manual restart, see [tools/bridge/README.md](tools/bridge/README.md).
