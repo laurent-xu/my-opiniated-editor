@@ -31,8 +31,8 @@ bridge_service="my-opiniated-editor-bridge@${port}.service"
 https_service="my-opiniated-editor-bridge-https@${port}.service"
 systemd_worktree="${worktree//\\/\\\\}"
 systemd_worktree="${systemd_worktree//\"/\\\"}"
-systemctl --user daemon-reload
-systemctl --user set-property --runtime "${bridge_service}" \
-  "Environment=\"MOE_BRIDGE_WORKTREE=${systemd_worktree}\""
+printf '[Service]\nEnvironment="MOE_BRIDGE_WORKTREE=%s"\n' "${systemd_worktree}" |
+  systemctl --user edit --runtime --stdin --drop-in=50-worktree.conf \
+    "${bridge_service}"
 systemctl --user restart "${bridge_service}"
 systemctl --user restart "${https_service}"

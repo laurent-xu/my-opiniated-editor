@@ -168,11 +168,19 @@ class ServiceScriptsTest(unittest.TestCase):
             log_path = bin_dir / "commands.log"
             for name in ["bazel", "systemctl"]:
                 script = bin_dir / name
-                script.write_text(
+                contents = (
                     "#!/usr/bin/env bash\n"
-                    f'printf \'{name} cwd=%s args=%s\\n\' "$PWD" "$*" >> {log_path}\n',
-                    encoding="utf-8",
+                    f'printf \'{name} cwd=%s args=%s\\n\' "$PWD" "$*" >> {log_path}\n'
                 )
+                if name == "systemctl":
+                    contents += (
+                        'if [[ " $* " == *" edit "* ]]; then\n'
+                        "  while IFS= read -r line; do\n"
+                        f"    printf 'systemctl stdin=%s\\n' \"$line\" >> {log_path}\n"
+                        "  done\n"
+                        "fi\n"
+                    )
+                script.write_text(contents, encoding="utf-8")
                 script.chmod(0o755)
 
             subprocess.run(
@@ -193,8 +201,9 @@ class ServiceScriptsTest(unittest.TestCase):
                 log_path.read_text(encoding="utf-8").splitlines(),
                 [
                     f"bazel cwd={selected_worktree} args=--batch build //src/bridge:parent_ws_bridge //src/parent:workspace_parent",
-                    f"systemctl cwd={selected_worktree} args=--user daemon-reload",
-                    f'systemctl cwd={selected_worktree} args=--user set-property --runtime my-opiniated-editor-bridge@8765.service Environment="MOE_BRIDGE_WORKTREE={selected_worktree}"',
+                    f"systemctl cwd={selected_worktree} args=--user edit --runtime --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge@8765.service",
+                    "systemctl stdin=[Service]",
+                    f'systemctl stdin=Environment="MOE_BRIDGE_WORKTREE={selected_worktree}"',
                     f"systemctl cwd={selected_worktree} args=--user restart my-opiniated-editor-bridge@8765.service",
                     f"systemctl cwd={selected_worktree} args=--user restart my-opiniated-editor-bridge-https@8765.service",
                 ],
