@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -17,6 +18,14 @@ using moe::parent::test_support::required_environment_path;
 using moe::parent::test_support::required_tray_number;
 using moe::parent::test_support::shell_marker_command;
 using moe::parent::test_support::start_manager;
+
+template <typename Value>
+Value const& required(std::optional<Value> const& value) {
+  if (!value.has_value()) {
+    throw std::logic_error("expected a value");
+  }
+  return value.value();
+}
 
 TEST(TrayManagerTest, SwitchingCreatesLazyAnonymousTrayAndPreservesActiveTray) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
@@ -84,6 +93,34 @@ TEST(TrayManagerTest, MaximizeStateBelongsToItsTray) {
 
   static_cast<void>(manager->switch_to(moe::parent::TrayNumber::one()));
   EXPECT_TRUE(manager->active_focused_pane_is_maximized());
+}
+
+TEST(TrayManagerTest, SelectionAndMoveSessionsBelongToTheirTray) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const tray_one_first = manager->active_focused_pane_id();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  ASSERT_TRUE(manager->focus_active_pane(tray_one_first));
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+  ASSERT_TRUE(manager->toggle_active_pane_move());
+  ASSERT_TRUE(manager->step_active_pane_move_target(moe::parent::PaneFocusDirection::RIGHT));
+
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+  EXPECT_FALSE(manager->active_pane_selection().has_value());
+  EXPECT_FALSE(manager->active_pane_move_session().has_value());
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::TOP_TO_BOTTOM,
+                                                       moe::parent::PaneInsertion::AFTER));
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+
+  static_cast<void>(manager->switch_to(moe::parent::TrayNumber::one()));
+  std::optional<moe::parent::PaneMoveSession> const& tray_one_move =
+      manager->active_pane_move_session();
+  EXPECT_TRUE(required(tray_one_move).target().has_value());
+  EXPECT_FALSE(manager->active_pane_selection().has_value());
+
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+  EXPECT_TRUE(manager->active_pane_selection().has_value());
+  EXPECT_FALSE(manager->active_pane_move_session().has_value());
 }
 
 TEST(TrayManagerTest, WorktreeTrayStartsShellInWorktreeRoot) {
