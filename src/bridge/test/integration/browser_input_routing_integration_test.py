@@ -14,6 +14,29 @@ from bridge_test_support import (
 
 
 class BrowserInputRoutingIntegrationTest(unittest.TestCase):
+    def test_command_mode_routes_pane_actions_to_the_parent_layout(self):
+        port = free_loopback_port()
+        process = start_bridge(port)
+
+        client = None
+        try:
+            wait_for_health(port, process)
+            client = WebSocketClient(port)
+            client.read_parent_status_until({"commandMode": False})
+            client.toggle_command_mode()
+            client.read_parent_status_until({"commandMode": True})
+
+            client.send_pane_action("splitLeftToRight")
+            redraw = client.read_terminal_output_until("\x1b[0;48;5;240m")
+            self.assertIn("\x1b[0;48;5;240m", redraw)
+
+            client.send_pane_action("close")
+            client.read_parent_status_until({"commandMode": True})
+        finally:
+            if client is not None:
+                client.close()
+            stop_bridge(process)
+
     def test_worktree_manager_control_opens_parent_overlay(self):
         port = free_loopback_port()
         process = start_bridge(port)

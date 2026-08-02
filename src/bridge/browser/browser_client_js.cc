@@ -57,6 +57,7 @@ std::string browser_client_js() {
   let connectionState = "connecting";
   let activeTrayLabel = "tray 1";
   let commandMode = false;
+  let activeOverlay = "none";
 
   const KeyboardState = Object.freeze({
     TERMINAL: "terminal",
@@ -71,6 +72,7 @@ std::string browser_client_js() {
     TOGGLE_WORKTREE_MANAGER: "toggleWorktreeManager",
     WORKTREE_PICKER_COMMAND: "worktreePickerCommand",
     WORKTREE_OVERLAY_NAVIGATION: "worktreeOverlayNavigation",
+    PANE_ACTION: "paneAction",
     TERMINAL_INPUT: "terminalInput",
   });
   const BrowserToBridgeDiscriminator = Object.freeze({
@@ -88,6 +90,8 @@ std::string browser_client_js() {
          protocol::browser_to_bridge_discriminator::WORKTREE_PICKER_ACTION + R"JS(",
     OVERLAY_NAVIGATION: ")JS" +
          protocol::browser_to_bridge_discriminator::OVERLAY_NAVIGATION + R"JS(",
+    PANE_ACTION: ")JS" +
+         protocol::browser_to_bridge_discriminator::PANE_ACTION + R"JS(",
   });
   const BridgeToBrowserDiscriminator = Object.freeze({
     TERMINAL_OUTPUT: ")JS" +
@@ -117,6 +121,9 @@ std::string browser_client_js() {
     if (typeof status.trayLabel === "string" && status.trayLabel.length > 0) {
       activeTrayLabel = status.trayLabel;
     }
+    if (typeof status.overlay === "string") {
+      activeOverlay = status.overlay;
+    }
     renderStatus();
   }
 
@@ -145,6 +152,10 @@ std::string browser_client_js() {
 
   function sendWorktreeOverlayNavigation(navigation) {
     sendCommand(BrowserToBridgeDiscriminator.OVERLAY_NAVIGATION, navigation);
+  }
+
+  function sendPaneAction(action) {
+    sendCommand(BrowserToBridgeDiscriminator.PANE_ACTION, action);
   }
 
   function fitAndSendSize() {
@@ -224,12 +235,14 @@ std::string browser_client_js() {
     return navigationByKey[event.key] || navigationByKey[event.code] || null;
   }
 
-  const shiftedCommandBindings = [
+  const globalShiftedCommandBindings = [
     {
       code: "KeyW",
       key: "W",
       action: { type: KeyActionType.TOGGLE_WORKTREE_MANAGER },
     },
+  ];
+  const worktreeShiftedCommandBindings = [
     {
       code: "KeyC",
       key: "C",
@@ -240,6 +253,25 @@ std::string browser_client_js() {
       key: "R",
       action: { type: KeyActionType.WORKTREE_PICKER_COMMAND, command: "r" },
     },
+  ];
+  const paneShiftedCommandBindings = [
+    { code: "ArrowUp", action: { type: KeyActionType.PANE_ACTION, action: "up" } },
+    { code: "ArrowDown", action: { type: KeyActionType.PANE_ACTION, action: "down" } },
+    { code: "ArrowLeft", action: { type: KeyActionType.PANE_ACTION, action: "left" } },
+    { code: "ArrowRight", action: { type: KeyActionType.PANE_ACTION, action: "right" } },
+    { code: "KeyV", action: { type: KeyActionType.PANE_ACTION, action: "splitLeftToRight" } },
+    { code: "KeyH", action: { type: KeyActionType.PANE_ACTION, action: "splitAboveBelow" } },
+    { code: "KeyS", action: { type: KeyActionType.PANE_ACTION, action: "toggleSelectionOrSwap" } },
+    { code: "BracketLeft", action: { type: KeyActionType.PANE_ACTION, action: "promote" } },
+    { code: "BracketRight", action: { type: KeyActionType.PANE_ACTION, action: "descend" } },
+    { code: "Equal", key: "+", action: { type: KeyActionType.PANE_ACTION, action: "grow" } },
+    { code: "Minus", action: { type: KeyActionType.PANE_ACTION, action: "shrink" } },
+    { code: "KeyE", action: { type: KeyActionType.PANE_ACTION, action: "equalize" } },
+    { code: "KeyM", action: { type: KeyActionType.PANE_ACTION, action: "toggleMove" } },
+    { code: "Enter", action: { type: KeyActionType.PANE_ACTION, action: "confirmMove" } },
+    { code: "KeyR", action: { type: KeyActionType.PANE_ACTION, action: "rotate" } },
+    { code: "KeyZ", action: { type: KeyActionType.PANE_ACTION, action: "toggleMaximize" } },
+    { code: "KeyX", action: { type: KeyActionType.PANE_ACTION, action: "close" } },
   ];
 
   function classifyModifierOnlyAction(event) {
@@ -255,8 +287,12 @@ std::string browser_client_js() {
     if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) {
       return null;
     }
-    const binding = shiftedCommandBindings.find(
-      (candidate) => event.code === candidate.code || event.key === candidate.key,
+    const contextualBindings = activeOverlay === "worktreeManagement"
+      ? worktreeShiftedCommandBindings
+      : paneShiftedCommandBindings;
+    const binding = [...globalShiftedCommandBindings, ...contextualBindings].find(
+      (candidate) => event.code === candidate.code ||
+        (candidate.key !== undefined && event.key === candidate.key),
     );
     return binding ? binding.action : null;
   }
@@ -327,6 +363,8 @@ std::string browser_client_js() {
       sendWorktreePickerCommand(action.command);
     } else if (action.type === KeyActionType.WORKTREE_OVERLAY_NAVIGATION) {
       sendWorktreeOverlayNavigation(action.navigation);
+    } else if (action.type === KeyActionType.PANE_ACTION) {
+      sendPaneAction(action.action);
     } else if (action.type === KeyActionType.TERMINAL_INPUT) {
       sendCommand(BrowserToBridgeDiscriminator.TERMINAL_INPUT, action.data);
     } else if (action.type === KeyActionType.REFRESH_STATUS) {

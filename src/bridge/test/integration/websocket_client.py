@@ -69,6 +69,9 @@ class WebSocketClient:
     def send_worktree_overlay_navigation(self, navigation: str):
         self.send_binary(b"7" + navigation.encode())
 
+    def send_pane_action(self, action: str):
+        self.send_binary(b"8" + action.encode())
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 

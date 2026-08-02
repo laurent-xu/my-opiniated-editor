@@ -42,6 +42,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     TOGGLE_COMMAND_MODE: "5",
     WORKTREE_PICKER_ACTION: "6",
     OVERLAY_NAVIGATION: "7",
+    PANE_ACTION: "8",
   });"""
     expected_bridge_to_browser_discriminators = """\
   const BridgeToBrowserDiscriminator = Object.freeze({
@@ -61,6 +62,7 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         'sendCommand(BrowserToBridgeDiscriminator.TOGGLE_COMMAND_MODE, "")',
         "sendCommand(BrowserToBridgeDiscriminator.WORKTREE_PICKER_ACTION, command)",
         "sendCommand(BrowserToBridgeDiscriminator.OVERLAY_NAVIGATION, navigation)",
+        "sendCommand(BrowserToBridgeDiscriminator.PANE_ACTION, action)",
         "if (command === BridgeToBrowserDiscriminator.TERMINAL_OUTPUT)",
         "if (command === BridgeToBrowserDiscriminator.PARENT_STATUS)",
     )
@@ -102,11 +104,13 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('document.addEventListener("keydown"', client_js)
     test_case.assertIn('let activeTrayLabel = "tray 1"', client_js)
     test_case.assertIn("let commandMode = false", client_js)
+    test_case.assertIn('let activeOverlay = "none"', client_js)
     test_case.assertNotIn("let worktreeManagerOpen", client_js)
     test_case.assertIn('parts.push("command")', client_js)
     test_case.assertNotIn("activeTrayNumber", client_js)
     test_case.assertNotIn("setCommandMode", client_js)
     test_case.assertIn("activeTrayLabel = status.trayLabel", client_js)
+    test_case.assertIn("activeOverlay = status.overlay", client_js)
     test_case.assertIn('event.key === "Escape"', client_js)
     test_case.assertIn(
         "return isEscapeKey(event) && event.shiftKey && !event.altKey && "
@@ -144,6 +148,15 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn('code: "KeyW"', client_js)
     test_case.assertIn('code: "KeyC"', client_js)
     test_case.assertIn('code: "KeyR"', client_js)
+    test_case.assertIn('code: "ArrowUp"', client_js)
+    test_case.assertIn('action: "splitLeftToRight"', client_js)
+    test_case.assertIn('action: "splitAboveBelow"', client_js)
+    test_case.assertIn('action: "toggleSelectionOrSwap"', client_js)
+    test_case.assertIn('action: "toggleMove"', client_js)
+    test_case.assertIn('action: "confirmMove"', client_js)
+    test_case.assertIn('action: "rotate"', client_js)
+    test_case.assertIn('action: "close"', client_js)
+    test_case.assertIn('activeOverlay === "worktreeManagement"', client_js)
     test_case.assertIn("toggleWorktreeManager()", client_js)
     test_case.assertIn('command: "c"', client_js)
     test_case.assertIn('command: "r"', client_js)
