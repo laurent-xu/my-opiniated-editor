@@ -11,6 +11,7 @@
 
 #include "src/parent/pane/pane.h"
 #include "src/parent/pane/pane_geometry.h"
+#include "src/parent/pane/pane_resize.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 namespace moe::parent {
@@ -47,6 +48,71 @@ std::string render_separators(std::vector<PaneSeparator> const& separators) {
       output.append(fill);
     }
   }
+  output.append("\x1b[0m\x1b[?7h\x1b[?25l");
+  return output;
+}
+
+struct ColoredCells {
+  int row;
+  int column;
+  int count;
+  int color;
+};
+
+void append_colored_cells(std::string& output, ColoredCells const cells) {
+  if (cells.count <= 0) {
+    return;
+  }
+  output.append("\x1b[");
+  output.append(std::to_string(cells.row + 1));
+  output.push_back(';');
+  output.append(std::to_string(cells.column + 1));
+  output.append("H\x1b[0;48;5;");
+  output.append(std::to_string(cells.color));
+  output.push_back('m');
+  output.append(static_cast<std::size_t>(cells.count), ' ');
+}
+
+void append_selection_border(std::string& output, PaneRegion const& region, int const color) {
+  int const rows = std::max(region.size.rows, 0);
+  int const columns = std::max(region.size.cols, 0);
+  if (rows == 0 || columns == 0) {
+    return;
+  }
+
+  append_colored_cells(
+      output,
+      {.row = region.origin.row, .column = region.origin.column, .count = columns, .color = color});
+  if (rows > 1) {
+    append_colored_cells(output, {.row = region.origin.row + rows - 1,
+                                  .column = region.origin.column,
+                                  .count = columns,
+                                  .color = color});
+  }
+  for (int row = 1; row + 1 < rows; ++row) {
+    append_colored_cells(output, {.row = region.origin.row + row,
+                                  .column = region.origin.column,
+                                  .count = 1,
+                                  .color = color});
+    if (columns > 1) {
+      append_colored_cells(output, {.row = region.origin.row + row,
+                                    .column = region.origin.column + columns - 1,
+                                    .count = 1,
+                                    .color = color});
+    }
+  }
+}
+
+std::string render_selection(PaneGeometry const& geometry, PaneSelection const& selection) {
+  constexpr int SELECTED_COLOR = 25;
+  constexpr int ACTIVE_COLOR = 33;
+  std::string output("\x1b[?25l\x1b[?7l");
+  for (PaneNodeId const node_id : selection.nodes()) {
+    if (node_id != selection.active()) {
+      append_selection_border(output, geometry.region(node_id), SELECTED_COLOR);
+    }
+  }
+  append_selection_border(output, geometry.region(selection.active()), ACTIVE_COLOR);
   output.append("\x1b[0m\x1b[?7h\x1b[?25l");
   return output;
 }
@@ -142,6 +208,7 @@ TrayExitUpdate Tray::reap_exited_panes() {
     focused_pane = pane_layout.node(pane_layout.leaf_nodes().front()).pane_id();
   }
   pane_maximized = false;
+  pane_selection.reset();
   resize_panes();
   return {.changed = true, .tray_exit_status = std::nullopt};
 }
@@ -173,6 +240,7 @@ PaneId Tray::split_focused_pane(PaneSplitAxis const axis, PaneInsertion const in
   panes.emplace(new_pane_id, std::move(new_pane));
   focused_pane = new_pane_id;
   pane_maximized = false;
+  pane_selection.reset();
   resize_panes();
   return new_pane_id;
 }
@@ -183,6 +251,9 @@ bool Tray::focus_pane(PaneId const pane_id) {
   }
   bool const changed = pane_id != focused_pane;
   focused_pane = pane_id;
+  if (changed) {
+    pane_selection.reset();
+  }
   if (pane_maximized && changed) {
     resize_panes();
   }
@@ -215,6 +286,7 @@ bool Tray::close_focused_pane() {
   focused_pane = pane_layout.node(next_focus.value()).pane_id();
   panes.erase(closing_pane);
   pane_maximized = false;
+  pane_selection.reset();
   resize_panes();
   return true;
 }
@@ -223,12 +295,111 @@ bool Tray::toggle_focused_pane_maximized() {
   if (panes.size() == 1U) {
     return false;
   }
+  pane_selection.reset();
   pane_maximized = !pane_maximized;
   resize_panes();
   return true;
 }
 
 bool Tray::focused_pane_is_maximized() const { return pane_maximized; }
+
+bool Tray::toggle_pane_selection() {
+  if (pane_selection.has_value()) {
+    pane_selection.reset();
+    return true;
+  }
+  if (pane_maximized) {
+    pane_maximized = false;
+    resize_panes();
+  }
+  PaneNodeId const focused_node = required_pane_node(pane_layout.find_pane(focused_pane));
+  pane_selection = PaneSelection::single(pane_layout, focused_node);
+  return true;
+}
+
+bool Tray::step_pane_selection(PaneFocusDirection const direction) {
+  if (!pane_selection.has_value()) {
+    return false;
+  }
+  std::optional<PaneNodeId> const parent = pane_selection->parent();
+  if (!parent.has_value()) {
+    return false;
+  }
+
+  PaneSplitAxis const axis = pane_layout.node(parent.value()).split().axis;
+  std::optional<PaneSiblingDirection> sibling_direction;
+  if (axis == PaneSplitAxis::LEFT_TO_RIGHT) {
+    if (direction == PaneFocusDirection::LEFT) {
+      sibling_direction = PaneSiblingDirection::PREVIOUS;
+    } else if (direction == PaneFocusDirection::RIGHT) {
+      sibling_direction = PaneSiblingDirection::NEXT;
+    }
+  } else if (direction == PaneFocusDirection::UP) {
+    sibling_direction = PaneSiblingDirection::PREVIOUS;
+  } else if (direction == PaneFocusDirection::DOWN) {
+    sibling_direction = PaneSiblingDirection::NEXT;
+  }
+  if (!sibling_direction.has_value()) {
+    return false;
+  }
+
+  PaneSelection const stepped = pane_selection->step(pane_layout, sibling_direction.value());
+  if (stepped.active() == pane_selection->active()) {
+    return false;
+  }
+  pane_selection = stepped;
+  return true;
+}
+
+bool Tray::promote_pane_selection() {
+  if (!pane_selection.has_value()) {
+    return false;
+  }
+  PaneSelection const promoted = pane_selection->promote(pane_layout);
+  if (promoted.nodes() == pane_selection->nodes()) {
+    return false;
+  }
+  pane_selection = promoted;
+  return true;
+}
+
+bool Tray::descend_pane_selection() {
+  if (!pane_selection.has_value()) {
+    return false;
+  }
+  PaneSelection const descended = pane_selection->descend(pane_layout);
+  if (descended.nodes() == pane_selection->nodes()) {
+    return false;
+  }
+  pane_selection = descended;
+  return true;
+}
+
+bool Tray::resize_selected_panes(int const delta_percentage) {
+  bool const changed =
+      resize_pane_selection(pane_layout, selection_or_focused_pane(), delta_percentage);
+  if (changed) {
+    pane_maximized = false;
+    resize_panes();
+  }
+  return changed;
+}
+
+bool Tray::equalize_selected_panes() {
+  bool const changed =
+      pane_selection.has_value()
+          ? equalize_pane_selection(pane_layout, pane_selection.value())
+          : equalize_pane_selection_level(pane_layout, selection_or_focused_pane());
+  if (changed) {
+    pane_maximized = false;
+    resize_panes();
+  }
+  return changed;
+}
+
+std::optional<PaneSelection> const& Tray::selection() const { return pane_selection; }
+
+PaneLayout const& Tray::layout() const { return pane_layout; }
 
 TrayId const& Tray::id() const { return tray_id; }
 
@@ -277,6 +448,14 @@ PaneId Tray::allocate_pane_id() {
   return result;
 }
 
+PaneSelection Tray::selection_or_focused_pane() const {
+  if (pane_selection.has_value()) {
+    return pane_selection.value();
+  }
+  return PaneSelection::single(pane_layout,
+                               required_pane_node(pane_layout.find_pane(focused_pane)));
+}
+
 std::string Tray::render_layout(TerminalPosition const origin, base::TerminalSize const size,
                                 bool const restore_focused_cursor) const {
   if (pane_maximized) {
@@ -294,15 +473,19 @@ std::string Tray::render_layout(TerminalPosition const origin, base::TerminalSiz
   std::string output;
   for (PaneNodeId const node_id : pane_layout.leaf_nodes()) {
     PaneId const pane_id = pane_layout.node(node_id).pane_id();
-    bool const defer_focused = restore_focused_cursor && pane_id == focused_pane &&
-                               focused_region.size.rows > 0 && focused_region.size.cols > 0;
+    bool const defer_focused = restore_focused_cursor && !pane_selection.has_value() &&
+                               pane_id == focused_pane && focused_region.size.rows > 0 &&
+                               focused_region.size.cols > 0;
     if (!defer_focused) {
       PaneRegion const& region = geometry.region(node_id);
       output += pane(pane_id).preview_output(region.origin, region.size);
     }
   }
   output += render_separators(geometry.separators());
-  if (restore_focused_cursor && focused_region.size.rows > 0 && focused_region.size.cols > 0) {
+  if (pane_selection.has_value()) {
+    output += render_selection(geometry, pane_selection.value());
+  } else if (restore_focused_cursor && focused_region.size.rows > 0 &&
+             focused_region.size.cols > 0) {
     output += pane(focused_pane).redraw_output_at(focused_region.origin);
   }
   return output;

@@ -114,6 +114,36 @@ bool TrayManager::active_focused_pane_is_maximized() const {
   return active_tray().focused_pane_is_maximized();
 }
 
+bool TrayManager::toggle_active_pane_selection() {
+  return mutable_active_tray().toggle_pane_selection();
+}
+
+bool TrayManager::step_active_pane_selection(PaneFocusDirection const direction) {
+  return mutable_active_tray().step_pane_selection(direction);
+}
+
+bool TrayManager::promote_active_pane_selection() {
+  return mutable_active_tray().promote_pane_selection();
+}
+
+bool TrayManager::descend_active_pane_selection() {
+  return mutable_active_tray().descend_pane_selection();
+}
+
+bool TrayManager::resize_active_pane_selection(int const delta_percentage) {
+  return mutable_active_tray().resize_selected_panes(delta_percentage);
+}
+
+bool TrayManager::equalize_active_pane_selection() {
+  return mutable_active_tray().equalize_selected_panes();
+}
+
+std::optional<PaneSelection> const& TrayManager::active_pane_selection() const {
+  return active_tray().selection();
+}
+
+PaneLayout const& TrayManager::active_pane_layout() const { return active_tray().layout(); }
+
 PaneId TrayManager::active_focused_pane_id() const { return active_tray().focused_pane_id(); }
 
 TraySnapshot TrayManager::switch_to(TrayNumber const number) {

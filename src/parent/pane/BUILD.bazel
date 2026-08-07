@@ -74,7 +74,10 @@ cc_library(
     name = "pane_selection",
     srcs = ["pane_selection.cc"],
     hdrs = ["pane_selection.h"],
-    visibility = ["//src/parent/pane/test:__pkg__"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
     deps = [":pane_layout"],
 )
 
@@ -82,7 +85,10 @@ cc_library(
     name = "pane_resize",
     srcs = ["pane_resize.cc"],
     hdrs = ["pane_resize.h"],
-    visibility = ["//src/parent/pane/test:__pkg__"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
     deps = [
         ":pane_layout",
         ":pane_selection",

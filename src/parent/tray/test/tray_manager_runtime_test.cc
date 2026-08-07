@@ -1,4 +1,6 @@
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -14,6 +16,14 @@ using moe::parent::test_support::required_environment_path;
 using moe::parent::test_support::required_tray_number;
 using moe::parent::test_support::shell_marker_command;
 using moe::parent::test_support::start_manager;
+
+template <typename Value>
+Value required(std::optional<Value> const& value) {
+  if (!value.has_value()) {
+    throw std::logic_error("expected a value");
+  }
+  return value.value();
+}
 
 TEST(TrayManagerTest, StartsWithAnonymousTrayOne) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
@@ -163,6 +173,88 @@ TEST(TrayManagerTest, MaximizeRendersOnlyFocusedPaneUntilRestored) {
   EXPECT_NE(restored.find("__visible_second__"), std::string::npos);
 }
 
+TEST(TrayManagerTest, SelectionMovesOnlyBetweenCompleteNodesAtOneLevel) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const pane_a = manager->active_focused_pane_id();
+  moe::parent::PaneId const pane_b = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneId const pane_c = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneLayout const& layout = manager->active_pane_layout();
+  moe::parent::PaneNodeId const node_a = required(layout.find_pane(pane_a));
+  moe::parent::PaneNodeId const node_b = required(layout.find_pane(pane_b));
+  moe::parent::PaneNodeId const node_c = required(layout.find_pane(pane_c));
+  moe::parent::PaneNodeId const group_bc = required(layout.node(node_b).parent());
+  ASSERT_TRUE(manager->focus_active_pane(pane_b));
+
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+  ASSERT_TRUE(manager->active_pane_selection().has_value());
+  moe::parent::PaneSelection const selected_b = required(manager->active_pane_selection());
+  EXPECT_EQ(selected_b.nodes(), (std::vector<moe::parent::PaneNodeId>{node_b}));
+  EXPECT_NE(manager->active_redraw_output().find("\x1b[0;48;5;33m"), std::string::npos);
+
+  ASSERT_TRUE(manager->promote_active_pane_selection());
+  moe::parent::PaneSelection const selected_group = required(manager->active_pane_selection());
+  EXPECT_EQ(selected_group.nodes(), (std::vector<moe::parent::PaneNodeId>{group_bc}));
+  ASSERT_TRUE(manager->step_active_pane_selection(moe::parent::PaneFocusDirection::LEFT));
+  moe::parent::PaneSelection const selected_root_range = required(manager->active_pane_selection());
+  EXPECT_EQ(selected_root_range.nodes(), (std::vector<moe::parent::PaneNodeId>{node_a, group_bc}));
+  EXPECT_FALSE(selected_root_range.contains(node_b));
+  EXPECT_FALSE(selected_root_range.contains(node_c));
+
+  ASSERT_TRUE(manager->step_active_pane_selection(moe::parent::PaneFocusDirection::RIGHT));
+  ASSERT_TRUE(manager->descend_active_pane_selection());
+  moe::parent::PaneSelection const selected_child = required(manager->active_pane_selection());
+  EXPECT_EQ(selected_child.nodes(), (std::vector<moe::parent::PaneNodeId>{node_b}));
+
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+  EXPECT_FALSE(manager->active_pane_selection().has_value());
+}
+
+TEST(TrayManagerTest, ResizeAndEqualizeUseSelectionOrFocusedPane) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const first_pane = manager->active_focused_pane_id();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::TOP_TO_BOTTOM,
+                                                       moe::parent::PaneInsertion::AFTER));
+  ASSERT_TRUE(manager->focus_active_pane(first_pane));
+
+  ASSERT_TRUE(manager->resize_active_pane_selection(10));
+  moe::parent::PaneSplit const& resized =
+      manager->active_pane_layout().node(manager->active_pane_layout().root_id()).split();
+  EXPECT_EQ(resized.children[0].percentage.value(), 60);
+  EXPECT_EQ(resized.children[1].percentage.value(), 40);
+
+  ASSERT_TRUE(manager->equalize_active_pane_selection());
+  moe::parent::PaneSplit const& equalized =
+      manager->active_pane_layout().node(manager->active_pane_layout().root_id()).split();
+  EXPECT_EQ(equalized.children[0].percentage.value(), 50);
+  EXPECT_EQ(equalized.children[1].percentage.value(), 50);
+
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+  ASSERT_TRUE(manager->step_active_pane_selection(moe::parent::PaneFocusDirection::DOWN));
+  EXPECT_FALSE(manager->resize_active_pane_selection(10));
+}
+
+TEST(TrayManagerTest, EqualizeKeepsUnselectedSiblingPercentage) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  moe::parent::PaneId const second_pane = manager->active_focused_pane_id();
+  static_cast<void>(manager->split_active_focused_pane(moe::parent::PaneSplitAxis::LEFT_TO_RIGHT,
+                                                       moe::parent::PaneInsertion::AFTER));
+  ASSERT_TRUE(manager->focus_active_pane(second_pane));
+  ASSERT_TRUE(manager->resize_active_pane_selection(5));
+
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+  ASSERT_TRUE(manager->step_active_pane_selection(moe::parent::PaneFocusDirection::RIGHT));
+  ASSERT_TRUE(manager->equalize_active_pane_selection());
+
+  moe::parent::PaneSplit const& equalized =
+      manager->active_pane_layout().node(manager->active_pane_layout().root_id()).split();
+  EXPECT_EQ(equalized.children[0].percentage.value(), 47);
+  EXPECT_EQ(equalized.children[1].percentage.value(), 27);
+  EXPECT_EQ(equalized.children[2].percentage.value(), 26);
+}
 TEST(TrayManagerTest, ResizeAppliesToActiveTray) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
 

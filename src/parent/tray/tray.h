@@ -13,6 +13,7 @@
 #include "src/parent/pane/pane_id.h"
 #include "src/parent/pane/pane_layout.h"
 #include "src/parent/pane/pane_navigation.h"
+#include "src/parent/pane/pane_selection.h"
 #include "src/parent/terminal/screen/terminal_position.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
@@ -55,6 +56,14 @@ class Tray {
   [[nodiscard]] bool close_focused_pane();
   [[nodiscard]] bool toggle_focused_pane_maximized();
   [[nodiscard]] bool focused_pane_is_maximized() const;
+  [[nodiscard]] bool toggle_pane_selection();
+  [[nodiscard]] bool step_pane_selection(PaneFocusDirection direction);
+  [[nodiscard]] bool promote_pane_selection();
+  [[nodiscard]] bool descend_pane_selection();
+  [[nodiscard]] bool resize_selected_panes(int delta_percentage);
+  [[nodiscard]] bool equalize_selected_panes();
+  [[nodiscard]] std::optional<PaneSelection> const& selection() const;
+  [[nodiscard]] PaneLayout const& layout() const;
   [[nodiscard]] TrayId const& id() const;
   [[nodiscard]] TraySnapshot snapshot() const;
   void set_worktree_management_overlay(std::unique_ptr<WorktreeManagementOverlay> overlay);
@@ -68,6 +77,7 @@ class Tray {
   [[nodiscard]] Pane const& pane(PaneId pane_id) const;
   [[nodiscard]] Pane& mutable_pane(PaneId pane_id);
   [[nodiscard]] PaneId allocate_pane_id();
+  [[nodiscard]] PaneSelection selection_or_focused_pane() const;
   [[nodiscard]] std::string render_layout(TerminalPosition origin, base::TerminalSize size,
                                           bool restore_focused_cursor) const;
   void resize_panes();
@@ -82,6 +92,7 @@ class Tray {
   PaneId::Value next_pane_value{2};
   std::map<PaneId, std::unique_ptr<Pane>> panes;
   bool pane_maximized{false};
+  std::optional<PaneSelection> pane_selection;
   std::unique_ptr<WorktreeManagementOverlay> worktree_overlay;
 };
 
