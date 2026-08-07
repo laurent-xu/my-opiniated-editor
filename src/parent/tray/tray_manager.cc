@@ -138,6 +138,34 @@ bool TrayManager::equalize_active_pane_selection() {
   return mutable_active_tray().equalize_selected_panes();
 }
 
+bool TrayManager::toggle_active_pane_move() { return mutable_active_tray().toggle_pane_move(); }
+
+bool TrayManager::step_active_pane_move_target(PaneFocusDirection const direction) {
+  return mutable_active_tray().step_pane_move_target(direction);
+}
+
+bool TrayManager::promote_active_pane_move_target() {
+  return mutable_active_tray().promote_pane_move_target();
+}
+
+bool TrayManager::descend_active_pane_move_target() {
+  return mutable_active_tray().descend_pane_move_target();
+}
+
+bool TrayManager::toggle_active_pane_move_swap() {
+  return mutable_active_tray().toggle_pane_move_swap();
+}
+
+bool TrayManager::set_active_pane_move_drop_direction(PaneDropDirection const direction) {
+  return mutable_active_tray().set_pane_move_drop_direction(direction);
+}
+
+bool TrayManager::advance_active_pane_move() { return mutable_active_tray().advance_pane_move(); }
+
+std::optional<PaneMoveSession> const& TrayManager::active_pane_move_session() const {
+  return active_tray().move_session();
+}
+
 std::optional<PaneSelection> const& TrayManager::active_pane_selection() const {
   return active_tray().selection();
 }

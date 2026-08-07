@@ -12,6 +12,7 @@
 #include "src/base/terminal_size.h"
 #include "src/parent/pane/pane_id.h"
 #include "src/parent/pane/pane_layout.h"
+#include "src/parent/pane/pane_move_session.h"
 #include "src/parent/pane/pane_navigation.h"
 #include "src/parent/pane/pane_selection.h"
 #include "src/parent/terminal/screen/terminal_position.h"
@@ -62,6 +63,14 @@ class Tray {
   [[nodiscard]] bool descend_pane_selection();
   [[nodiscard]] bool resize_selected_panes(int delta_percentage);
   [[nodiscard]] bool equalize_selected_panes();
+  [[nodiscard]] bool toggle_pane_move();
+  [[nodiscard]] bool step_pane_move_target(PaneFocusDirection direction);
+  [[nodiscard]] bool promote_pane_move_target();
+  [[nodiscard]] bool descend_pane_move_target();
+  [[nodiscard]] bool toggle_pane_move_swap();
+  [[nodiscard]] bool set_pane_move_drop_direction(PaneDropDirection direction);
+  [[nodiscard]] bool advance_pane_move();
+  [[nodiscard]] std::optional<PaneMoveSession> const& move_session() const;
   [[nodiscard]] std::optional<PaneSelection> const& selection() const;
   [[nodiscard]] PaneLayout const& layout() const;
   [[nodiscard]] TrayId const& id() const;
@@ -93,6 +102,7 @@ class Tray {
   std::map<PaneId, std::unique_ptr<Pane>> panes;
   bool pane_maximized{false};
   std::optional<PaneSelection> pane_selection;
+  std::optional<PaneMoveSession> pane_move_session;
   std::unique_ptr<WorktreeManagementOverlay> worktree_overlay;
 };
 
