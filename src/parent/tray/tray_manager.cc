@@ -138,6 +138,10 @@ bool TrayManager::equalize_active_pane_selection() {
   return mutable_active_tray().equalize_selected_panes();
 }
 
+bool TrayManager::rotate_active_pane_level() {
+  return mutable_active_tray().rotate_selected_pane_level();
+}
+
 bool TrayManager::toggle_active_pane_move() { return mutable_active_tray().toggle_pane_move(); }
 
 bool TrayManager::step_active_pane_move_target(PaneFocusDirection const direction) {

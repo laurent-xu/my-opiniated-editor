@@ -74,6 +74,7 @@ cc_library(
         "//src/parent/pane:pane_move_session",
         "//src/parent/pane:pane_navigation",
         "//src/parent/pane:pane_resize",
+        "//src/parent/pane:pane_rotate",
         "//src/parent/pane:pane_runtime",
         "//src/parent/pane:pane_selection",
         "//src/parent/terminal/screen:terminal_position",

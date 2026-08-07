@@ -12,6 +12,7 @@
 #include "src/parent/pane/pane.h"
 #include "src/parent/pane/pane_geometry.h"
 #include "src/parent/pane/pane_resize.h"
+#include "src/parent/pane/pane_rotate.h"
 #include "src/parent/worktree/overlay/worktree_management_overlay.h"
 
 namespace moe::parent {
@@ -459,6 +460,20 @@ bool Tray::equalize_selected_panes() {
           : equalize_pane_selection_level(pane_layout, selection_or_focused_pane());
   if (changed) {
     pane_maximized = false;
+    resize_panes();
+  }
+  return changed;
+}
+
+bool Tray::rotate_selected_pane_level() {
+  pane_move_session.reset();
+  PaneSelection rotated_selection = selection_or_focused_pane();
+  bool const changed = rotate_pane_selection_level(pane_layout, rotated_selection);
+  if (changed) {
+    pane_maximized = false;
+    if (pane_selection.has_value()) {
+      pane_selection = std::move(rotated_selection);
+    }
     resize_panes();
   }
   return changed;

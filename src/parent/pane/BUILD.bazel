@@ -121,6 +121,17 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "pane_rotate",
+    srcs = ["pane_rotate.cc"],
+    hdrs = ["pane_rotate.h"],
+    visibility = [
+        "//src/parent/pane/test:__pkg__",
+        "//src/parent/tray:__pkg__",
+    ],
+    deps = [":pane_selection"],
+)
+
 test_suite(
     name = "pane_test",
     tests = [
@@ -131,6 +142,7 @@ test_suite(
         "//src/parent/pane/test:pane_move_session_test",
         "//src/parent/pane/test:pane_navigation_test",
         "//src/parent/pane/test:pane_resize_test",
+        "//src/parent/pane/test:pane_rotate_test",
         "//src/parent/pane/test:pane_selection_test",
         "//src/parent/pane/test:pane_test",
     ],

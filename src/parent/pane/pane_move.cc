@@ -144,9 +144,9 @@ class PaneLayoutMover {
     target_split.children[target_index].node_id = source;
     layout.nodes.at(source).set_parent(target_parent);
     layout.nodes.at(target).set_parent(source_parent);
-    normalize_direct_children(source_parent.value());
+    layout.flatten_matching_split_children(source_parent.value());
     if (target_parent != source_parent) {
-      normalize_direct_children(target_parent.value());
+      layout.flatten_matching_split_children(target_parent.value());
     }
     return true;
   }
@@ -370,35 +370,6 @@ class PaneLayoutMover {
     layout.nodes.emplace(wrapper_id, PaneLayoutNode(wrapper_id, target_parent,
                                                     PaneSplit{.axis = placement.axis,
                                                               .children = std::move(children)}));
-  }
-
-  void normalize_direct_children(PaneNodeId const parent_id) {
-    PaneSplit& split = layout.nodes.at(parent_id).mutable_split();
-    std::vector<PaneSplitChild> children;
-    std::vector<PaneNodeId> flattened_nodes;
-    for (PaneSplitChild const& split_child : split.children) {
-      PaneNodeId const child_id = split_child.node_id;
-      PaneLayoutNode const& child = layout.node(child_id);
-      if (child.is_leaf() || child.split().axis != split.axis) {
-        children.push_back(split_child);
-        continue;
-      }
-
-      PaneSplit const child_split = child.split();
-      std::vector<PaneSplitChild> promoted_children = child_split.children;
-      assign_percentages(promoted_children,
-                         distribute_pane_percentage_total(percentage_values(promoted_children),
-                                                          split_child.percentage.value()));
-      children.insert(children.end(), promoted_children.begin(), promoted_children.end());
-      flattened_nodes.push_back(child_id);
-    }
-    split.children = std::move(children);
-    for (PaneSplitChild const& child : split.children) {
-      layout.nodes.at(child.node_id).set_parent(parent_id);
-    }
-    for (PaneNodeId const flattened : flattened_nodes) {
-      layout.nodes.erase(flattened);
-    }
   }
 
   PaneLayout& layout;

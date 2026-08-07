@@ -52,6 +52,7 @@ class TrayManager {
   [[nodiscard]] bool descend_active_pane_selection();
   [[nodiscard]] bool resize_active_pane_selection(int delta_percentage);
   [[nodiscard]] bool equalize_active_pane_selection();
+  [[nodiscard]] bool rotate_active_pane_level();
   [[nodiscard]] bool toggle_active_pane_move();
   [[nodiscard]] bool step_active_pane_move_target(PaneFocusDirection direction);
   [[nodiscard]] bool promote_active_pane_move_target();

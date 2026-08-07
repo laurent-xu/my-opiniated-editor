@@ -224,6 +224,81 @@ std::optional<PaneNodeId> PaneLayout::remove_leaf(PaneNodeId const target) {
   return next_focus;
 }
 
+bool PaneLayout::rotate_split(PaneNodeId const split_node) {
+  if (node(split_node).is_leaf()) {
+    return false;
+  }
+  std::optional<PaneNodeId> const parent = node(split_node).parent();
+  toggle_split_axes(split_node);
+  if (parent.has_value() && node(parent.value()).split().axis == node(split_node).split().axis) {
+    flatten_matching_split_children(parent.value());
+  }
+  return true;
+}
+
+PaneNodeId PaneLayout::rotate_sibling_range(std::vector<PaneNodeId> const& siblings) {
+  if (siblings.size() < 2U) {
+    throw std::invalid_argument("pane rotation range requires at least two siblings");
+  }
+  std::optional<PaneNodeId> const parent = node(siblings.front()).parent();
+  if (!parent.has_value()) {
+    throw std::invalid_argument("pane rotation range must have a parent");
+  }
+
+  PaneSplit& parent_split = nodes.at(parent.value()).mutable_split();
+  std::size_t const first_index = child_index(parent_split, siblings.front());
+  if (first_index + siblings.size() > parent_split.children.size()) {
+    throw std::invalid_argument("pane rotation range must be contiguous siblings");
+  }
+  for (std::size_t offset = 0; offset < siblings.size(); ++offset) {
+    if (parent_split.children[first_index + offset].node_id != siblings[offset]) {
+      throw std::invalid_argument("pane rotation range must be contiguous siblings");
+    }
+  }
+  if (siblings.size() == parent_split.children.size()) {
+    throw std::invalid_argument("complete pane rotation levels must rotate their parent split");
+  }
+
+  int selected_share = 0;
+  std::vector<int> selected_weights;
+  selected_weights.reserve(siblings.size());
+  for (std::size_t offset = 0; offset < siblings.size(); ++offset) {
+    int const weight = parent_split.children[first_index + offset].percentage.value();
+    selected_share += weight;
+    selected_weights.push_back(weight);
+  }
+
+  std::vector<PanePercentage> const selected_percentages =
+      normalize_pane_percentages(selected_weights);
+  std::vector<PaneSplitChild> selected_children;
+  selected_children.reserve(siblings.size());
+  for (std::size_t offset = 0; offset < siblings.size(); ++offset) {
+    selected_children.push_back(
+        {.node_id = siblings[offset], .percentage = selected_percentages[offset]});
+  }
+
+  PaneNodeId const group_id = allocate_node_id();
+  PaneSplit group{
+      .axis = parent_split.axis == PaneSplitAxis::LEFT_TO_RIGHT ? PaneSplitAxis::TOP_TO_BOTTOM
+                                                                : PaneSplitAxis::LEFT_TO_RIGHT,
+      .children = std::move(selected_children),
+  };
+
+  auto const first_child = parent_split.children.begin() + static_cast<std::ptrdiff_t>(first_index);
+  parent_split.children.erase(first_child,
+                              first_child + static_cast<std::ptrdiff_t>(siblings.size()));
+  parent_split.children.insert(
+      parent_split.children.begin() + static_cast<std::ptrdiff_t>(first_index),
+      {.node_id = group_id, .percentage = required_percentage(selected_share)});
+
+  for (PaneNodeId const sibling : siblings) {
+    nodes.at(sibling).set_parent(group_id);
+    toggle_split_axes(sibling);
+  }
+  nodes.emplace(group_id, PaneLayoutNode(group_id, parent, std::move(group)));
+  return group_id;
+}
+
 void PaneLayout::set_split_percentages(PaneNodeId const split_node,
                                        std::vector<int> const& weights) {
   PaneSplit& split = nodes.at(split_node).mutable_split();
@@ -254,6 +329,25 @@ void PaneLayout::append_leaf_nodes(PaneNodeId const node_id,
   }
   for (PaneSplitChild const& child : layout_node.split().children) {
     append_leaf_nodes(child.node_id, output);
+  }
+}
+
+void PaneLayout::toggle_split_axes(PaneNodeId const node_id) {
+  PaneLayoutNode& layout_node = nodes.at(node_id);
+  if (layout_node.is_leaf()) {
+    return;
+  }
+
+  PaneSplit& split = layout_node.mutable_split();
+  split.axis = split.axis == PaneSplitAxis::LEFT_TO_RIGHT ? PaneSplitAxis::TOP_TO_BOTTOM
+                                                          : PaneSplitAxis::LEFT_TO_RIGHT;
+  std::vector<PaneNodeId> children;
+  children.reserve(split.children.size());
+  for (PaneSplitChild const& child : split.children) {
+    children.push_back(child.node_id);
+  }
+  for (PaneNodeId const child : children) {
+    toggle_split_axes(child);
   }
 }
 
@@ -309,6 +403,42 @@ void PaneLayout::dissolve_unary_split(PaneNodeId const split_node) {
   grandparent_split.children[inherited_index].node_id = child_id;
   nodes.at(child_id).set_parent(grandparent_id);
   nodes.erase(split_node);
+}
+
+void PaneLayout::flatten_matching_split_children(PaneNodeId const split_node) {
+  PaneSplit& split = nodes.at(split_node).mutable_split();
+  std::vector<PaneSplitChild> children;
+  std::vector<PaneNodeId> flattened_nodes;
+  for (PaneSplitChild const& split_child : split.children) {
+    PaneNodeId const child_id = split_child.node_id;
+    PaneLayoutNode const& child = node(child_id);
+    if (child.is_leaf() || child.split().axis != split.axis) {
+      children.push_back(split_child);
+      continue;
+    }
+
+    PaneSplit const child_split = child.split();
+    std::vector<int> child_weights;
+    child_weights.reserve(child_split.children.size());
+    for (PaneSplitChild const& nested_child : child_split.children) {
+      child_weights.push_back(nested_child.percentage.value());
+    }
+    std::vector<int> const distributed =
+        distribute_pane_percentage_total(child_weights, split_child.percentage.value());
+    std::vector<PaneSplitChild> promoted_children = child_split.children;
+    for (std::size_t index = 0; index < promoted_children.size(); ++index) {
+      promoted_children[index].percentage = required_percentage(distributed[index]);
+    }
+    children.insert(children.end(), promoted_children.begin(), promoted_children.end());
+    flattened_nodes.push_back(child_id);
+  }
+  split.children = std::move(children);
+  for (PaneSplitChild const& child : split.children) {
+    nodes.at(child.node_id).set_parent(split_node);
+  }
+  for (PaneNodeId const flattened : flattened_nodes) {
+    nodes.erase(flattened);
+  }
 }
 
 }  // namespace moe::parent

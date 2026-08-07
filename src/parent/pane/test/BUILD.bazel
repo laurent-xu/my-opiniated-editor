@@ -90,3 +90,13 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_test(
+    name = "pane_rotate_test",
+    srcs = ["pane_rotate_test.cc"],
+    visibility = ["//src/parent/pane:__pkg__"],
+    deps = [
+        "//src/parent/pane:pane_rotate",
+        "@googletest//:gtest_main",
+    ],
+)

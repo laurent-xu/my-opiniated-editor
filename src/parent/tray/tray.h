@@ -63,6 +63,7 @@ class Tray {
   [[nodiscard]] bool descend_pane_selection();
   [[nodiscard]] bool resize_selected_panes(int delta_percentage);
   [[nodiscard]] bool equalize_selected_panes();
+  [[nodiscard]] bool rotate_selected_pane_level();
   [[nodiscard]] bool toggle_pane_move();
   [[nodiscard]] bool step_pane_move_target(PaneFocusDirection direction);
   [[nodiscard]] bool promote_pane_move_target();

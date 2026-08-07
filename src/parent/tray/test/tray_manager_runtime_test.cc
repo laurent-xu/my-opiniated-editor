@@ -336,6 +336,68 @@ TEST(TrayManagerTest, SwapPreviewKeepsLiveSlotsUntilConfirm) {
   EXPECT_EQ(manager->active_focused_pane_id(), first_pane);
 }
 
+TEST(TrayManagerTest, RotateNormalizesTheFocusedPaneLevel) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const pane_a = manager->active_focused_pane_id();
+  moe::parent::PaneId const pane_b = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneId const pane_c = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, moe::parent::PaneInsertion::AFTER);
+  ASSERT_TRUE(manager->focus_active_pane(pane_b));
+
+  ASSERT_TRUE(manager->rotate_active_pane_level());
+
+  moe::parent::PaneLayout const& layout = manager->active_pane_layout();
+  moe::parent::PaneSplit const& root = layout.node(layout.root_id()).split();
+  EXPECT_EQ(root.axis, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT);
+  ASSERT_EQ(root.children.size(), 3U);
+  EXPECT_EQ(layout.node(root.children[0].node_id).pane_id(), pane_a);
+  EXPECT_EQ(layout.node(root.children[1].node_id).pane_id(), pane_b);
+  EXPECT_EQ(layout.node(root.children[2].node_id).pane_id(), pane_c);
+  EXPECT_EQ(manager->active_focused_pane_id(), pane_b);
+}
+
+TEST(TrayManagerTest, RotateKeepsTheLogicalSelectionForASecondRotation) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const pane_a = manager->active_focused_pane_id();
+  moe::parent::PaneId const pane_b = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneId const pane_c = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, moe::parent::PaneInsertion::AFTER);
+  ASSERT_TRUE(manager->focus_active_pane(pane_b));
+  moe::parent::PaneLayout const& initial = manager->active_pane_layout();
+  moe::parent::PaneNodeId const node_a = required(initial.find_pane(pane_a));
+  moe::parent::PaneNodeId const node_b = required(initial.find_pane(pane_b));
+  moe::parent::PaneNodeId const node_c = required(initial.find_pane(pane_c));
+
+  ASSERT_TRUE(manager->toggle_active_pane_selection());
+  ASSERT_TRUE(manager->promote_active_pane_selection());
+  ASSERT_TRUE(manager->rotate_active_pane_level());
+
+  ASSERT_TRUE(manager->active_pane_selection().has_value());
+  moe::parent::PaneSelection const rotated_selection = required(manager->active_pane_selection());
+  EXPECT_EQ(rotated_selection.nodes(), (std::vector<moe::parent::PaneNodeId>{node_b, node_c}));
+  moe::parent::PaneSplit const& flattened =
+      manager->active_pane_layout().node(manager->active_pane_layout().root_id()).split();
+  EXPECT_EQ(child_node_ids(flattened),
+            (std::vector<moe::parent::PaneNodeId>{node_a, node_b, node_c}));
+
+  ASSERT_TRUE(manager->rotate_active_pane_level());
+
+  ASSERT_TRUE(manager->active_pane_selection().has_value());
+  moe::parent::PaneSelection const restored_selection = required(manager->active_pane_selection());
+  ASSERT_EQ(restored_selection.nodes().size(), 1U);
+  moe::parent::PaneNodeId const restored_group = restored_selection.nodes().front();
+  moe::parent::PaneSplit const& restored_root =
+      manager->active_pane_layout().node(manager->active_pane_layout().root_id()).split();
+  EXPECT_EQ(child_node_ids(restored_root),
+            (std::vector<moe::parent::PaneNodeId>{node_a, restored_group}));
+  moe::parent::PaneSplit const& restored =
+      manager->active_pane_layout().node(restored_group).split();
+  EXPECT_EQ(restored.axis, moe::parent::PaneSplitAxis::TOP_TO_BOTTOM);
+  EXPECT_EQ(child_node_ids(restored), (std::vector<moe::parent::PaneNodeId>{node_b, node_c}));
+}
+
 TEST(TrayManagerTest, ResizeAppliesToActiveTray) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
 

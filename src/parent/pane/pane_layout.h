@@ -66,6 +66,8 @@ class PaneLayout {
   [[nodiscard]] PaneNodeId split_leaf(PaneNodeId target, PaneSplitAxis axis, PaneId new_pane,
                                       PaneInsertion insertion);
   [[nodiscard]] std::optional<PaneNodeId> remove_leaf(PaneNodeId target);
+  [[nodiscard]] bool rotate_split(PaneNodeId split_node);
+  [[nodiscard]] PaneNodeId rotate_sibling_range(std::vector<PaneNodeId> const& siblings);
   void set_split_percentages(PaneNodeId split_node, std::vector<int> const& weights);
 
  private:
@@ -76,7 +78,9 @@ class PaneLayout {
 
   [[nodiscard]] PaneNodeId allocate_node_id();
   void append_leaf_nodes(PaneNodeId node_id, std::vector<PaneNodeId>& output) const;
+  void toggle_split_axes(PaneNodeId node_id);
   void dissolve_unary_split(PaneNodeId split_node);
+  void flatten_matching_split_children(PaneNodeId split_node);
 
   PaneNodeId root;
   std::map<PaneNodeId, PaneLayoutNode> nodes;
