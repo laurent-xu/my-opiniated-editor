@@ -46,6 +46,8 @@ TEST(WorktreeManagementOverlayTest, AddWorktreeModeShowsAllRepositoriesInPathPic
           "/unused/workspace_parent", registry_path, root, "/unused/git",
           runfile_path("test/fixtures/fake_fzf").string(), {}, size);
   overlay->write_input("\t");
+  EXPECT_TRUE(overlay->take_full_redraw_request());
+  EXPECT_EQ(overlay->opaque_region_start_row(), 12);
 
   std::optional<moe::base::FileDescriptor> const descriptor = overlay->process_file_descriptor();
   if (!descriptor.has_value()) {
@@ -93,6 +95,7 @@ TEST(WorktreeManagementOverlayTest, WorktreePickerIncludesAndPreviewsUsedAnonymo
   EXPECT_EQ(preview_request.origin.column, 0);
   EXPECT_EQ(preview_request.size.rows, 12);
   EXPECT_EQ(preview_request.size.cols, 100);
+  EXPECT_EQ(overlay->opaque_region_start_row(), 12);
 
   std::optional<moe::base::FileDescriptor> const descriptor = overlay->process_file_descriptor();
   if (!descriptor.has_value()) {

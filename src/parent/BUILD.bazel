@@ -18,6 +18,7 @@ cc_library(
         "//src/parent/tray:tray_contracts",
         "//src/parent/tray:tray_identity",
         "//src/parent/tray:tray_manager",
+        "//src/parent/view:pane_view_protocol",
         "//src/parent/worktree/overlay:worktree_management_overlay",
         "//src/parent/worktree/registration:worktree_repository_registrar",
         "//src/parent/worktree:worktree_helper_commands",

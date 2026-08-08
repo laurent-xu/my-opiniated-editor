@@ -16,6 +16,8 @@ char discriminator_for_bridge_message(BridgeToBrowserMessage::Type const type) {
       return bridge_to_browser_discriminator::TERMINAL_OUTPUT;
     case BridgeToBrowserMessage::Type::PARENT_STATUS:
       return bridge_to_browser_discriminator::PARENT_STATUS;
+    case BridgeToBrowserMessage::Type::PANE_OUTPUT:
+      return bridge_to_browser_discriminator::PANE_OUTPUT;
   }
   throw std::logic_error("invalid bridge-to-browser message type");
 }
@@ -53,6 +55,9 @@ std::optional<BrowserToBridgeMessage> decode_browser_to_bridge_message(
       break;
     case browser_to_bridge_discriminator::PANE_ACTION:
       type = BrowserToBridgeMessage::Type::PANE_ACTION;
+      break;
+    case browser_to_bridge_discriminator::PANE_RESIZE:
+      type = BrowserToBridgeMessage::Type::PANE_RESIZE;
       break;
     default:
       return std::nullopt;

@@ -179,6 +179,15 @@ bool WorktreeManagementOverlay::take_full_redraw_request() noexcept {
   return std::exchange(full_redraw_requested, false);
 }
 
+int WorktreeManagementOverlay::opaque_region_start_row() const noexcept {
+  if (picker != nullptr) {
+    return std::clamp(picker->available_region_above().rows, 0, std::max(size.rows - 1, 0));
+  }
+  int const available_rows = std::max(size.rows - OVERLAY_FOOTER_HEIGHT, 0);
+  int const height = std::min(DIALOG_HEIGHT, available_rows);
+  return std::max(std::max(1, size.rows - height) - 1, 0);
+}
+
 std::optional<TrayId> WorktreeManagementOverlay::take_tray_to_open() {
   return std::exchange(tray_to_open, std::nullopt);
 }
@@ -319,10 +328,10 @@ void WorktreeManagementOverlay::cycle_mode(ModeDirection const direction) {
   workflow_state.cycle_mode(direction);
   load_repositories();
   activate_mode();
+  full_redraw_requested = true;
 }
 
 void WorktreeManagementOverlay::activate_mode() {
-  bool const picker_was_active = picker != nullptr;
   picker = nullptr;
   mode_switch_sequence.clear();
   input_sequence_state = InputSequenceState::NORMAL;
@@ -332,9 +341,6 @@ void WorktreeManagementOverlay::activate_mode() {
   } else if (workflow_state.mode() == Mode::ADD_WORKTREE &&
              workflow_state.current_stage() == Stage::WORKTREE_REPOSITORY) {
     start_repository_picker();
-  }
-  if (picker_was_active && picker == nullptr) {
-    full_redraw_requested = true;
   }
 }
 

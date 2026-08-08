@@ -128,6 +128,23 @@ TEST(TrayManagerTest, ClosingFocusedPaneLeavesItsSiblingTrayRunning) {
   EXPECT_EQ(manager->output_sources().size(), 1U);
 }
 
+TEST(TrayManagerTest, ClosingOnlyPaneDestroysTrayAndRecreatesMissingTrayOne) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::TraySnapshot const first = manager->active_snapshot();
+  moe::parent::TraySnapshot const second = manager->switch_to(required_tray_number(2));
+  ASSERT_TRUE(manager->destroy_tray(first.id));
+
+  ASSERT_TRUE(manager->close_active_focused_pane());
+
+  moe::parent::TraySnapshot const replacement = manager->active_snapshot();
+  EXPECT_EQ(replacement.id, first.id);
+  EXPECT_NE(replacement.child_pid.value(), first.child_pid.value());
+  EXPECT_NE(replacement.child_pid.value(), second.child_pid.value());
+  EXPECT_FALSE(process_exists(first.child_pid));
+  EXPECT_FALSE(process_exists(second.child_pid));
+  EXPECT_EQ(manager->tray_snapshots().size(), 1U);
+}
+
 TEST(TrayManagerTest, ExitedPaneLeavesItsSiblingTrayRunning) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
   moe::parent::TraySnapshot const original = manager->active_snapshot();

@@ -61,6 +61,7 @@ cc_library(
         "//src/bridge/server:pty_websocket_hub",
         "//src/parent/input/command:parent_input_commands",
         "//src/parent/input:parent_input_protocol",
+        "//src/parent/view:pane_view_protocol",
     ],
 )
 

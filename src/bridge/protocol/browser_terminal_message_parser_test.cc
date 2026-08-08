@@ -1,5 +1,7 @@
 #include <array>
 #include <optional>
+#include <stdexcept>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -15,10 +17,46 @@ using moe::bridge::protocol::BrowserTerminalInput;
 using moe::bridge::protocol::BrowserTerminalResize;
 using moe::bridge::protocol::test::expect_parse_error;
 
+moe::parent::PaneId pane_id(std::uint64_t const value) {
+  std::optional<moe::parent::PaneId> const result = moe::parent::PaneId::from_value(value);
+  if (!result.has_value()) {
+    throw std::logic_error("test pane id must be nonzero");
+  }
+  return *result;
+}
+
 TEST(BrowserApplicationMessageParserTest, IgnoresEmptyReservedAndUnknownMessages) {
-  for (std::string_view const message : {"", "4reserved", "9unknown", "xunknown"}) {
+  for (std::string_view const message : {"", "4reserved", "xunknown"}) {
     EXPECT_FALSE(moe::bridge::protocol::parse_browser_application_message(message).has_value());
   }
+}
+
+TEST(BrowserApplicationMessageParserTest, ParsesPaneViewportResize) {
+  moe::parent::PaneViewOutput const identity{
+      .tray_key = "anonymous:1",
+      .pane_id = pane_id(3),
+      .bytes = std::string(8, '\0'),
+  };
+  std::string payload = moe::parent::encode_pane_output_payload(identity);
+  payload.resize(payload.size() - identity.bytes.size());
+  payload.append("\0\0\0\x18\0\0\0\x50", 8);
+  std::string message(1, '9');
+  message.append(payload);
+
+  std::optional<BrowserApplicationMessage> const parsed =
+      moe::bridge::protocol::parse_browser_application_message(message);
+
+  if (!parsed.has_value()) {
+    FAIL() << "pane resize was not parsed";
+    return;
+  }
+  moe::parent::PaneViewResize const* const resize =
+      std::get_if<moe::parent::PaneViewResize>(&parsed.value());
+  ASSERT_NE(resize, nullptr);
+  EXPECT_EQ(resize->tray_key, "anonymous:1");
+  EXPECT_EQ(resize->pane_id.value(), 3U);
+  EXPECT_EQ(resize->size.rows, 24);
+  EXPECT_EQ(resize->size.cols, 80);
 }
 
 TEST(BrowserApplicationMessageParserTest, PreservesEmptyAndBinaryTerminalInput) {

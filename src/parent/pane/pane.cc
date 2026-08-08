@@ -15,7 +15,9 @@ std::unique_ptr<Pane> Pane::start(PaneConfig const& config) {
 }
 
 Pane::Pane(std::unique_ptr<ContentPtySession> content_pty, base::TerminalSize const size)
-    : content(std::move(content_pty)), terminal_screen(std::make_unique<TerminalScreen>(size)) {
+    : content(std::move(content_pty)),
+      terminal_screen(std::make_unique<TerminalScreen>(size)),
+      current_size(size) {
   if (content == nullptr) {
     throw std::invalid_argument("pane requires a content pty");
   }
@@ -45,8 +47,12 @@ std::string Pane::preview_output(TerminalPosition const origin,
 }
 
 void Pane::resize(base::TerminalSize const size) {
+  if (size.rows == current_size.rows && size.cols == current_size.cols) {
+    return;
+  }
   content->resize(size);
   terminal_screen->resize(size);
+  current_size = size;
 }
 
 std::optional<process::ProcessExitStatus> Pane::try_wait_for_exit() noexcept {

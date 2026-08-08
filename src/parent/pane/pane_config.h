@@ -12,6 +12,7 @@ struct PaneConfig {
   std::vector<std::string> command;
   std::filesystem::path working_directory;
   base::TerminalSize initial_size;
+  bool estimate_layout_sizes{true};
 };
 
 }  // namespace moe::parent

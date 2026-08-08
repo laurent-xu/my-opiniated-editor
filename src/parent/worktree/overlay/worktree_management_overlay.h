@@ -45,6 +45,7 @@ class WorktreeManagementOverlay : public Overlay {
   [[nodiscard]] std::optional<base::FileDescriptor> process_file_descriptor() const override;
   [[nodiscard]] std::string redraw_output() const override;
   [[nodiscard]] bool take_full_redraw_request() noexcept;
+  [[nodiscard]] int opaque_region_start_row() const noexcept;
   [[nodiscard]] std::optional<TrayId> take_tray_to_open();
   [[nodiscard]] std::optional<TrayPreviewRequest> preview_request() const;
   [[nodiscard]] std::optional<TrayId> highlighted_tray_id() const;

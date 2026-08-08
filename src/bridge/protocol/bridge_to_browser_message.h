@@ -9,6 +9,7 @@ struct BridgeToBrowserMessage {
   enum class Type : std::uint8_t {
     TERMINAL_OUTPUT,
     PARENT_STATUS,
+    PANE_OUTPUT,
   };
 
   Type type;

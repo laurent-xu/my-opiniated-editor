@@ -72,6 +72,16 @@ class WebSocketClient:
     def send_pane_action(self, action: str):
         self.send_binary(b"8" + action.encode())
 
+    def send_pane_resize(self, tray_key: str, pane_id: int, rows: int, columns: int):
+        tray_bytes = tray_key.encode()
+        payload = (
+            b"9"
+            + struct.pack("!H", len(tray_bytes))
+            + tray_bytes
+            + struct.pack("!QII", pane_id, rows, columns)
+        )
+        self.send_binary(payload)
+
     def send_shell_marker(self, marker: str):
         self.send_terminal_input(shell_marker_command(marker))
 
@@ -148,6 +158,41 @@ class WebSocketClient:
 
         text = output.decode(errors="replace")
         raise AssertionError(f"timed out waiting for {needle!r}; output was {text!r}")
+
+    def read_pane_output_until(
+        self, needle: str, timeout_seconds: float = 5.0
+    ) -> tuple[str, int, bytes]:
+        deadline = time.monotonic() + timeout_seconds
+        outputs: dict[tuple[str, int], bytearray] = {}
+
+        while time.monotonic() < deadline:
+            self.sock.settimeout(max(0.1, deadline - time.monotonic()))
+            opcode, payload = self.read_frame()
+            if opcode == 0x8:
+                break
+            if opcode not in (0x1, 0x2) or payload[:1] != b"2":
+                continue
+            body = payload[1:]
+            if len(body) < 10:
+                continue
+            tray_length = struct.unpack("!H", body[:2])[0]
+            pane_offset = 2 + tray_length
+            if len(body) < pane_offset + 8:
+                continue
+            tray_key = body[2:pane_offset].decode()
+            pane_id = struct.unpack("!Q", body[pane_offset : pane_offset + 8])[0]
+            output = outputs.setdefault((tray_key, pane_id), bytearray())
+            output.extend(body[pane_offset + 8 :])
+            if needle in output.decode(errors="replace"):
+                return tray_key, pane_id, bytes(output)
+
+        rendered = {
+            identity: output.decode(errors="replace")
+            for identity, output in outputs.items()
+        }
+        raise AssertionError(
+            f"timed out waiting for pane output {needle!r}; outputs were {rendered!r}"
+        )
 
     def read_parent_status_until(
         self, expected: dict, timeout_seconds: float = 5.0

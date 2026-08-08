@@ -220,8 +220,18 @@ std::optional<std::string> Tray::read_output(PaneId const pane_id) {
   return mutable_pane(pane_id).read_output();
 }
 
+bool Tray::can_passthrough_output(PaneId const pane_id) const {
+  return pane_id == focused_pane && (panes.size() == 1U || pane_maximized) &&
+         !pane_selection.has_value() && !pane_move_session.has_value();
+}
+
 std::string Tray::redraw_output() const {
-  return render_layout({.row = 0, .column = 0}, current_size, true);
+  if (can_passthrough_output(focused_pane)) {
+    return pane(focused_pane).redraw_output();
+  }
+  std::string output("\x1b[0m\x1b[H\x1b[2J\x1b[3J");
+  output += render_layout({.row = 0, .column = 0}, current_size, true);
+  return output;
 }
 
 std::string Tray::preview_output(TerminalPosition const origin,
@@ -235,6 +245,14 @@ void Tray::resize(base::TerminalSize const size) {
   if (worktree_overlay != nullptr) {
     worktree_overlay->resize(size);
   }
+}
+
+bool Tray::resize_pane_viewport(PaneId const pane_id, base::TerminalSize const size) {
+  if (!pane_layout.find_pane(pane_id).has_value()) {
+    return false;
+  }
+  mutable_pane(pane_id).resize(size);
+  return true;
 }
 
 TrayExitUpdate Tray::reap_exited_panes() {
@@ -649,6 +667,9 @@ std::string Tray::render_layout(TerminalPosition const origin, base::TerminalSiz
 }
 
 void Tray::resize_panes() {
+  if (!pane_config.estimate_layout_sizes) {
+    return;
+  }
   PaneGeometry const geometry = calculate_pane_geometry(
       pane_layout, {.origin = {.row = 0, .column = 0}, .size = current_size});
   for (PaneNodeId const node_id : pane_layout.leaf_nodes()) {

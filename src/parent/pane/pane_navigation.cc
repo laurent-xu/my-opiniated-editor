@@ -1,6 +1,7 @@
 #include "src/parent/pane/pane_navigation.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <optional>
 #include <stdexcept>
@@ -99,12 +100,10 @@ std::optional<DirectionalScore> score_candidate(PaneRegion const& source,
   throw std::logic_error("unknown pane focus direction");
 }
 
-}  // namespace
-
-std::optional<PaneNodeId> find_directional_pane(PaneLayout const& layout,
-                                                PaneGeometry const& geometry,
-                                                PaneNodeId const source,
-                                                PaneFocusDirection const direction) {
+std::optional<PaneNodeId> find_immediate_directional_pane(PaneLayout const& layout,
+                                                          PaneGeometry const& geometry,
+                                                          PaneNodeId const source,
+                                                          PaneFocusDirection const direction) {
   PaneRegion const& source_region = geometry.region(source);
   std::optional<PaneNodeId> best_node;
   std::optional<DirectionalScore> best_score;
@@ -127,6 +126,68 @@ std::optional<PaneNodeId> find_directional_pane(PaneLayout const& layout,
     }
   }
   return best_node;
+}
+
+}  // namespace
+
+std::optional<PaneNodeId> find_directional_pane(PaneLayout const& layout,
+                                                PaneGeometry const& geometry,
+                                                PaneNodeId const source,
+                                                PaneFocusDirection const direction) {
+  return find_immediate_directional_pane(layout, geometry, source, direction);
+}
+
+std::optional<PaneNodeId> find_directional_pane(PaneLayout const& layout,
+                                                PaneGeometry const& geometry,
+                                                PaneNodeId const source,
+                                                PaneFocusDirection const direction,
+                                                PaneNodeEligibility const& eligible) {
+  PaneNodeId cursor = source;
+  std::size_t remaining = layout.leaf_nodes().size();
+  while (remaining > 0U) {
+    std::optional<PaneNodeId> const candidate =
+        find_immediate_directional_pane(layout, geometry, cursor, direction);
+    if (!candidate.has_value()) {
+      return std::nullopt;
+    }
+    cursor = candidate.value();
+    if (eligible(cursor)) {
+      return cursor;
+    }
+    --remaining;
+  }
+  return std::nullopt;
+}
+
+std::optional<PaneNodeId> find_parent_pane_node(PaneLayout const& layout, PaneNodeId const source) {
+  return layout.node(source).parent();
+}
+
+std::optional<PaneNodeId> find_parent_pane_node(PaneLayout const& layout, PaneNodeId const source,
+                                                PaneNodeEligibility const& eligible) {
+  std::optional<PaneNodeId> const parent = find_parent_pane_node(layout, source);
+  return parent.has_value() && eligible(parent.value()) ? parent : std::nullopt;
+}
+
+std::optional<PaneNodeId> find_first_child_pane_node(PaneLayout const& layout,
+                                                     PaneNodeId const source) {
+  PaneLayoutNode const& node = layout.node(source);
+  return node.is_leaf() ? std::nullopt
+                        : std::optional<PaneNodeId>(node.split().children.front().node_id);
+}
+
+std::optional<PaneNodeId> find_first_child_pane_node(PaneLayout const& layout,
+                                                     PaneNodeId const source,
+                                                     PaneNodeEligibility const& eligible) {
+  PaneLayoutNode const& node = layout.node(source);
+  if (node.is_leaf()) {
+    return std::nullopt;
+  }
+  auto const child = std::ranges::find_if(
+      node.split().children,
+      [&eligible](PaneSplitChild const& split_child) { return eligible(split_child.node_id); });
+  return child == node.split().children.end() ? std::nullopt
+                                              : std::optional<PaneNodeId>(child->node_id);
 }
 
 }  // namespace moe::parent

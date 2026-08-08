@@ -122,8 +122,11 @@ ParentCommandDispatchEffects ParentCommandDispatcher::dispatch(ParentInputComman
     if (!command_mode_enabled || trays.active_worktree_management_overlay() != nullptr) {
       return {};
     }
+    bool const closes_tray = pane_command->action == PaneCommandAction::CLOSE &&
+                             trays.active_pane_layout().leaf_nodes().size() == 1U;
     bool const changed = dispatch_pane_command(pane_command->action);
-    return {.publish_status = changed, .redraw = changed};
+    return {
+        .publish_status = changed, .redraw = changed, .trays_destroyed = closes_tray && changed};
   }
   return {};
 }

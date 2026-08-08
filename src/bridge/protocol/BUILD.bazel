@@ -34,6 +34,7 @@ cc_library(
         ":browser_terminal_input",
         ":browser_terminal_resize",
         "//src/parent/input/command:parent_input_commands",
+        "//src/parent/view:pane_view_protocol",
     ],
 )
 
@@ -86,6 +87,7 @@ cc_test(
     deps = [
         ":browser_application_message_parser",
         ":browser_application_message_parser_test_support",
+        "//src/parent/view:pane_view_protocol",
         "@googletest//:gtest_main",
     ],
     tags = ["unit"],

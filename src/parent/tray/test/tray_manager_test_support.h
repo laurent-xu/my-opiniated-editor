@@ -10,7 +10,7 @@
 namespace moe::parent::test_support {
 
 [[nodiscard]] std::filesystem::path required_environment_path(char const* name);
-[[nodiscard]] std::unique_ptr<TrayManager> start_manager();
+[[nodiscard]] std::unique_ptr<TrayManager> start_manager(bool estimate_layout_sizes = true);
 [[nodiscard]] std::filesystem::path create_fake_worktree(std::string const& name);
 [[nodiscard]] TrayNumber required_tray_number(int value);
 [[nodiscard]] std::string shell_marker_command(std::string const& marker);

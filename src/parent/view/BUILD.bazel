@@ -1,0 +1,26 @@
+cc_library(
+    name = "pane_view_protocol",
+    srcs = ["pane_view_protocol.cc"],
+    hdrs = ["pane_view_protocol.h"],
+    visibility = [
+        "//src/bridge:__pkg__",
+        "//src/bridge/protocol:__pkg__",
+        "//src/bridge/server:__pkg__",
+        "//src/parent:__pkg__",
+        "//src/parent/runtime:__pkg__",
+    ],
+    deps = [
+        "//src/base:terminal_size",
+        "//src/parent/pane:pane_identity",
+    ],
+)
+
+cc_test(
+    name = "pane_view_protocol_test",
+    srcs = ["pane_view_protocol_test.cc"],
+    deps = [
+        ":pane_view_protocol",
+        "@googletest//:gtest_main",
+    ],
+    tags = ["unit"],
+)

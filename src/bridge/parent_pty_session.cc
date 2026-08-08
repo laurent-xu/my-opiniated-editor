@@ -4,6 +4,7 @@
 #include <poll.h>
 #include <pty.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -27,6 +28,7 @@ using base::OwnedFileDescriptor;
 using base::ProcessId;
 
 constexpr char const* PARENT_STATUS_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_STATUS_FD";
+constexpr char const* PARENT_VIEW_DESCRIPTOR_ENVIRONMENT = "MOE_PARENT_VIEW_FD";
 
 std::runtime_error errno_error(std::string const& action) {
   return std::runtime_error(action + ": " + std::strerror(errno));
@@ -63,6 +65,17 @@ void wait_for_child_exit(base::ProcessId const child_pid) noexcept {
   static_cast<void>(wait_for_child(child_pid, 0));
 }
 
+void prepare_inherited_descriptor(int const descriptor, char const* const environment) {
+  int const descriptor_flags = fcntl(descriptor, F_GETFD);
+  if (descriptor_flags < 0 || fcntl(descriptor, F_SETFD, descriptor_flags & ~FD_CLOEXEC) != 0) {
+    _exit(126);
+  }
+  std::string const descriptor_value = std::to_string(descriptor);
+  if (setenv(environment, descriptor_value.c_str(), 1) != 0) {
+    _exit(126);
+  }
+}
+
 }  // namespace
 
 std::unique_ptr<ParentPtySession> ParentPtySession::start(
@@ -76,6 +89,12 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
   if (pipe2(status_pipe.data(), O_CLOEXEC) != 0) {
     throw errno_error("create parent status pipe failed");
   }
+  std::array<int, 2> view_socket{};
+  if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, view_socket.data()) != 0) {
+    ::close(status_pipe[0]);
+    ::close(status_pipe[1]);
+    throw errno_error("create parent view socket failed");
+  }
 
   int raw_master_fd = -1;
   winsize window_size = to_winsize(size);
@@ -83,20 +102,16 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
   if (child_pid.is_error()) {
     ::close(status_pipe[0]);
     ::close(status_pipe[1]);
+    ::close(view_socket[0]);
+    ::close(view_socket[1]);
     throw errno_error("forkpty failed");
   }
 
   if (child_pid.is_child_process()) {
     ::close(status_pipe[0]);
-    int const descriptor_flags = fcntl(status_pipe[1], F_GETFD);
-    if (descriptor_flags < 0 ||
-        fcntl(status_pipe[1], F_SETFD, descriptor_flags & ~FD_CLOEXEC) != 0) {
-      _exit(126);
-    }
-    std::string const status_descriptor_value = std::to_string(status_pipe[1]);
-    if (setenv(PARENT_STATUS_DESCRIPTOR_ENVIRONMENT, status_descriptor_value.c_str(), 1) != 0) {
-      _exit(126);
-    }
+    ::close(view_socket[0]);
+    prepare_inherited_descriptor(status_pipe[1], PARENT_STATUS_DESCRIPTOR_ENVIRONMENT);
+    prepare_inherited_descriptor(view_socket[1], PARENT_VIEW_DESCRIPTOR_ENVIRONMENT);
 
     if (!working_directory.empty() && chdir(working_directory.c_str()) != 0) {
       _exit(126);
@@ -114,20 +129,24 @@ std::unique_ptr<ParentPtySession> ParentPtySession::start(
   }
 
   ::close(status_pipe[1]);
+  ::close(view_socket[1]);
   return std::unique_ptr<ParentPtySession>(new ParentPtySession(
       Handles{.master_fd = base::OwnedFileDescriptor(base::FileDescriptor(raw_master_fd)),
               .status_fd = OwnedFileDescriptor(FileDescriptor(status_pipe[0])),
+              .view_fd = OwnedFileDescriptor(FileDescriptor(view_socket[0])),
               .child_pid = child_pid}));
 }
 
 ParentPtySession::ParentPtySession(Handles handles)
     : master_file_descriptor(std::move(handles.master_fd)),
       status_descriptor(std::move(handles.status_fd)),
+      view_descriptor(std::move(handles.view_fd)),
       child_process_id(handles.child_pid) {}
 
 ParentPtySession::ParentPtySession(ParentPtySession&& other) noexcept
     : master_file_descriptor(std::move(other.master_file_descriptor)),
       status_descriptor(std::move(other.status_descriptor)),
+      view_descriptor(std::move(other.view_descriptor)),
       child_process_id(std::exchange(other.child_process_id, base::ProcessId{})) {}
 
 ParentPtySession& ParentPtySession::operator=(ParentPtySession&& other) noexcept {
@@ -135,6 +154,7 @@ ParentPtySession& ParentPtySession::operator=(ParentPtySession&& other) noexcept
     reset();
     master_file_descriptor = std::move(other.master_file_descriptor);
     status_descriptor = std::move(other.status_descriptor);
+    view_descriptor = std::move(other.view_descriptor);
     child_process_id = std::exchange(other.child_process_id, base::ProcessId{});
   }
   return *this;
@@ -152,6 +172,10 @@ base::FileDescriptor ParentPtySession::status_file_descriptor() const {
   return status_descriptor.get();
 }
 
+base::FileDescriptor ParentPtySession::view_file_descriptor() const {
+  return view_descriptor.get();
+}
+
 void ParentPtySession::write(std::string_view bytes) const {
   while (!bytes.empty()) {
     ssize_t const written =
@@ -161,6 +185,19 @@ void ParentPtySession::write(std::string_view bytes) const {
         continue;
       }
       throw errno_error("write to pty failed");
+    }
+    bytes.remove_prefix(static_cast<std::size_t>(written));
+  }
+}
+
+void ParentPtySession::write_view(std::string_view bytes) const {
+  while (!bytes.empty()) {
+    ssize_t const written = ::write(view_descriptor.get().value(), bytes.data(), bytes.size());
+    if (written < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      throw errno_error("write to parent view socket failed");
     }
     bytes.remove_prefix(static_cast<std::size_t>(written));
   }
@@ -227,6 +264,7 @@ void ParentPtySession::reset() noexcept {
     child_process_id = base::ProcessId{};
   }
   status_descriptor.reset();
+  view_descriptor.reset();
 }
 
 }  // namespace moe::bridge

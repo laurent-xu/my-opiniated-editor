@@ -41,6 +41,7 @@ class Pane {
 
   std::unique_ptr<ContentPtySession> content;
   std::unique_ptr<TerminalScreen> terminal_screen;
+  base::TerminalSize current_size;
 };
 
 }  // namespace moe::parent

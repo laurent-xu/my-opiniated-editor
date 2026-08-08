@@ -28,11 +28,12 @@ std::filesystem::path required_environment_path(char const* name) {
   return {value};
 }
 
-std::unique_ptr<TrayManager> start_manager() {
+std::unique_ptr<TrayManager> start_manager(bool const estimate_layout_sizes) {
   return TrayManager::start(TrayConfig{
       .command = interactive_shell_command(configured_login_shell()),
       .working_directory = required_environment_path("TEST_TMPDIR"),
       .initial_size = {.rows = 24, .cols = 80},
+      .estimate_layout_sizes = estimate_layout_sizes,
   });
 }
 

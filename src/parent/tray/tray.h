@@ -43,10 +43,12 @@ class Tray {
   void write_input(std::string_view bytes) const;
   [[nodiscard]] std::optional<std::string> read_output();
   [[nodiscard]] std::optional<std::string> read_output(PaneId pane_id);
+  [[nodiscard]] bool can_passthrough_output(PaneId pane_id) const;
   [[nodiscard]] std::string redraw_output() const;
   [[nodiscard]] std::string preview_output(TerminalPosition origin,
                                            base::TerminalSize region_size) const;
   void resize(base::TerminalSize size);
+  [[nodiscard]] bool resize_pane_viewport(PaneId pane_id, base::TerminalSize size);
   [[nodiscard]] TrayExitUpdate reap_exited_panes();
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
   [[nodiscard]] std::vector<TrayPaneOutputSource> output_sources() const;

@@ -21,5 +21,6 @@ cc_library(
         "//src/bridge:socket_io",
         "//src/bridge:websocket_protocol",
         "//src/bridge/protocol:application_message_codec",
+        "//src/parent/view:pane_view_protocol",
     ],
 )

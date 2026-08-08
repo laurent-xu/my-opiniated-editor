@@ -53,11 +53,13 @@ TEST(TrayManagerTest, StartsWithAnonymousTrayOne) {
 
 TEST(TrayManagerTest, RoutesInputAndOutputThroughActiveTray) {
   std::unique_ptr<moe::parent::TrayManager> manager = start_manager();
+  moe::parent::PaneId const pane_id = manager->active_focused_pane_id();
 
   manager->write_input(shell_marker_command("__moe_tray_one_output__"));
   std::string const output = read_until(*manager, "__moe_tray_one_output__");
 
   EXPECT_NE(output.find("__moe_tray_one_output__"), std::string::npos);
+  EXPECT_TRUE(manager->active_pane_output_can_passthrough(pane_id));
   EXPECT_NE(manager->active_redraw_output().find("__moe_tray_one_output__"), std::string::npos);
 }
 
@@ -84,6 +86,8 @@ TEST(TrayManagerTest, SplitCreatesIndependentPanesAndComposesTheirOutput) {
   EXPECT_EQ(sources[0].pane_id, first_pane);
   EXPECT_EQ(sources[1].pane_id, second_pane);
   EXPECT_EQ(manager->active_focused_pane_id(), second_pane);
+  EXPECT_FALSE(manager->active_pane_output_can_passthrough(first_pane));
+  EXPECT_FALSE(manager->active_pane_output_can_passthrough(second_pane));
 
   manager->write_input("export MOE_PANE_MARKER=pane_two\n");
   manager->write_input(shell_marker_command("__pane_two_ready__"));
@@ -95,6 +99,7 @@ TEST(TrayManagerTest, SplitCreatesIndependentPanesAndComposesTheirOutput) {
   EXPECT_NE(first_output.find("__pane_one_empty__"), std::string::npos);
 
   std::string const redraw = manager->active_redraw_output();
+  EXPECT_NE(redraw.find("\x1b[H\x1b[2J"), std::string::npos);
   EXPECT_NE(redraw.find("__pane_one_empty__"), std::string::npos);
   EXPECT_NE(redraw.find("__pane_two_ready__"), std::string::npos);
 }
@@ -115,6 +120,40 @@ TEST(TrayManagerTest, SplitResizesBothChildPtysToTheirRegions) {
   manager->write_input(shell_marker_command("__first_size_ready__"));
   std::string const first_output = read_until(*manager, "__first_size_ready__");
   EXPECT_NE(first_output.find("24 40"), std::string::npos);
+}
+
+TEST(TrayManagerTest, BrowserSizedSplitWaitsForExactPaneViewports) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager(false);
+  moe::parent::PaneId const first_pane = manager->active_focused_pane_id();
+  moe::parent::PaneId const second_pane = manager->split_active_focused_pane(
+      moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, moe::parent::PaneInsertion::AFTER);
+
+  EXPECT_TRUE(manager->resize_pane_viewport(manager->active_id().key(), second_pane,
+                                            {.rows = 24, .cols = 39}));
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__browser_second_size_ready__"));
+  EXPECT_NE(read_until(*manager, "__browser_second_size_ready__").find("24 39"), std::string::npos);
+
+  ASSERT_TRUE(manager->focus_active_pane(first_pane));
+  EXPECT_TRUE(manager->resize_pane_viewport(manager->active_id().key(), first_pane,
+                                            {.rows = 24, .cols = 40}));
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__browser_first_size_ready__"));
+  EXPECT_NE(read_until(*manager, "__browser_first_size_ready__").find("24 40"), std::string::npos);
+}
+
+TEST(TrayManagerTest, BrowserCanResizeAnInactivePreviewPane) {
+  std::unique_ptr<moe::parent::TrayManager> manager = start_manager(false);
+  moe::parent::TrayId const tray_one = manager->active_id();
+  moe::parent::PaneId const pane_one = manager->active_focused_pane_id();
+  static_cast<void>(manager->switch_to(required_tray_number(2)));
+
+  EXPECT_TRUE(manager->resize_pane_viewport(tray_one.key(), pane_one, {.rows = 17, .cols = 53}));
+  static_cast<void>(manager->switch_to(required_tray_number(1)));
+  manager->write_input("stty size\n");
+  manager->write_input(shell_marker_command("__inactive_preview_size_ready__"));
+  EXPECT_NE(read_until(*manager, "__inactive_preview_size_ready__").find("17 53"),
+            std::string::npos);
 }
 
 TEST(TrayManagerTest, MovesFocusAcrossNestedPaneGeometry) {

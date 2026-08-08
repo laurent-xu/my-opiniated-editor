@@ -17,9 +17,18 @@ cc_library(
 cc_library(
     name = "parent_status_serializer",
     srcs = ["parent_status_serializer.cc"],
-    hdrs = ["parent_status_serializer.h"],
+    hdrs = [
+        "parent_pane_view.h",
+        "parent_status_serializer.h",
+    ],
     visibility = ["//src/parent:__pkg__"],
-    deps = [":parent_status"],
+    deps = [
+        ":parent_status",
+        "//src/base:terminal_size",
+        "//src/parent/pane:pane_layout",
+        "//src/parent/pane:pane_move_session",
+        "//src/parent/pane:pane_selection",
+    ],
 )
 
 cc_test(
@@ -28,6 +37,7 @@ cc_test(
     deps = [
         ":parent_status",
         ":parent_status_serializer",
+        "//src/parent/pane:pane_layout",
         "//src/parent/tray:tray_identity",
         "@googletest//:gtest_main",
     ],

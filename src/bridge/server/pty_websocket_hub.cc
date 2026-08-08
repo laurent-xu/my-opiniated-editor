@@ -9,6 +9,7 @@
 #include <iostream>
 #include <optional>
 #include <utility>
+#include <variant>
 
 #include "src/base/owned_file_descriptor.h"
 #include "src/bridge/parent_pty_session.h"
@@ -17,6 +18,7 @@
 #include "src/bridge/server/websocket_client_connection.h"
 #include "src/bridge/socket_io.h"
 #include "src/bridge/websocket_protocol.h"
+#include "src/parent/view/pane_view_protocol.h"
 
 namespace moe::bridge::server {
 
@@ -86,6 +88,9 @@ void PtyWebsocketHub::add_client(std::shared_ptr<WebsocketClientConnection> cons
          .payload = latest_parent_status});
     static_cast<void>(client->send_binary(payload));
   }
+  for (std::string const& pane_output : pane_output_backlog) {
+    static_cast<void>(client->send_binary(pane_output));
+  }
 }
 
 void PtyWebsocketHub::remove_client(std::shared_ptr<WebsocketClientConnection> const& client) {
@@ -119,6 +124,19 @@ void PtyWebsocketHub::broadcast_parent_status(std::string status) {
   std::string const payload = protocol::encode_bridge_to_browser_message(
       {.type = protocol::BridgeToBrowserMessage::Type::PARENT_STATUS,
        .payload = latest_parent_status});
+  send_to_clients(payload);
+}
+
+void PtyWebsocketHub::broadcast_pane_output(std::string const& pane_output) {
+  std::scoped_lock const lock(state_mutex);
+  std::string payload = protocol::encode_bridge_to_browser_message(
+      {.type = protocol::BridgeToBrowserMessage::Type::PANE_OUTPUT, .payload = pane_output});
+  pane_output_backlog_size += payload.size();
+  pane_output_backlog.push_back(payload);
+  while (pane_output_backlog_size > MAX_PANE_OUTPUT_BACKLOG && pane_output_backlog.size() > 1U) {
+    pane_output_backlog_size -= pane_output_backlog.front().size();
+    pane_output_backlog.pop_front();
+  }
   send_to_clients(payload);
 }
 
@@ -164,11 +182,33 @@ void PtyWebsocketHub::read_parent_status() {
   }
 }
 
+void PtyWebsocketHub::read_pane_view() {
+  std::array<char, 4096> buffer{};
+  ssize_t const read_count =
+      ::read(session.view_file_descriptor().value(), buffer.data(), buffer.size());
+  if (read_count <= 0) {
+    return;
+  }
+  pane_view_buffer.append(buffer.data(), static_cast<std::size_t>(read_count));
+  while (true) {
+    std::optional<parent::PaneViewMessage> const message =
+        parent::decode_pane_view_frame(pane_view_buffer);
+    if (!message.has_value()) {
+      return;
+    }
+    if (auto const* const output = std::get_if<parent::PaneViewOutput>(&*message);
+        output != nullptr) {
+      broadcast_pane_output(parent::encode_pane_output_payload(*output));
+    }
+  }
+}
+
 void PtyWebsocketHub::read_pty_loop() {
   while (continue_predicate() && !stopping) {
-    std::array<pollfd, 2> descriptors{
+    std::array<pollfd, 3> descriptors{
         pollfd{.fd = session.file_descriptor().value(), .events = POLLIN, .revents = 0},
         pollfd{.fd = session.status_file_descriptor().value(), .events = POLLIN, .revents = 0},
+        pollfd{.fd = session.view_file_descriptor().value(), .events = POLLIN, .revents = 0},
     };
     int const result = poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()),
                             static_cast<int>(poll_timeout.count()));
@@ -187,6 +227,9 @@ void PtyWebsocketHub::read_pty_loop() {
     }
     if ((descriptors[1].revents & POLLIN) != 0) {
       read_parent_status();
+    }
+    if ((descriptors[2].revents & POLLIN) != 0) {
+      read_pane_view();
     }
   }
 }

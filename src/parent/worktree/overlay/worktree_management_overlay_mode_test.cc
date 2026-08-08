@@ -31,6 +31,7 @@ TEST(WorktreeManagementOverlayTest, CyclesThreeModesAndResetsRepositoryInput) {
   EXPECT_TRUE(overlay->redraw_output().starts_with(
       moe::parent::render_overlay_footer(worktree_overlay_mode_labels(), 1, size)));
   EXPECT_NE(overlay->redraw_output().find("No registered repositories"), std::string::npos);
+  EXPECT_EQ(overlay->opaque_region_start_row(), 16);
 
   overlay->write_input("\t/tmp/new-repository");
   std::string const repository_form = overlay->redraw_output();
@@ -39,6 +40,7 @@ TEST(WorktreeManagementOverlayTest, CyclesThreeModesAndResetsRepositoryInput) {
   EXPECT_EQ(repository_form.find("[Add repository]"), std::string::npos);
   EXPECT_TRUE(repository_form.starts_with(
       moe::parent::render_overlay_footer(worktree_overlay_mode_labels(), 2, size)));
+  EXPECT_EQ(overlay->opaque_region_start_row(), 16);
 
   overlay->write_input("\x1b[Z");
   EXPECT_TRUE(overlay->redraw_output().starts_with(

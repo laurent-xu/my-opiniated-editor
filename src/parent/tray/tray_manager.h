@@ -15,6 +15,7 @@
 #include "src/parent/pane/pane_move_session.h"
 #include "src/parent/pane/pane_navigation.h"
 #include "src/parent/pane/pane_selection.h"
+#include "src/parent/terminal/screen/terminal_position.h"
 #include "src/parent/tray/tray_config.h"
 #include "src/parent/tray/tray_id.h"
 #include "src/parent/tray/tray_number.h"
@@ -25,6 +26,15 @@ namespace moe::parent {
 
 class Tray;
 class WorktreeManagementOverlay;
+
+struct TrayPanePreview {
+  TrayId const& tray_id;
+  TerminalPosition origin;
+  base::TerminalSize size;
+  PaneLayout const& layout;
+  PaneId focused_pane;
+  bool maximized;
+};
 
 class TrayManager {
  public:
@@ -38,8 +48,11 @@ class TrayManager {
   [[nodiscard]] std::optional<std::string> read_active_output();
   [[nodiscard]] std::optional<std::string> read_output(TrayId const& id);
   [[nodiscard]] std::optional<std::string> read_output(TrayId const& id, PaneId pane_id);
+  [[nodiscard]] bool active_pane_output_can_passthrough(PaneId pane_id) const;
   [[nodiscard]] std::string active_redraw_output() const;
   void resize_active(base::TerminalSize size);
+  [[nodiscard]] bool resize_pane_viewport(std::string_view tray_key, PaneId pane_id,
+                                          base::TerminalSize size);
   [[nodiscard]] PaneId split_active_focused_pane(PaneSplitAxis axis, PaneInsertion insertion);
   [[nodiscard]] bool focus_active_pane(PaneId pane_id);
   [[nodiscard]] bool focus_active_pane_direction(PaneFocusDirection direction);
@@ -80,8 +93,10 @@ class TrayManager {
   [[nodiscard]] WorktreeManagementOverlay const* active_worktree_management_overlay() const;
   [[nodiscard]] WorktreeManagementOverlay* worktree_management_overlay(TrayId const& id);
   [[nodiscard]] std::vector<TrayOutputSource> worktree_management_overlay_output_sources() const;
-  [[nodiscard]] std::string active_worktree_management_overlay_redraw_output() const;
+  [[nodiscard]] std::string active_worktree_management_overlay_redraw_output(
+      bool include_ansi_tray_preview = true) const;
   [[nodiscard]] bool active_worktree_management_overlay_previews(TrayId const& id) const;
+  [[nodiscard]] std::optional<TrayPanePreview> active_worktree_management_pane_preview() const;
 
  private:
   explicit TrayManager(TrayConfig config);
@@ -90,6 +105,7 @@ class TrayManager {
   [[nodiscard]] Tray& mutable_active_tray();
   [[nodiscard]] Tray const& tray(TrayId const& id) const;
   [[nodiscard]] Tray const* find_tray(TrayId const& id) const;
+  [[nodiscard]] Tray* find_tray(std::string_view tray_key);
   [[nodiscard]] Tray& mutable_tray(TrayId const& id);
   [[nodiscard]] Tray& ensure_tray(TrayNumber number);
   [[nodiscard]] Tray& ensure_worktree_tray(std::filesystem::path const& root);

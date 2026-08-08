@@ -75,6 +75,10 @@ void handle_websocket_payload(ParentPtySession const& session, std::string_view 
     session.resize(resize->size);
     return;
   }
+  if (auto const* const pane_resize = std::get_if<parent::PaneViewResize>(&*message)) {
+    session.write_view(parent::encode_pane_view_frame(*pane_resize));
+    return;
+  }
   send_parent_input_command(session, std::get<parent::ParentInputCommand>(*message));
 }
 

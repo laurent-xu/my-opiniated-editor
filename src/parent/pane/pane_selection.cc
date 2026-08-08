@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include "src/parent/pane/pane_navigation.h"
+
 namespace moe::parent {
 
 namespace {
@@ -94,10 +96,11 @@ PaneSelection PaneSelection::step(PaneLayout const& layout,
 }
 
 PaneSelection PaneSelection::promote(PaneLayout const& layout) const {
-  if (!parent_id.has_value()) {
+  std::optional<PaneNodeId> const parent = find_parent_pane_node(layout, active_id);
+  if (!parent.has_value()) {
     return *this;
   }
-  return single(layout, parent_id.value());
+  return single(layout, parent.value());
 }
 
 PaneSelection PaneSelection::descend(PaneLayout const& layout) const {
@@ -105,12 +108,12 @@ PaneSelection PaneSelection::descend(PaneLayout const& layout) const {
     return *this;
   }
 
-  PaneLayoutNode const& selected = layout.node(selected_nodes.front());
-  if (selected.is_leaf()) {
+  std::optional<PaneNodeId> const child =
+      find_first_child_pane_node(layout, selected_nodes.front());
+  if (!child.has_value()) {
     return *this;
   }
-  PaneSplit const& split = selected.split();
-  return single(layout, split.children.front().node_id);
+  return single(layout, child.value());
 }
 
 }  // namespace moe::parent

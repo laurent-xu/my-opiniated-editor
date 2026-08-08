@@ -8,6 +8,7 @@ namespace moe::parent {
 
 class Tray;
 
+[[nodiscard]] std::string render_tray_preview_header(TrayPreviewRequest const& preview);
 [[nodiscard]] std::string render_tray_preview(TrayPreviewRequest const& preview,
                                               Tray const* previewed_tray);
 

@@ -19,7 +19,9 @@ std::string preview_target(TrayId const& id) {
   return id.worktree_root().string();
 }
 
-std::string render_preview_header(TrayPreviewRequest const& preview) {
+}  // namespace
+
+std::string render_tray_preview_header(TrayPreviewRequest const& preview) {
   std::size_t const width = static_cast<std::size_t>(std::max(preview.size.cols, 0));
   if (width == 0U || preview.size.rows <= 0) {
     return {};
@@ -40,6 +42,8 @@ std::string render_preview_header(TrayPreviewRequest const& preview) {
          std::to_string(preview.origin.column + 1) + "H\x1b[48;5;236m\x1b[38;5;252m" + title +
          "\x1b[0m";
 }
+
+namespace {
 
 TrayPreviewRequest content_preview_for(TrayPreviewRequest const& preview) {
   return TrayPreviewRequest{
@@ -67,7 +71,7 @@ std::string render_tray_preview(TrayPreviewRequest const& preview,
           ? TerminalScreen::render_blank_region_snapshot(content_preview.origin,
                                                          content_preview.size)
           : previewed_tray->preview_output(content_preview.origin, content_preview.size);
-  output += render_preview_header(preview);
+  output += render_tray_preview_header(preview);
   return output;
 }
 

@@ -14,6 +14,7 @@ cc_library(
     visibility = [
         "//src/parent/pane/test:__pkg__",
         "//src/parent/tray:__pkg__",
+        "//src/parent/view:__pkg__",
     ],
 )
 
@@ -36,6 +37,7 @@ cc_library(
     hdrs = ["pane_layout.h"],
     visibility = [
         "//src/parent/pane/test:__pkg__",
+        "//src/parent/status:__pkg__",
         "//src/parent/tray:__pkg__",
     ],
     deps = [
@@ -87,6 +89,7 @@ cc_library(
     hdrs = ["pane_move_session.h"],
     visibility = [
         "//src/parent/pane/test:__pkg__",
+        "//src/parent/status:__pkg__",
         "//src/parent/tray:__pkg__",
     ],
     deps = [
@@ -102,9 +105,13 @@ cc_library(
     hdrs = ["pane_selection.h"],
     visibility = [
         "//src/parent/pane/test:__pkg__",
+        "//src/parent/status:__pkg__",
         "//src/parent/tray:__pkg__",
     ],
-    deps = [":pane_layout"],
+    deps = [
+        ":pane_layout",
+        ":pane_navigation",
+    ],
 )
 
 cc_library(

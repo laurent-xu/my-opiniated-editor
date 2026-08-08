@@ -36,6 +36,19 @@ TEST(TrayPreviewRendererTest, FormatsAnonymousTrayTitle) {
             std::string::npos);
 }
 
+TEST(TrayPreviewRendererTest, CanRenderHeaderWithoutAnsiTrayContent) {
+  moe::parent::TrayPreviewRequest const preview{
+      .tray_id = moe::parent::TrayId::anonymous(required_tray_number(2)),
+      .origin = {.row = 1, .column = 2},
+      .size = {.rows = 3, .cols = 24},
+  };
+
+  std::string const output = moe::parent::render_tray_preview_header(preview);
+
+  EXPECT_NE(output.find("Preview: /anonymous/2"), std::string::npos);
+  EXPECT_EQ(output.find("\x1b[3;3H\x1b[0;48;5;232m"), std::string::npos);
+}
+
 TEST(TrayPreviewRendererTest, FormatsWorktreeTrayTitle) {
   moe::parent::TrayPreviewRequest const preview{
       .tray_id = moe::parent::TrayId::worktree(std::filesystem::path("/repos/editor")),

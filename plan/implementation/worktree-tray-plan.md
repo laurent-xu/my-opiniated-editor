@@ -57,6 +57,11 @@ closing the overlay. Arrows, `Tab`, `Shift+Tab`, and `Enter` continue navigating
 or selecting from the overlay while command mode is active. From command mode,
 `Shift+W` closes the overlay and leaves command mode active.
 
+Outside fzf, the active tray remains live behind repository/worktree forms and
+confirmation rows using the same DOM pane tree as normal mode. The outer xterm
+is transparent and carries only the overlay UI; the ANSI tray renderer is kept
+solely for direct parent-PTY use without a browser pane-view channel.
+
 Each tray owns its worktree-management overlay state. Switching trays hides the
 previous tray's overlay without destroying it; switching back redraws the tray
 and its overlay with the input and cursor preserved. Helper PTYs owned by

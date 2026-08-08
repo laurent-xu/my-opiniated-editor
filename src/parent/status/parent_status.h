@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "src/parent/status/parent_overlay_kind.h"
 #include "src/parent/tray/tray_id.h"
@@ -20,6 +21,7 @@ struct ParentStatus {
   bool command_mode;
   TrayId active_tray;
   ParentOverlayKind overlay;
+  std::optional<int> worktree_overlay_start_row = std::nullopt;
   ParentPaneMode pane_mode;
   std::size_t pane_selected_nodes;
 };

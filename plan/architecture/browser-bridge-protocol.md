@@ -60,7 +60,17 @@ Current owned bridge endpoints:
   a read-only `panePreview` with terminal-grid geometry and that tray's pane
   view. The browser mounts the same pane DOM primitives and xterm.js instances
   used by the normal tray, so separators stay one CSS pixel and raw child PTY
-  output continues incrementally beneath the picker.
+  output continues incrementally beneath the picker. Preview fitting preserves
+  each pane's normal column count and does not resize its PTY, avoiding xterm
+  scrollback reflow; only the visible preview row count changes.
+- The outer browser terminal remains transparent while worktree management is
+  open. Parent status identifies the first row owned by the current picker or
+  form, and the browser places one opaque DOM backing rectangle under only that
+  region. Live active-tray panes remain visible elsewhere, while a dedicated
+  pane preview can be mounted above the overlay. The parent renders full ANSI
+  tray snapshots only when no browser pane view channel exists, preserving the
+  direct parent-PTY fallback without exposing its cell-wide separators in the
+  browser.
 - The browser connects directly to `/ws`; bridge URLs do not carry
   authentication credentials.
 - Multiple clients can connect to `/ws` at the same time. A single PTY reader

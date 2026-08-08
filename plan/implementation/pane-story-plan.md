@@ -37,7 +37,7 @@ earlier binary-tree and layout-history ideas.
 - Percentages are integers from 0 through 100 and total exactly 100 at every
   split. Proportional changes use deterministic largest-remainder rounding;
   earlier siblings win exact ties.
-- A zero-percent child remains alive and retains its place in the tree.
+- A zero-percent child remains alive even though it is not rendered.
 
 ### Focus, Selection, And Sizing
 

@@ -29,7 +29,9 @@ class ParentPtySession {
   [[nodiscard]] base::ProcessId child_pid() const;
   [[nodiscard]] base::FileDescriptor file_descriptor() const;
   [[nodiscard]] base::FileDescriptor status_file_descriptor() const;
+  [[nodiscard]] base::FileDescriptor view_file_descriptor() const;
   void write(std::string_view bytes) const;
+  void write_view(std::string_view bytes) const;
   [[nodiscard]] std::string read_until(std::string_view needle,
                                        std::chrono::milliseconds timeout) const;
   void resize(base::TerminalSize size) const;
@@ -38,6 +40,7 @@ class ParentPtySession {
   struct Handles {
     base::OwnedFileDescriptor master_fd;
     base::OwnedFileDescriptor status_fd;
+    base::OwnedFileDescriptor view_fd;
     base::ProcessId child_pid;
   };
 
@@ -47,6 +50,7 @@ class ParentPtySession {
 
   base::OwnedFileDescriptor master_file_descriptor;
   base::OwnedFileDescriptor status_descriptor;
+  base::OwnedFileDescriptor view_descriptor;
   base::ProcessId child_process_id;
 };
 

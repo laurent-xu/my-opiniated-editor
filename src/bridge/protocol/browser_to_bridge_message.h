@@ -15,6 +15,7 @@ struct BrowserToBridgeMessage {
     WORKTREE_PICKER_ACTION,
     OVERLAY_NAVIGATION,
     PANE_ACTION,
+    PANE_RESIZE,
   };
 
   Type type;

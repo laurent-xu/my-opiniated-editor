@@ -84,11 +84,24 @@ std::optional<std::string> TrayManager::read_output(TrayId const& id, PaneId con
   return mutable_tray(id).read_output(pane_id);
 }
 
+bool TrayManager::active_pane_output_can_passthrough(PaneId const pane_id) const {
+  return active_tray().can_passthrough_output(pane_id);
+}
+
 std::string TrayManager::active_redraw_output() const { return active_tray().redraw_output(); }
 
 void TrayManager::resize_active(base::TerminalSize const size) {
   current_size = size;
   mutable_active_tray().resize(size);
+}
+
+bool TrayManager::resize_pane_viewport(std::string_view const tray_key, PaneId const pane_id,
+                                       base::TerminalSize const size) {
+  Tray* const target = find_tray(tray_key);
+  if (target == nullptr) {
+    return false;
+  }
+  return target->resize_pane_viewport(pane_id, size);
 }
 
 PaneId TrayManager::split_active_focused_pane(PaneSplitAxis const axis,
@@ -104,7 +117,13 @@ bool TrayManager::focus_active_pane_direction(PaneFocusDirection const direction
   return mutable_active_tray().focus_pane_direction(direction);
 }
 
-bool TrayManager::close_active_focused_pane() { return mutable_active_tray().close_focused_pane(); }
+bool TrayManager::close_active_focused_pane() {
+  if (active_tray().layout().leaf_nodes().size() > 1U) {
+    return mutable_active_tray().close_focused_pane();
+  }
+  TrayId const closing_tray = active_tray_id;
+  return destroy_tray(closing_tray);
+}
 
 bool TrayManager::toggle_active_focused_pane_maximized() {
   return mutable_active_tray().toggle_focused_pane_maximized();
@@ -326,7 +345,8 @@ std::vector<TrayOutputSource> TrayManager::worktree_management_overlay_output_so
   return sources;
 }
 
-std::string TrayManager::active_worktree_management_overlay_redraw_output() const {
+std::string TrayManager::active_worktree_management_overlay_redraw_output(
+    bool const include_ansi_tray_preview) const {
   WorktreeManagementOverlay const* const overlay = active_worktree_management_overlay();
   if (overlay == nullptr) {
     return {};
@@ -336,7 +356,9 @@ std::string TrayManager::active_worktree_management_overlay_redraw_output() cons
   std::optional<TrayPreviewRequest> const preview = overlay->preview_request();
   if (preview.has_value()) {
     Tray const* const previewed_tray = find_tray(preview->tray_id);
-    output = render_tray_preview(*preview, previewed_tray);
+    output = include_ansi_tray_preview || previewed_tray == nullptr
+                 ? render_tray_preview(*preview, previewed_tray)
+                 : render_tray_preview_header(*preview);
   }
   output += overlay->redraw_output();
   return output;
@@ -349,6 +371,29 @@ bool TrayManager::active_worktree_management_overlay_previews(TrayId const& id) 
   }
   std::optional<TrayPreviewRequest> const preview = overlay->preview_request();
   return preview.has_value() && preview->tray_id == id;
+}
+
+std::optional<TrayPanePreview> TrayManager::active_worktree_management_pane_preview() const {
+  WorktreeManagementOverlay const* const overlay = active_worktree_management_overlay();
+  if (overlay == nullptr) {
+    return std::nullopt;
+  }
+  std::optional<TrayPreviewRequest> const preview = overlay->preview_request();
+  if (!preview.has_value() || preview->size.rows <= 1 || preview->size.cols <= 0) {
+    return std::nullopt;
+  }
+  Tray const* const previewed_tray = find_tray(preview->tray_id);
+  if (previewed_tray == nullptr) {
+    return std::nullopt;
+  }
+  return TrayPanePreview{
+      .tray_id = previewed_tray->id(),
+      .origin = {.row = preview->origin.row + 1, .column = preview->origin.column},
+      .size = {.rows = preview->size.rows - 1, .cols = preview->size.cols},
+      .layout = previewed_tray->layout(),
+      .focused_pane = previewed_tray->focused_pane_id(),
+      .maximized = previewed_tray->focused_pane_is_maximized(),
+  };
 }
 
 Tray const& TrayManager::active_tray() const { return tray(active_tray_id); }
@@ -377,6 +422,20 @@ Tray const* TrayManager::find_tray(TrayId const& id) const {
   return candidate.get();
 }
 
+Tray* TrayManager::find_tray(std::string_view const tray_key) {
+  for (std::unique_ptr<Tray>& candidate : anonymous_trays) {
+    if (candidate != nullptr && candidate->id().key() == tray_key) {
+      return candidate.get();
+    }
+  }
+  for (auto& entry : worktree_trays) {
+    if (entry.second->id().key() == tray_key) {
+      return entry.second.get();
+    }
+  }
+  return nullptr;
+}
+
 Tray& TrayManager::mutable_tray(TrayId const& id) {
   if (id.kind() == TrayIdKind::WORKTREE) {
     return mutable_worktree_tray(id.worktree_root());
@@ -392,11 +451,13 @@ Tray& TrayManager::mutable_tray(TrayId const& id) {
 Tray& TrayManager::ensure_tray(TrayNumber const number) {
   std::unique_ptr<Tray>& tray = anonymous_trays.at(tray_index(number));
   if (tray == nullptr) {
-    tray = Tray::start(TrayId::anonymous(number), TrayConfig{
-                                                      .command = config.command,
-                                                      .working_directory = config.working_directory,
-                                                      .initial_size = current_size,
-                                                  });
+    tray = Tray::start(TrayId::anonymous(number),
+                       TrayConfig{
+                           .command = config.command,
+                           .working_directory = config.working_directory,
+                           .initial_size = current_size,
+                           .estimate_layout_sizes = config.estimate_layout_sizes,
+                       });
   }
   return *tray;
 }
@@ -404,14 +465,16 @@ Tray& TrayManager::ensure_tray(TrayNumber const number) {
 Tray& TrayManager::ensure_worktree_tray(std::filesystem::path const& root) {
   auto iterator = worktree_trays.find(root);
   if (iterator == worktree_trays.end()) {
-    iterator = worktree_trays
-                   .emplace(root, Tray::start(TrayId::worktree(root),
-                                              TrayConfig{
-                                                  .command = config.command,
-                                                  .working_directory = root,
-                                                  .initial_size = current_size,
-                                              }))
-                   .first;
+    iterator =
+        worktree_trays
+            .emplace(root, Tray::start(TrayId::worktree(root),
+                                       TrayConfig{
+                                           .command = config.command,
+                                           .working_directory = root,
+                                           .initial_size = current_size,
+                                           .estimate_layout_sizes = config.estimate_layout_sizes,
+                                       }))
+            .first;
   }
   return *iterator->second;
 }

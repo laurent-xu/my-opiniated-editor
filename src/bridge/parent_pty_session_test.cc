@@ -90,11 +90,12 @@ TEST(ParentPtySessionTest, StartsParentAndExchangesBytes) {
   EXPECT_GT(session->child_pid().value(), 0);
   EXPECT_TRUE(session->file_descriptor().is_valid());
   EXPECT_TRUE(session->status_file_descriptor().is_valid());
+  EXPECT_TRUE(session->view_file_descriptor().is_valid());
 
   wait_for_shell_command(*session, "__moe_parent_pty_ready__");
   EXPECT_EQ(
       read_parent_status(*session),
-      R"({"type":"parent.status","commandMode":false,"trayKey":"anonymous:1","trayLabel":"tray 1","overlay":"none"})");
+      R"({"type":"parent.status","commandMode":false,"trayKey":"anonymous:1","trayLabel":"tray 1","overlay":"none","paneMode":"none","paneSelectedNodes":0,"paneView":{"focusedPane":"1","maximized":false,"layout":{"id":"1","pane":"1"},"selection":null,"move":null}})");
 }
 
 TEST(ParentPtySessionTest, InvalidSizeReportsBoundsAndActualValues) {

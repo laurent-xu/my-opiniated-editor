@@ -1,7 +1,6 @@
 #include "src/parent/pane/pane_move_session.h"
 
 #include <algorithm>
-#include <cstddef>
 #include <optional>
 #include <utility>
 
@@ -44,30 +43,28 @@ bool PaneMoveSession::step_target(PaneLayout const& layout, PaneGeometry const& 
   if (move_stage != PaneMoveStage::TARGET) {
     return false;
   }
-  PaneNodeId cursor = target_node.value_or(source_selection.active());
-  std::size_t remaining = layout.leaf_nodes().size();
-  while (remaining > 0U) {
-    std::optional<PaneNodeId> const candidate =
-        find_directional_pane(layout, geometry, cursor, direction);
-    if (!candidate.has_value()) {
-      return false;
-    }
-    cursor = candidate.value();
-    if (target_is_eligible(layout, cursor)) {
-      target_node = cursor;
-      return true;
-    }
-    --remaining;
+  PaneNodeEligibility const eligible = [this, &layout](PaneNodeId const candidate) {
+    return target_is_eligible(layout, candidate);
+  };
+  std::optional<PaneNodeId> const candidate = find_directional_pane(
+      layout, geometry, target_node.value_or(source_selection.active()), direction, eligible);
+  if (!candidate.has_value()) {
+    return false;
   }
-  return false;
+  target_node = candidate;
+  return true;
 }
 
 bool PaneMoveSession::promote_target(PaneLayout const& layout) {
   if (move_stage != PaneMoveStage::TARGET || !target_node.has_value()) {
     return false;
   }
-  std::optional<PaneNodeId> const parent = layout.node(target_node.value()).parent();
-  if (!parent.has_value() || !target_is_eligible(layout, parent.value())) {
+  PaneNodeEligibility const eligible = [this, &layout](PaneNodeId const candidate) {
+    return target_is_eligible(layout, candidate);
+  };
+  std::optional<PaneNodeId> const parent =
+      find_parent_pane_node(layout, target_node.value(), eligible);
+  if (!parent.has_value()) {
     return false;
   }
   target_node = parent;
@@ -78,18 +75,15 @@ bool PaneMoveSession::descend_target(PaneLayout const& layout) {
   if (move_stage != PaneMoveStage::TARGET || !target_node.has_value()) {
     return false;
   }
-  PaneLayoutNode const& target = layout.node(target_node.value());
-  if (target.is_leaf()) {
+  PaneNodeEligibility const eligible = [this, &layout](PaneNodeId const candidate) {
+    return target_is_eligible(layout, candidate);
+  };
+  std::optional<PaneNodeId> const child =
+      find_first_child_pane_node(layout, target_node.value(), eligible);
+  if (!child.has_value()) {
     return false;
   }
-  auto const child = std::ranges::find_if(target.split().children,
-                                          [this, &layout](PaneSplitChild const& split_child) {
-                                            return target_is_eligible(layout, split_child.node_id);
-                                          });
-  if (child == target.split().children.end()) {
-    return false;
-  }
-  target_node = child->node_id;
+  target_node = child;
   return true;
 }
 

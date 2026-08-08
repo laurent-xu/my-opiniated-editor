@@ -22,7 +22,13 @@ std::string browser_html() {
   </head>
   <body>
     <main id="workspace">
-      <div id="terminal" aria-label="workspace terminal"></div>
+      <div id="surface">
+        <div id="pane-root" aria-label="workspace panes"></div>
+        <div id="pane-staging" aria-hidden="true"></div>
+        <div id="worktree-overlay-background" aria-hidden="true"></div>
+        <div id="terminal" aria-label="workspace terminal"></div>
+        <div id="pane-preview-root" aria-label="read-only pane preview"></div>
+      </div>
       <div id="status" aria-live="polite">connecting</div>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@)HTML" +

@@ -27,9 +27,11 @@ TEST(ApplicationMessageCodecTest, PreservesNamedWireDiscriminatorMapping) {
   EXPECT_EQ(browser_discriminator::WORKTREE_PICKER_ACTION, '6');
   EXPECT_EQ(browser_discriminator::OVERLAY_NAVIGATION, '7');
   EXPECT_EQ(browser_discriminator::PANE_ACTION, '8');
+  EXPECT_EQ(browser_discriminator::PANE_RESIZE, '9');
 
   EXPECT_EQ(bridge_discriminator::TERMINAL_OUTPUT, '0');
   EXPECT_EQ(bridge_discriminator::PARENT_STATUS, '1');
+  EXPECT_EQ(bridge_discriminator::PANE_OUTPUT, '2');
 }
 
 TEST(ApplicationMessageCodecTest, RejectsEmptyAndNulPrefixedBrowserMessages) {
@@ -66,14 +68,14 @@ TEST(ApplicationMessageCodecTest, PreservesEmptyAndNulContainingTerminalInputPay
 }
 
 TEST(ApplicationMessageCodecTest, RejectsReservedAndUnknownBrowserDiscriminators) {
-  for (std::string_view const message : {"4reserved", "9unknown", "xunknown"}) {
+  for (std::string_view const message : {"4reserved", "xunknown"}) {
     EXPECT_FALSE(moe::bridge::protocol::decode_browser_to_bridge_message(message).has_value());
   }
 }
 
 TEST(ApplicationMessageCodecTest, DecodesEveryExistingBrowserMessageType) {
   using Type = BrowserToBridgeMessage::Type;
-  constexpr std::array<std::pair<char, Type>, 8> CASES{{
+  constexpr std::array<std::pair<char, Type>, 9> CASES{{
       {browser_discriminator::TERMINAL_INPUT, Type::TERMINAL_INPUT},
       {browser_discriminator::RESIZE, Type::RESIZE},
       {browser_discriminator::SWITCH_ANONYMOUS_TRAY, Type::SWITCH_ANONYMOUS_TRAY},
@@ -82,6 +84,7 @@ TEST(ApplicationMessageCodecTest, DecodesEveryExistingBrowserMessageType) {
       {browser_discriminator::WORKTREE_PICKER_ACTION, Type::WORKTREE_PICKER_ACTION},
       {browser_discriminator::OVERLAY_NAVIGATION, Type::OVERLAY_NAVIGATION},
       {browser_discriminator::PANE_ACTION, Type::PANE_ACTION},
+      {browser_discriminator::PANE_RESIZE, Type::PANE_RESIZE},
   }};
 
   for (auto const& [discriminator, expected_type] : CASES) {

@@ -118,4 +118,22 @@ TEST(ParentCommandDispatcherPaneTest, DirectActionsChangeTheActiveLayout) {
   EXPECT_EQ(trays->active_pane_layout().leaf_nodes().size(), 1U);
 }
 
+TEST(ParentCommandDispatcherPaneTest, ClosingOnlyPaneReportsDestroyedTray) {
+  std::unique_ptr<moe::parent::TrayManager> trays = moe::parent::test_support::start_manager();
+  moe::parent::ParentCommandDispatcher dispatcher(
+      *trays, command_dispatcher_test_config("pane-close-last"));
+  moe::parent::TraySnapshot const original = trays->active_snapshot();
+  static_cast<void>(
+      dispatcher.dispatch(moe::parent::ToggleCommandModeCommand{}, COMMAND_DISPATCHER_TEST_SIZE));
+
+  moe::parent::ParentCommandDispatchEffects const effects =
+      dispatch_pane(dispatcher, moe::parent::PaneCommandAction::CLOSE);
+
+  EXPECT_TRUE(effects.publish_status);
+  EXPECT_TRUE(effects.redraw);
+  EXPECT_TRUE(effects.trays_destroyed);
+  EXPECT_EQ(trays->active_id(), original.id);
+  EXPECT_NE(trays->active_snapshot().child_pid.value(), original.child_pid.value());
+}
+
 }  // namespace

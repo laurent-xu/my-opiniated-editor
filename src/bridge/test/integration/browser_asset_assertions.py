@@ -19,6 +19,8 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     )
 
     html = fetch_text(port, "/")
+    test_case.assertIn('id="pane-root"', html)
+    test_case.assertIn('id="pane-preview-root"', html)
     test_case.assertIn("@xterm/xterm@6.0.0/css/xterm.css", html)
     test_case.assertIn("@xterm/xterm@6.0.0/lib/xterm.js", html)
     test_case.assertIn("@xterm/addon-fit@0.11.0/lib/addon-fit.js", html)
@@ -43,11 +45,13 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     WORKTREE_PICKER_ACTION: "6",
     OVERLAY_NAVIGATION: "7",
     PANE_ACTION: "8",
+    PANE_RESIZE: "9",
   });"""
     expected_bridge_to_browser_discriminators = """\
   const BridgeToBrowserDiscriminator = Object.freeze({
     TERMINAL_OUTPUT: "0",
     PARENT_STATUS: "1",
+    PANE_OUTPUT: "2",
   });"""
     test_case.assertIn(expected_browser_to_bridge_discriminators, client_js)
     test_case.assertIn(expected_bridge_to_browser_discriminators, client_js)
@@ -63,8 +67,10 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         "sendCommand(BrowserToBridgeDiscriminator.WORKTREE_PICKER_ACTION, command)",
         "sendCommand(BrowserToBridgeDiscriminator.OVERLAY_NAVIGATION, navigation)",
         "sendCommand(BrowserToBridgeDiscriminator.PANE_ACTION, action)",
+        "BrowserToBridgeDiscriminator.PANE_RESIZE.charCodeAt(0)",
         "if (command === BridgeToBrowserDiscriminator.TERMINAL_OUTPUT)",
         "if (command === BridgeToBrowserDiscriminator.PARENT_STATUS)",
+        "if (command === BridgeToBrowserDiscriminator.PANE_OUTPUT)",
     )
     for discriminator_use in expected_discriminator_uses:
         test_case.assertIn(discriminator_use, client_js)
@@ -79,6 +85,38 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
     test_case.assertIn("await document.fonts.ready", client_js)
     test_case.assertIn("await awaitTerminalFont()", client_js)
     test_case.assertIn("new Terminal", client_js)
+    test_case.assertIn("new Terminal(terminalOptions(true))", client_js)
+    test_case.assertIn("allowTransparency: transparent", client_js)
+    test_case.assertIn(
+        'background: transparent ? "rgba(0, 0, 0, 0)" : "#0b0d0e"',
+        client_js,
+    )
+    test_case.assertIn('document.getElementById("pane-root")', client_js)
+    test_case.assertIn(
+        'document.getElementById("worktree-overlay-background")', client_js
+    )
+    test_case.assertIn("const paneTerminals = new Map()", client_js)
+    test_case.assertIn("record.terminal.write(bytes)", client_js)
+    test_case.assertIn("record.fitAddon.fit()", client_js)
+    test_case.assertIn("renderPaneView(status.paneView || null)", client_js)
+    test_case.assertIn("renderPanePreview(status.panePreview || null)", client_js)
+    test_case.assertIn("function positionPanePreview(preview)", client_js)
+    test_case.assertIn("fitPreviewPaneTerminalsIn(panePreviewRootElement)", client_js)
+    test_case.assertNotIn("fitPaneTerminalsIn(panePreviewRootElement)", client_js)
+    test_case.assertIn("record.fitAddon.proposeDimensions()", client_js)
+    test_case.assertIn(
+        "record.lastCols > 0 ? record.lastCols : record.terminal.cols", client_js
+    )
+    test_case.assertIn(
+        "record.terminal.resize(preservedCols, dimensions.rows)", client_js
+    )
+    test_case.assertIn("function renderWorktreeOverlayBackground()", client_js)
+    test_case.assertIn("status.worktreeOverlayStartRow", client_js)
+    test_case.assertIn("`${(terminal.rows - startRow) * cellHeight}px`", client_js)
+    test_case.assertIn("terminal.focus()", client_js)
+    test_case.assertIn('element.classList.add("pane-muted")', client_js)
+    test_case.assertIn('element.classList.add("pane-hierarchy-group")', client_js)
+    test_case.assertIn('element.classList.add("pane-hierarchy-active")', client_js)
     test_case.assertIn("customGlyphs: true", client_js)
     test_case.assertIn(f"fontFamily: '{expected_font_stack}'", client_js)
     test_case.assertIn("lineHeight: 1.15", client_js)
@@ -192,5 +230,24 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
 
     css = fetch_text(port, "/style.css")
     test_case.assertIn("#terminal", css)
+    test_case.assertIn("#surface.pane-preview-active #pane-preview-root", css)
+    test_case.assertIn("#surface.pane-overlay-background-active #pane-root", css)
+    test_case.assertIn("#worktree-overlay-background", css)
+    test_case.assertIn(
+        "#surface.worktree-overlay-background-active #worktree-overlay-background",
+        css,
+    )
+    test_case.assertNotIn("#surface.pane-overlay-background-active #terminal {", css)
+    test_case.assertIn(
+        """#terminal .xterm-viewport {
+  background-color: transparent;
+}""",
+        css,
+    )
+    test_case.assertIn(".pane-leaf.pane-muted::before", css)
+    test_case.assertIn("background: rgba(5, 8, 7, 0.45)", css)
+    test_case.assertIn(".pane-hierarchy-active::before", css)
+    test_case.assertIn('content: "\\2194"', css)
+    test_case.assertIn('content: "\\2195"', css)
     test_case.assertNotIn('@font-face {\n  font-family: "Moe Terminal Nerd Font"', css)
     test_case.assertIn(f"font-family: {expected_font_stack};", css)

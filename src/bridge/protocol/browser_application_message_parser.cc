@@ -187,6 +187,14 @@ std::optional<BrowserApplicationMessage> parse_browser_application_message(
       return BrowserApplicationMessage{parse_overlay_navigation(decoded->payload)};
     case Type::PANE_ACTION:
       return BrowserApplicationMessage{parse_pane_action(decoded->payload)};
+    case Type::PANE_RESIZE: {
+      std::optional<parent::PaneViewResize> const resize =
+          parent::decode_pane_resize_payload(decoded->payload);
+      if (!resize.has_value()) {
+        throw std::runtime_error("pane resize payload is invalid");
+      }
+      return BrowserApplicationMessage{*resize};
+    }
   }
   throw std::logic_error("invalid browser-to-bridge message type");
 }

@@ -7,6 +7,12 @@ namespace moe::bridge {
 std::string browser_client_js() {
   return std::string(R"JS((async () => {
   const terminalElement = document.getElementById("terminal");
+  const paneRootElement = document.getElementById("pane-root");
+  const panePreviewRootElement = document.getElementById("pane-preview-root");
+  const paneStagingElement = document.getElementById("pane-staging");
+  const worktreeOverlayBackgroundElement =
+    document.getElementById("worktree-overlay-background");
+  const surfaceElement = document.getElementById("surface");
   const statusElement = document.getElementById("status");
 
   async function awaitTerminalFont() {
@@ -24,20 +30,25 @@ std::string browser_client_js() {
 
   await awaitTerminalFont();
 
-  const terminal = new Terminal({
-    cursorBlink: true,
-    convertEol: true,
-    customGlyphs: true,
-    fontFamily: ')JS" +
+  function terminalOptions(transparent = false) {
+    return {
+      allowTransparency: transparent,
+      cursorBlink: true,
+      convertEol: true,
+      customGlyphs: true,
+      fontFamily: ')JS" +
          browser::TERMINAL_FONT_FAMILY + R"JS(',
-    fontSize: 14,
-    lineHeight: 1.15,
-    theme: {
-      background: "#0b0d0e",
-      foreground: "#d9e2df",
-      cursor: "#f5d06f"
-    }
-  });
+      fontSize: 14,
+      lineHeight: 1.15,
+      theme: {
+        background: transparent ? "rgba(0, 0, 0, 0)" : "#0b0d0e",
+        foreground: "#d9e2df",
+        cursor: "#f5d06f"
+      }
+    };
+  }
+
+  const terminal = new Terminal(terminalOptions(true));
   const fitAddon = new FitAddon.FitAddon();
   terminal.loadAddon(fitAddon);
   terminal.open(terminalElement);
@@ -51,15 +62,21 @@ std::string browser_client_js() {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const statusDecoder = new TextDecoder();
+  const paneIdentityDecoder = new TextDecoder();
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(`${protocol}//${window.location.host}/ws`, "workspace-pty");
   socket.binaryType = "arraybuffer";
   let connectionState = "connecting";
+  let activeTrayKey = "anonymous:1";
   let activeTrayLabel = "tray 1";
   let commandMode = false;
   let activeOverlay = "none";
   let paneMode = "none";
   let paneSelectedNodes = 0;
+  let activePaneView = null;
+  let activePanePreview = null;
+  let worktreeOverlayStartRow = null;
+  const paneTerminals = new Map();
 
   const KeyboardState = Object.freeze({
     TERMINAL: "terminal",
@@ -94,12 +111,16 @@ std::string browser_client_js() {
          protocol::browser_to_bridge_discriminator::OVERLAY_NAVIGATION + R"JS(",
     PANE_ACTION: ")JS" +
          protocol::browser_to_bridge_discriminator::PANE_ACTION + R"JS(",
+    PANE_RESIZE: ")JS" +
+         protocol::browser_to_bridge_discriminator::PANE_RESIZE + R"JS(",
   });
   const BridgeToBrowserDiscriminator = Object.freeze({
     TERMINAL_OUTPUT: ")JS" +
          protocol::bridge_to_browser_discriminator::TERMINAL_OUTPUT + R"JS(",
     PARENT_STATUS: ")JS" +
          protocol::bridge_to_browser_discriminator::PARENT_STATUS + R"JS(",
+    PANE_OUTPUT: ")JS" +
+         protocol::bridge_to_browser_discriminator::PANE_OUTPUT + R"JS(",
   });
 
   function renderStatus() {
@@ -139,23 +160,426 @@ std::string browser_client_js() {
     renderStatus();
   }
 
+  function paneTerminalKey(trayKey, paneId) {
+    return `${trayKey}\u0000${paneId}`;
+  }
+
+  function paneRecord(trayKey, paneId) {
+    const key = paneTerminalKey(trayKey, paneId);
+    let record = paneTerminals.get(key);
+    if (record !== undefined) {
+      return record;
+    }
+    const element = document.createElement("div");
+    element.className = "pane-terminal";
+    record = {
+      key,
+      trayKey,
+      paneId,
+      element,
+      terminal: null,
+      fitAddon: null,
+      lastRows: 0,
+      lastCols: 0,
+    };
+    paneTerminals.set(key, record);
+    return record;
+  }
+
+  function mountPaneTerminal(record) {
+    if (record.terminal !== null) {
+      return;
+    }
+    const paneTerminal = new Terminal(terminalOptions());
+    const paneFitAddon = new FitAddon.FitAddon();
+    paneTerminal.loadAddon(paneFitAddon);
+    paneTerminal.open(record.element);
+    paneTerminal.attachCustomKeyEventHandler((event) => {
+      if (event.type === "keydown" && handleTerminalKey(event)) {
+        return false;
+      }
+      return true;
+    });
+    paneTerminal.onData((data) => {
+      sendCommand(BrowserToBridgeDiscriminator.TERMINAL_INPUT, data);
+    });
+    record.terminal = paneTerminal;
+    record.fitAddon = paneFitAddon;
+  }
+
+  function appendPaneIdentity(view, offset, trayKey, paneId) {
+    const trayBytes = encoder.encode(trayKey);
+    if (trayBytes.length > 0xffff) {
+      return null;
+    }
+    view.setUint16(offset, trayBytes.length);
+    offset += 2;
+    new Uint8Array(view.buffer, offset, trayBytes.length).set(trayBytes);
+    offset += trayBytes.length;
+    view.setBigUint64(offset, BigInt(paneId));
+    return offset + 8;
+  }
+
+  function sendPaneResize(record) {
+    if (socket.readyState !== WebSocket.OPEN || record.terminal === null) {
+      return;
+    }
+    const trayBytes = encoder.encode(record.trayKey);
+    const body = new Uint8Array(1 + 2 + trayBytes.length + 8 + 4 + 4);
+    body[0] = BrowserToBridgeDiscriminator.PANE_RESIZE.charCodeAt(0);
+    const view = new DataView(body.buffer);
+    const sizeOffset = appendPaneIdentity(view, 1, record.trayKey, record.paneId);
+    if (sizeOffset === null) {
+      return;
+    }
+    view.setUint32(sizeOffset, record.terminal.rows);
+    view.setUint32(sizeOffset + 4, record.terminal.cols);
+    socket.send(body);
+  }
+
+  function fitPaneTerminalsIn(rootElement) {
+    for (const record of paneTerminals.values()) {
+      if (record.terminal === null || !rootElement.contains(record.element) ||
+          record.element.clientWidth < 4 || record.element.clientHeight < 4) {
+        continue;
+      }
+      record.fitAddon.fit();
+      if (record.lastRows !== record.terminal.rows || record.lastCols !== record.terminal.cols) {
+        record.lastRows = record.terminal.rows;
+        record.lastCols = record.terminal.cols;
+        sendPaneResize(record);
+      }
+    }
+  }
+
+  function fitPreviewPaneTerminalsIn(rootElement) {
+    for (const record of paneTerminals.values()) {
+      if (record.terminal === null || !rootElement.contains(record.element) ||
+          record.element.clientWidth < 4 || record.element.clientHeight < 4) {
+        continue;
+      }
+      const dimensions = record.fitAddon.proposeDimensions();
+      if (dimensions === undefined || dimensions.rows <= 0) {
+        continue;
+      }
+      const preservedCols = record.lastCols > 0 ? record.lastCols : record.terminal.cols;
+      if (record.terminal.rows !== dimensions.rows || record.terminal.cols !== preservedCols) {
+        record.terminal.resize(preservedCols, dimensions.rows);
+      }
+    }
+  }
+
+  function fitVisiblePaneTerminals() {
+    if (surfaceElement.classList.contains("pane-view-active") ||
+        surfaceElement.classList.contains("pane-overlay-background-active")) {
+      fitPaneTerminalsIn(paneRootElement);
+    }
+    if (surfaceElement.classList.contains("pane-preview-active")) {
+      fitPreviewPaneTerminalsIn(panePreviewRootElement);
+    }
+  }
+
+  function collectPaneIds(node, output) {
+    if (typeof node.pane === "string") {
+      output.add(node.pane);
+      return;
+    }
+    for (const child of node.children || []) {
+      collectPaneIds(child, output);
+    }
+  }
+
+  function findPaneNode(node, paneId) {
+    if (node.pane === paneId) {
+      return node;
+    }
+    for (const child of node.children || []) {
+      const found = findPaneNode(child, paneId);
+      if (found !== null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  function findPaneNodeById(node, nodeId) {
+    if (node.id === nodeId) {
+      return node;
+    }
+    for (const child of node.children || []) {
+      const found = findPaneNodeById(child, nodeId);
+      if (found !== null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  function findParentNodeId(node, nodeId, parentId = null) {
+    if (node.id === nodeId) {
+      return parentId;
+    }
+    for (const child of node.children || []) {
+      const found = findParentNodeId(child, nodeId, node.id);
+      if (found !== null) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  function paneDecorations(paneView) {
+    const selectedPaneIds = new Set();
+    const selection = paneView.selection;
+    if (selection !== null) {
+      for (const nodeId of selection.nodes) {
+        const selectedNode = findPaneNodeById(paneView.layout, nodeId);
+        if (selectedNode !== null) {
+          collectPaneIds(selectedNode, selectedPaneIds);
+        }
+      }
+    }
+    return {
+      selectedPaneIds,
+      selectionParentId: selection === null
+        ? null
+        : findParentNodeId(paneView.layout, selection.active),
+    };
+  }
+
+  function buildPaneNode(node, paneView, trayKey, decorations, recordsToMount) {
+    const element = document.createElement("div");
+    element.classList.add("pane-node");
+    element.dataset.nodeId = node.id;
+    const selected = paneView.selection;
+    if (selected !== null && selected.nodes.includes(node.id)) {
+      element.classList.add("pane-selected");
+      if (selected.active === node.id) {
+        element.classList.add("pane-selection-active");
+      }
+    }
+    const move = paneView.move;
+    if (move !== null && move.sourceNodes.includes(node.id)) {
+      element.classList.add(move.preview ? "pane-move-preview" : "pane-move-source");
+    }
+    if (move !== null && move.targetNode === node.id) {
+      element.classList.add("pane-move-target");
+    }
+
+    if (typeof node.pane === "string") {
+      element.classList.add("pane-leaf");
+      if (node.pane === paneView.focusedPane) {
+        element.classList.add("pane-focused");
+      }
+      if ((selected !== null && !decorations.selectedPaneIds.has(node.pane)) ||
+          (selected === null && move === null && node.pane !== paneView.focusedPane)) {
+        element.classList.add("pane-muted");
+      }
+      const record = paneRecord(trayKey, node.pane);
+      element.append(record.element);
+      recordsToMount.push(record);
+      return element;
+    }
+
+    element.classList.add("pane-split");
+    element.classList.add(node.axis === "leftToRight"
+      ? "pane-split-left-to-right"
+      : "pane-split-top-to-bottom");
+    if (selected !== null) {
+      element.classList.add("pane-hierarchy-group");
+      if (node.id === decorations.selectionParentId) {
+        element.classList.add("pane-hierarchy-active");
+      }
+    }
+    for (let index = 0; index < node.children.length; ++index) {
+      const child = buildPaneNode(
+        node.children[index], paneView, trayKey, decorations, recordsToMount);
+      child.style.flex = `0 0 ${node.percentages[index]}%`;
+      element.append(child);
+    }
+    return element;
+  }
+
+  function stagePaneTerminalsIn(rootElement) {
+    for (const record of paneTerminals.values()) {
+      if (rootElement.contains(record.element)) {
+        paneStagingElement.append(record.element);
+      }
+    }
+  }
+
+  function renderPaneView(paneView) {
+    activePaneView = paneView;
+    const panesVisible = paneView !== null && activeOverlay === "none";
+    const overlayBackgroundVisible =
+      paneView !== null && activeOverlay === "worktreeManagement";
+    surfaceElement.classList.toggle("pane-view-active", panesVisible);
+    surfaceElement.classList.toggle(
+      "pane-overlay-background-active", overlayBackgroundVisible);
+    if (paneView === null || paneView.layout === undefined) {
+      paneRootElement.replaceChildren();
+      return;
+    }
+
+    const currentPaneIds = new Set();
+    collectPaneIds(paneView.layout, currentPaneIds);
+    for (const [key, record] of paneTerminals) {
+      if (record.trayKey === activeTrayKey && !currentPaneIds.has(record.paneId)) {
+        if (record.terminal !== null) {
+          record.terminal.dispose();
+        }
+        record.element.remove();
+        paneTerminals.delete(key);
+      }
+    }
+
+    stagePaneTerminalsIn(paneRootElement);
+    const renderedRoot = paneView.maximized
+      ? findPaneNode(paneView.layout, paneView.focusedPane)
+      : paneView.layout;
+    if (renderedRoot === null) {
+      return;
+    }
+    const recordsToMount = [];
+    paneRootElement.replaceChildren(buildPaneNode(
+      renderedRoot, paneView, activeTrayKey, paneDecorations(paneView), recordsToMount));
+    for (const record of recordsToMount) {
+      mountPaneTerminal(record);
+    }
+    requestAnimationFrame(() => {
+      fitVisiblePaneTerminals();
+      if (panesVisible) {
+        const focused = paneTerminals.get(paneTerminalKey(activeTrayKey, paneView.focusedPane));
+        if (focused !== undefined && focused.terminal !== null) {
+          focused.terminal.focus();
+        }
+      }
+    });
+  }
+
+  function positionPanePreview(preview) {
+    const screen = terminalElement.querySelector(".xterm-screen");
+    if (screen === null || terminal.rows <= 0 || terminal.cols <= 0) {
+      return;
+    }
+    const terminalRect = terminalElement.getBoundingClientRect();
+    const screenRect = screen.getBoundingClientRect();
+    const cellWidth = screenRect.width / terminal.cols;
+    const cellHeight = screenRect.height / terminal.rows;
+    panePreviewRootElement.style.left =
+      `${screenRect.left - terminalRect.left + preview.origin.column * cellWidth}px`;
+    panePreviewRootElement.style.top =
+      `${screenRect.top - terminalRect.top + preview.origin.row * cellHeight}px`;
+    panePreviewRootElement.style.width = `${preview.size.cols * cellWidth}px`;
+    panePreviewRootElement.style.height = `${preview.size.rows * cellHeight}px`;
+  }
+
+  function renderWorktreeOverlayBackground() {
+    const visible = activeOverlay === "worktreeManagement" &&
+      Number.isInteger(worktreeOverlayStartRow);
+    surfaceElement.classList.toggle("worktree-overlay-background-active", visible);
+    if (!visible) {
+      return;
+    }
+    const screen = terminalElement.querySelector(".xterm-screen");
+    if (screen === null || terminal.rows <= 0 || terminal.cols <= 0) {
+      return;
+    }
+    const terminalRect = terminalElement.getBoundingClientRect();
+    const screenRect = screen.getBoundingClientRect();
+    const cellHeight = screenRect.height / terminal.rows;
+    const startRow = Math.min(Math.max(worktreeOverlayStartRow, 0), terminal.rows - 1);
+    worktreeOverlayBackgroundElement.style.left = `${screenRect.left - terminalRect.left}px`;
+    worktreeOverlayBackgroundElement.style.top =
+      `${screenRect.top - terminalRect.top + startRow * cellHeight}px`;
+    worktreeOverlayBackgroundElement.style.width = `${screenRect.width}px`;
+    worktreeOverlayBackgroundElement.style.height = `${(terminal.rows - startRow) * cellHeight}px`;
+  }
+
+  function renderPanePreview(preview) {
+    activePanePreview = preview;
+    stagePaneTerminalsIn(panePreviewRootElement);
+    const previewVisible = preview !== null && activeOverlay === "worktreeManagement" &&
+      preview.paneView !== undefined && preview.paneView.layout !== undefined;
+    surfaceElement.classList.toggle("pane-preview-active", previewVisible);
+    if (!previewVisible) {
+      panePreviewRootElement.replaceChildren();
+      requestAnimationFrame(() => {
+        if (activeOverlay !== "none") {
+          terminal.focus();
+        }
+      });
+      return;
+    }
+
+    const paneView = preview.paneView;
+    const renderedRoot = paneView.maximized
+      ? findPaneNode(paneView.layout, paneView.focusedPane)
+      : paneView.layout;
+    if (renderedRoot === null) {
+      return;
+    }
+    const recordsToMount = [];
+    panePreviewRootElement.replaceChildren(buildPaneNode(
+      renderedRoot, paneView, preview.trayKey, paneDecorations(paneView), recordsToMount));
+    for (const record of recordsToMount) {
+      mountPaneTerminal(record);
+    }
+    positionPanePreview(preview);
+    requestAnimationFrame(() => {
+      positionPanePreview(preview);
+      fitVisiblePaneTerminals();
+      terminal.focus();
+    });
+  }
+
+  function consumePaneOutput(payload) {
+    if (payload.length < 10) {
+      return;
+    }
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    const trayLength = view.getUint16(0);
+    const paneOffset = 2 + trayLength;
+    if (payload.length < paneOffset + 8) {
+      return;
+    }
+    const trayKey = paneIdentityDecoder.decode(payload.slice(2, paneOffset));
+    const paneId = view.getBigUint64(paneOffset).toString();
+    const bytes = payload.slice(paneOffset + 8);
+    const record = paneRecord(trayKey, paneId);
+    if (record.terminal === null) {
+      paneStagingElement.append(record.element);
+      mountPaneTerminal(record);
+    }
+    record.terminal.write(bytes);
+  }
+
   function applyParentStatus(status) {
     if (status.type !== "parent.status") {
       return;
     }
     commandMode = status.commandMode === true;
+    if (typeof status.trayKey === "string" && status.trayKey.length > 0) {
+      activeTrayKey = status.trayKey;
+    }
     if (typeof status.trayLabel === "string" && status.trayLabel.length > 0) {
       activeTrayLabel = status.trayLabel;
     }
     if (typeof status.overlay === "string") {
       activeOverlay = status.overlay;
     }
+    worktreeOverlayStartRow = Number.isInteger(status.worktreeOverlayStartRow)
+      ? status.worktreeOverlayStartRow
+      : null;
     if (typeof status.paneMode === "string") {
       paneMode = status.paneMode;
     }
     if (Number.isInteger(status.paneSelectedNodes) && status.paneSelectedNodes >= 0) {
       paneSelectedNodes = status.paneSelectedNodes;
     }
+    renderPaneView(status.paneView || null);
+    renderPanePreview(status.panePreview || null);
+    renderWorktreeOverlayBackground();
     renderStatus();
   }
 
@@ -196,11 +620,17 @@ std::string browser_client_js() {
       BrowserToBridgeDiscriminator.RESIZE,
       JSON.stringify({ columns: terminal.cols, rows: terminal.rows }),
     );
+    requestAnimationFrame(fitVisiblePaneTerminals);
+    requestAnimationFrame(renderWorktreeOverlayBackground);
+    if (activePanePreview !== null) {
+      requestAnimationFrame(() => positionPanePreview(activePanePreview));
+    }
   }
 
   function terminalShouldReceiveKey() {
     const activeElement = document.activeElement;
-    return activeElement === document.body || activeElement === terminalElement || terminalElement.contains(activeElement);
+    return activeElement === document.body || activeElement === surfaceElement ||
+      surfaceElement.contains(activeElement);
   }
 
   function isTabKey(event) {
@@ -450,6 +880,10 @@ std::string browser_client_js() {
       } catch (error) {
         console.warn("Invalid parent status", error);
       }
+      return;
+    }
+    if (command === BridgeToBrowserDiscriminator.PANE_OUTPUT) {
+      consumePaneOutput(bytes.slice(1));
     }
   });
 

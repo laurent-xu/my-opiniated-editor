@@ -109,4 +109,32 @@ TEST(PaneNavigationTest, SplitNodeCanNavigateToExternalLeaf) {
             first);
 }
 
+TEST(PaneNavigationTest, AppliesTheSameEligibilityRuleAcrossTreeNavigation) {
+  moe::parent::PaneLayout layout = moe::parent::PaneLayout::single(pane_id(1));
+  moe::parent::PaneNodeId const first = layout.root_id();
+  moe::parent::PaneNodeId const second =
+      layout.split_leaf(first, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(2),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const third =
+      layout.split_leaf(second, moe::parent::PaneSplitAxis::LEFT_TO_RIGHT, pane_id(3),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const fourth =
+      layout.split_leaf(third, moe::parent::PaneSplitAxis::TOP_TO_BOTTOM, pane_id(4),
+                        moe::parent::PaneInsertion::AFTER);
+  moe::parent::PaneNodeId const third_and_fourth = required(layout.node(third).parent());
+  moe::parent::PaneGeometry const geometry = moe::parent::calculate_pane_geometry(
+      layout, {.origin = {.row = 0, .column = 0}, .size = {.rows = 20, .cols = 90}});
+  moe::parent::PaneNodeEligibility const excludes_second =
+      [second](moe::parent::PaneNodeId const candidate) { return candidate != second; };
+  moe::parent::PaneNodeEligibility const excludes_third =
+      [third](moe::parent::PaneNodeId const candidate) { return candidate != third; };
+
+  EXPECT_EQ(moe::parent::find_directional_pane(
+                layout, geometry, first, moe::parent::PaneFocusDirection::RIGHT, excludes_second),
+            third);
+  EXPECT_EQ(moe::parent::find_parent_pane_node(layout, third, excludes_second), third_and_fourth);
+  EXPECT_EQ(moe::parent::find_first_child_pane_node(layout, third_and_fourth, excludes_third),
+            fourth);
+}
+
 }  // namespace
