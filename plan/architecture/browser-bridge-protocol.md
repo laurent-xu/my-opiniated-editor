@@ -85,9 +85,9 @@ Current service transport:
 
 - Browser traffic is served by a standalone Python HTTPS proxy; the C++ bridge
   listens over plain HTTP on an explicitly configured loopback-only port.
-- LAN `7682` explicitly binds all interfaces and proxies to
-  `127.0.0.1:17682`. Tailscale Funnel public port `10000` publishes the
-  loopback-only `7683` proxy, which forwards to `127.0.0.1:17683`. The two
+- Tailscale Funnel public port `443` publishes the loopback-only `7682` proxy,
+  which forwards to `127.0.0.1:17682`. Public port `10000` similarly publishes
+  the loopback-only `7683` proxy, which forwards to `127.0.0.1:17683`. The two
   bridge instances retain separate parent and workspace state.
 - The proxy requires HTTP Basic Auth for every HTTP request and WebSocket
   upgrade. Browsers retain successful credentials for the origin, so reloads
@@ -241,9 +241,9 @@ For remote access:
 - Keep future clipboard writes auditable because clipboard is a high-trust
   channel.
 
-The current LAN and Funnel service paths satisfy the first three requirements
-with the HTTPS/auth proxy. Service deployments keep the unauthenticated C++
-bridge on a loopback-only upstream port.
+The current Funnel service paths satisfy the first three requirements with the
+HTTPS/auth proxy. Service deployments keep the authenticated proxies and
+unauthenticated C++ bridges on loopback-only origin ports.
 
 ## Compatibility Policy
 

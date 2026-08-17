@@ -3,17 +3,17 @@
 The bridge path is split deliberately:
 
 ```text
-LAN browser -> HTTPS/auth proxy :7682 -> HTTP C++ bridge 127.0.0.1:17682
+Tailscale Funnel :443 -> HTTPS/auth proxy 127.0.0.1:7682
+                      -> HTTP C++ bridge 127.0.0.1:17682
 Tailscale Funnel :10000 -> HTTPS/auth proxy 127.0.0.1:7683
                         -> HTTP C++ bridge 127.0.0.1:17683
 ```
 
 The small Python proxy terminates TLS, verifies HTTP Basic credentials, and
 forwards HTTP and WebSocket traffic. The C++ bridge and parent PTY remain the
-application. Both layers bind loopback by default. The `7682` instance example
-explicitly opts into `0.0.0.0` for LAN access; the `7683` example remains on
-loopback for Tailscale Funnel. Neither plain-HTTP upstream is reachable
-off-host.
+application. Both layers and both instance examples bind loopback. Tailscale
+Funnel is the only public entry point, and neither authenticated proxy nor
+plain-HTTP upstream is directly reachable off-host.
 
 When `MOE_BRIDGE_ALLOWED_ORIGIN` is set for an instance, the proxy rejects a
 WebSocket upgrade whose `Origin` header is missing or is not in that explicit
@@ -22,7 +22,7 @@ slashes.
 
 ## One-Time Secret Setup
 
-Create the scrypt password hash and self-signed LAN certificate. This prompts
+Create the scrypt password hash and self-signed origin certificate. This prompts
 for the password twice during setup, never places plaintext in argv, and writes
 private files under `~/.secrets` with mode `0600`:
 
@@ -36,7 +36,7 @@ The files are:
 - `~/.secrets/my-opiniated-editor-password`: username, scrypt parameters,
   random salt, and password digest.
 - `~/.secrets/my-opiniated-editor-certificate.pem`: self-signed certificate
-  with the current host names and LAN IPv4 addresses.
+  with the current host names and local IPv4 addresses.
 - `~/.secrets/my-opiniated-editor-certificate-key.pem`: TLS private key.
 
 The browser will require a one-time exception for the self-signed certificate.
@@ -46,11 +46,11 @@ credential check, the proxy waits three seconds before accepting another
 authentication attempt from any client. The proxy enforces this cooldown on
 the server with a monotonic clock.
 
-## Install Both LAN Ports
+## Install Both Instances
 
-The common optional environment file controls the public bind interface and
+The common optional environment file controls the proxy bind interface and
 custom secret paths. Per-instance files make both the HTTP and HTTPS ports
-explicit:
+explicit and keep the proxy on loopback:
 
 ```bash
 mkdir -p ~/.config/my-opiniated-editor
@@ -92,25 +92,14 @@ Enable linger if the services must start before interactive login:
 loginctl enable-linger "$USER"
 ```
 
-NixOS must allow the LAN port. Funnel does not require opening `7683`:
-
-```nix
-networking.firewall.allowedTCPPorts = [ 7682 ];
-```
-
-Connect from any allowed LAN host to the LAN instance:
-
-```text
-https://<server-ip>:7682/
-```
-
-Use `notmyfoo` and the configured password. Each public port owns separate
+Funnel needs no inbound firewall opening for `7682`, `7683`, `17682`, or
+`17683`. Use `notmyfoo` and the configured password. Each proxy port owns separate
 parent state under
 `$XDG_STATE_HOME/my-opiniated-editor/instances/port-<public-port>`, or
 `$HOME/.local/state/my-opiniated-editor/instances/port-<public-port>` when
 `XDG_STATE_HOME` is unset.
 
-## Expose Port 7683 Through Tailscale Funnel
+## Expose Both Instances Through Tailscale Funnel
 
 Enable Tailscale on NixOS and join the machine to the intended tailnet:
 
@@ -124,29 +113,36 @@ sudo tailscale up
 ```
 
 Find the machine's full `*.ts.net` DNS name in `tailscale status --json` or in
-the Tailscale admin console. Put its exact HTTPS origin in the private instance
-file, with no trailing slash:
+the Tailscale admin console. Put its exact HTTPS origins in the private
+instance files, with no trailing slash. The public `443` origin has no explicit
+port because `443` is the HTTPS default:
 
 ```text
+# ~/.config/my-opiniated-editor/bridge-7682.env
+MOE_BRIDGE_HTTP_PORT=17682
+MOE_BRIDGE_HTTPS_INTERFACE=127.0.0.1
+MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net,https://127.0.0.1:7682
+
+# ~/.config/my-opiniated-editor/bridge-7683.env
 MOE_BRIDGE_HTTP_PORT=17683
 MOE_BRIDGE_HTTPS_INTERFACE=127.0.0.1
 MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net:10000,https://127.0.0.1:7683
 ```
 
-Restart the `7683` bridge pair, then publish only its authenticated HTTPS
-proxy:
+Restart both bridge pairs, then publish only their authenticated HTTPS proxies:
 
 ```bash
+tools/bridge/restart_bridge.sh 7682
 tools/bridge/restart_bridge.sh 7683
-sudo tailscale funnel --bg --https=10000 https+insecure://127.0.0.1:7683
+sudo tailscale funnel --bg --https=443 --yes https+insecure://127.0.0.1:7682
+sudo tailscale funnel --bg --https=10000 --yes https+insecure://127.0.0.1:7683
 sudo tailscale funnel status
 ```
 
 `https+insecure` applies only to Funnel's loopback connection to the proxy's
 self-signed certificate. The public Funnel endpoint still uses a
-browser-trusted Tailscale certificate. Public port `443` remains available for
-another service. Never point Funnel at the unauthenticated HTTP bridge on
-`17683`.
+browser-trusted Tailscale certificate. Never point Funnel at the
+unauthenticated HTTP bridges on `17682` or `17683`.
 
 ## Rebuild And Restart
 

@@ -64,10 +64,11 @@ Current progress:
 - The owned bridge accepts only loopback interfaces. Authentication and public
   network binding belong to the HTTPS proxy, so bridge HTTP and WebSocket URLs
   carry no token.
-- The service deployment terminates HTTPS and Basic Auth in a small Python
-  proxy on LAN ports `7682` and `7683`; matching C++ bridges use loopback-only
-  HTTP ports `17682` and `17683`. Password verification uses an scrypt record
-  stored under `~/.secrets`.
+- The service deployment terminates origin HTTPS and Basic Auth in small Python
+  proxies on loopback ports `7682` and `7683`, published through Tailscale
+  Funnel on `443` and `10000`; matching C++ bridges use loopback-only HTTP
+  ports `17682` and `17683`. Password verification uses an scrypt record stored
+  under `~/.secrets`.
 - Manual browser check on 2026-07-07 confirmed the network page loads, the
   status bar reaches connected, two tabs show the same parent content, and
   refresh works.

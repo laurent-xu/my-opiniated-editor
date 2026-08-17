@@ -46,6 +46,27 @@ class ServiceScriptsTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("usage:", result.stderr)
 
+    def test_funnel_instance_examples_are_loopback_only(self):
+        expected = {
+            "bridge-7682.env.example": (
+                "MOE_BRIDGE_HTTP_PORT=17682\n",
+                "MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net,https://127.0.0.1:7682\n",
+            ),
+            "bridge-7683.env.example": (
+                "MOE_BRIDGE_HTTP_PORT=17683\n",
+                "MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net:10000,https://127.0.0.1:7683\n",
+            ),
+        }
+        for example, required_lines in expected.items():
+            with self.subTest(example=example):
+                contents = Path(runfile_path(f"tools/bridge/{example}")).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("MOE_BRIDGE_HTTPS_INTERFACE=127.0.0.1\n", contents)
+                self.assertNotIn("MOE_BRIDGE_HTTPS_INTERFACE=0.0.0.0", contents)
+                for line in required_lines:
+                    self.assertIn(line, contents)
+
     def prepare_runner(self, repo_root: Path) -> Path:
         runner = repo_root / "tools" / "bridge" / "run_bridge.sh"
         runner.parent.mkdir(parents=True)

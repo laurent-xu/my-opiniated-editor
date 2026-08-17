@@ -48,10 +48,10 @@ Already done:
   resize frames.
 - The owned bridge accepts only loopback interfaces; public access goes through
   the authenticated HTTPS proxy.
-- Service deployments now put a small Python HTTPS/auth proxy on public LAN
-  ports and keep each plain-HTTP C++ bridge on a loopback-only upstream port.
-  The proxy verifies a scrypt password record from `~/.secrets` and tunnels
-  both HTTP and WebSocket traffic.
+- Service deployments publish loopback-only Python HTTPS/auth proxies through
+  Tailscale Funnel and keep each plain-HTTP C++ bridge on a separate
+  loopback-only upstream port. The proxy verifies a scrypt password record
+  from `~/.secrets` and tunnels both HTTP and WebSocket traffic.
 - Clipboard support was removed from Phase 1 after manual HTTP testing showed
   the network path should be stabilized before adding browser clipboard writes.
   Reintroduce clipboard only after HTTPS/reverse proxy support is available.
