@@ -83,14 +83,19 @@ Current owned bridge endpoints:
 
 Current service transport:
 
-- Public ports are served by a standalone Python HTTPS proxy; the C++ bridge
+- Browser traffic is served by a standalone Python HTTPS proxy; the C++ bridge
   listens over plain HTTP on an explicitly configured loopback-only port.
-- Public `7682` proxies to `127.0.0.1:17682`, and public `7683` proxies to
-  `127.0.0.1:17683`. The two bridge instances retain separate parent and
-  workspace state.
+- LAN `7682` explicitly binds all interfaces and proxies to
+  `127.0.0.1:17682`. Tailscale Funnel publishes the loopback-only `7683`
+  proxy, which forwards to `127.0.0.1:17683`. The two bridge instances retain
+  separate parent and workspace state.
 - The proxy requires HTTP Basic Auth for every HTTP request and WebSocket
   upgrade. Browsers retain successful credentials for the origin, so reloads
   and reconnects do not prompt repeatedly.
+- A configured `MOE_BRIDGE_ALLOWED_ORIGIN` makes the proxy reject WebSocket
+  upgrades with a missing or non-matching `Origin` header before checking
+  credentials. Funnel deployments set it to their exact HTTPS `*.ts.net`
+  origin.
 - The password file under `~/.secrets` stores only the username, scrypt
   parameters, random salt, and digest. TLS certificate and key files are also
   kept outside the repository.
@@ -223,6 +228,8 @@ Current implementation:
   interfaces.
 - Non-loopback binds, including `0.0.0.0`, are rejected without an override.
 - Browser and WebSocket URLs do not carry authentication credentials.
+- The HTTPS proxy can require an exact HTTPS `Origin` value on every WebSocket
+  upgrade; the Funnel instance enables this check.
 
 For remote access:
 
@@ -233,9 +240,9 @@ For remote access:
 - Keep future clipboard writes auditable because clipboard is a high-trust
   channel.
 
-The current LAN service path satisfies the first three requirements with the
-HTTPS/auth proxy. Service deployments keep the unauthenticated C++ bridge on a
-loopback-only upstream port.
+The current LAN and Funnel service paths satisfy the first three requirements
+with the HTTPS/auth proxy. Service deployments keep the unauthenticated C++
+bridge on a loopback-only upstream port.
 
 ## Compatibility Policy
 

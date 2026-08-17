@@ -72,7 +72,9 @@ Current coverage:
   rejects non-loopback binds and the removed unsafe override.
 - `//tools/bridge:https_proxy_test` verifies scrypt password records, rejects
   missing or incorrect Basic Auth, forwards authorized HTTP, and tunnels an
-  authenticated WebSocket upgrade to the loopback bridge port.
+  authenticated WebSocket upgrade to the loopback bridge port. It also
+  verifies that an explicitly configured browser origin rejects missing or
+  mismatched WebSocket `Origin` headers.
 - Tray lifecycle coverage verifies confirmed command-mode clear/remove actions,
   atomic worktree unregistration, no eager recreation of an inactive anonymous
   tray 1, and fallback to a fresh anonymous tray 1 when active content exits or

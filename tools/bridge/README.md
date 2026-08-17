@@ -1,16 +1,23 @@
 # Browser Bridge Services
 
-The public bridge path is split deliberately:
+The bridge path is split deliberately:
 
 ```text
-browser -> HTTPS/auth proxy :7682 -> HTTP C++ bridge 127.0.0.1:17682
-browser -> HTTPS/auth proxy :7683 -> HTTP C++ bridge 127.0.0.1:17683
+LAN browser -> HTTPS/auth proxy :7682 -> HTTP C++ bridge 127.0.0.1:17682
+Tailscale Funnel -> HTTPS/auth proxy 127.0.0.1:7683
+                 -> HTTP C++ bridge 127.0.0.1:17683
 ```
 
 The small Python proxy terminates TLS, verifies HTTP Basic credentials, and
 forwards HTTP and WebSocket traffic. The C++ bridge and parent PTY remain the
-application. Both public proxy instances bind `0.0.0.0` by default so other LAN
-hosts can connect; neither plain-HTTP upstream is reachable off-host.
+application. Both layers bind loopback by default. The `7682` instance example
+explicitly opts into `0.0.0.0` for LAN access; the `7683` example remains on
+loopback for Tailscale Funnel. Neither plain-HTTP upstream is reachable
+off-host.
+
+When `MOE_BRIDGE_ALLOWED_ORIGIN` is set for an instance, the proxy rejects a
+WebSocket upgrade whose `Origin` header is missing or differs from that exact
+HTTPS origin. Use the browser origin without a trailing slash.
 
 ## One-Time Secret Setup
 
@@ -84,17 +91,16 @@ Enable linger if the services must start before interactive login:
 loginctl enable-linger "$USER"
 ```
 
-NixOS must allow both public ports:
+NixOS must allow the LAN port. Funnel does not require opening `7683`:
 
 ```nix
-networking.firewall.allowedTCPPorts = [ 7682 7683 ];
+networking.firewall.allowedTCPPorts = [ 7682 ];
 ```
 
-Connect from any allowed LAN host:
+Connect from any allowed LAN host to the LAN instance:
 
 ```text
 https://<server-ip>:7682/
-https://<server-ip>:7683/
 ```
 
 Use `notmyfoo` and the configured password. Each public port owns separate
@@ -102,6 +108,43 @@ parent state under
 `$XDG_STATE_HOME/my-opiniated-editor/instances/port-<public-port>`, or
 `$HOME/.local/state/my-opiniated-editor/instances/port-<public-port>` when
 `XDG_STATE_HOME` is unset.
+
+## Expose Port 7683 Through Tailscale Funnel
+
+Enable Tailscale on NixOS and join the machine to the intended tailnet:
+
+```nix
+services.tailscale.enable = true;
+```
+
+```bash
+sudo nixos-rebuild switch
+sudo tailscale up
+```
+
+Find the machine's full `*.ts.net` DNS name in `tailscale status --json` or in
+the Tailscale admin console. Put its exact HTTPS origin in the private instance
+file, with no trailing slash:
+
+```text
+MOE_BRIDGE_HTTP_PORT=17683
+MOE_BRIDGE_HTTPS_INTERFACE=127.0.0.1
+MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net
+```
+
+Restart the `7683` bridge pair, then publish only its authenticated HTTPS
+proxy:
+
+```bash
+tools/bridge/restart_bridge.sh 7683
+sudo tailscale funnel --bg https+insecure://127.0.0.1:7683
+sudo tailscale funnel status
+```
+
+`https+insecure` applies only to Funnel's loopback connection to the proxy's
+self-signed certificate. The public Funnel endpoint still uses a
+browser-trusted Tailscale certificate. Never point Funnel at the unauthenticated
+HTTP bridge on `17683`.
 
 ## Rebuild And Restart
 

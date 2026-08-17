@@ -24,6 +24,7 @@ import tempfile
 import threading
 import time
 from typing import Callable
+from urllib.parse import urlsplit
 
 
 SCRYPT_N = 16_384
@@ -150,6 +151,23 @@ def verify_basic_authorization(
     )
 
 
+def validate_allowed_origin(origin: str) -> str:
+    parsed = urlsplit(origin)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "allowed origin must be an HTTPS origin without a path, query, or fragment"
+        )
+    return origin
+
+
 def _write_private_file(path: Path, contents: str) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     path.parent.chmod(0o700)
@@ -264,11 +282,18 @@ class ProxyServer(ThreadingHTTPServer):
         address: tuple[str, int],
         upstream_port: int,
         password_record: PasswordRecord,
+        allowed_origin: str | None = None,
         monotonic_time: Callable[[], float] = time.monotonic,
     ) -> None:
+        validated_origin = (
+            validate_allowed_origin(allowed_origin)
+            if allowed_origin is not None
+            else None
+        )
         super().__init__(address, ProxyHandler)
         self.upstream_port = upstream_port
         self.password_record = password_record
+        self.allowed_origin = validated_origin
         self._monotonic_time = monotonic_time
         self._authentication_lock = threading.Lock()
         self._authentication_retry_deadline: float | None = None
@@ -307,6 +332,23 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._proxy_request()
 
     def _proxy_request(self) -> None:
+        websocket_upgrade = self.headers.get("Upgrade", "").lower() == "websocket"
+        if (
+            websocket_upgrade
+            and self.proxy_server.allowed_origin is not None
+            and self.headers.get("Origin") != self.proxy_server.allowed_origin
+        ):
+            body = b"websocket origin not allowed\n"
+            self.send_response(403)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+            self.close_connection = True
+            return
+
         authenticated, retry_after = self.proxy_server.authenticate(
             self.headers.get("Authorization")
         )
@@ -334,7 +376,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             self.close_connection = True
             return
-        if self.headers.get("Upgrade", "").lower() == "websocket":
+        if websocket_upgrade:
             self._proxy_websocket()
             return
         self._proxy_http()
@@ -440,12 +482,18 @@ def serve_https(
     public_port: int,
     upstream_port: int,
     paths: SecretPaths,
+    allowed_origin: str | None,
 ) -> None:
     password_record = read_password_record(paths.password_file)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(paths.certificate, paths.certificate_key)
-    server = ProxyServer((interface, public_port), upstream_port, password_record)
+    server = ProxyServer(
+        (interface, public_port),
+        upstream_port,
+        password_record,
+        allowed_origin=allowed_origin,
+    )
     server.socket = context.wrap_socket(server.socket, server_side=True)
     print(
         f"https-proxy listening interface={interface} port={public_port} "
@@ -476,7 +524,11 @@ def parse_args() -> argparse.Namespace:
     serve.add_argument("--http-port", required=True, type=_network_port)
     serve.add_argument(
         "--interface",
-        default=os.environ.get("MOE_BRIDGE_HTTPS_INTERFACE", "0.0.0.0"),
+        default=os.environ.get("MOE_BRIDGE_HTTPS_INTERFACE", "127.0.0.1"),
+    )
+    serve.add_argument(
+        "--allowed-origin",
+        default=os.environ.get("MOE_BRIDGE_ALLOWED_ORIGIN"),
     )
     return parser.parse_args()
 
@@ -492,6 +544,7 @@ def main() -> None:
         args.https_port,
         args.http_port,
         paths,
+        args.allowed_origin,
     )
 
 
