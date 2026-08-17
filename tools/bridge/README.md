@@ -4,8 +4,8 @@ The bridge path is split deliberately:
 
 ```text
 LAN browser -> HTTPS/auth proxy :7682 -> HTTP C++ bridge 127.0.0.1:17682
-Tailscale Funnel -> HTTPS/auth proxy 127.0.0.1:7683
-                 -> HTTP C++ bridge 127.0.0.1:17683
+Tailscale Funnel :10000 -> HTTPS/auth proxy 127.0.0.1:7683
+                        -> HTTP C++ bridge 127.0.0.1:17683
 ```
 
 The small Python proxy terminates TLS, verifies HTTP Basic credentials, and
@@ -16,8 +16,9 @@ loopback for Tailscale Funnel. Neither plain-HTTP upstream is reachable
 off-host.
 
 When `MOE_BRIDGE_ALLOWED_ORIGIN` is set for an instance, the proxy rejects a
-WebSocket upgrade whose `Origin` header is missing or differs from that exact
-HTTPS origin. Use the browser origin without a trailing slash.
+WebSocket upgrade whose `Origin` header is missing or is not in that explicit
+comma-separated HTTPS origin allowlist. Use browser origins without trailing
+slashes.
 
 ## One-Time Secret Setup
 
@@ -129,7 +130,7 @@ file, with no trailing slash:
 ```text
 MOE_BRIDGE_HTTP_PORT=17683
 MOE_BRIDGE_HTTPS_INTERFACE=127.0.0.1
-MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net
+MOE_BRIDGE_ALLOWED_ORIGIN=https://nixos.example-tailnet.ts.net:10000,https://127.0.0.1:7683
 ```
 
 Restart the `7683` bridge pair, then publish only its authenticated HTTPS
@@ -137,14 +138,15 @@ proxy:
 
 ```bash
 tools/bridge/restart_bridge.sh 7683
-sudo tailscale funnel --bg https+insecure://127.0.0.1:7683
+sudo tailscale funnel --bg --https=10000 https+insecure://127.0.0.1:7683
 sudo tailscale funnel status
 ```
 
 `https+insecure` applies only to Funnel's loopback connection to the proxy's
 self-signed certificate. The public Funnel endpoint still uses a
-browser-trusted Tailscale certificate. Never point Funnel at the unauthenticated
-HTTP bridge on `17683`.
+browser-trusted Tailscale certificate. Public port `443` remains available for
+another service. Never point Funnel at the unauthenticated HTTP bridge on
+`17683`.
 
 ## Rebuild And Restart
 

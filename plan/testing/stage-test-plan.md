@@ -75,6 +75,9 @@ Current coverage:
   authenticated WebSocket upgrade to the loopback bridge port. It also
   verifies that an explicitly configured browser origin rejects missing or
   mismatched WebSocket `Origin` headers.
+- `//src/bridge:http_protocol_test` verifies HTTP header lookup is
+  case-insensitive so WebSocket headers canonicalized by reverse proxies such
+  as Tailscale Funnel remain valid.
 - Tray lifecycle coverage verifies confirmed command-mode clear/remove actions,
   atomic worktree unregistration, no eager recreation of an inactive anonymous
   tray 1, and fallback to a fresh anonymous tray 1 when active content exits or

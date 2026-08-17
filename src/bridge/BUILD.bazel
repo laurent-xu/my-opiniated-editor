@@ -16,6 +16,15 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "http_protocol_test",
+    srcs = ["http_protocol_test.cc"],
+    deps = [
+        ":http_protocol",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "websocket_protocol",
     srcs = ["websocket_protocol.cc"],

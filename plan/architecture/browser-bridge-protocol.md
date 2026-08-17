@@ -86,16 +86,17 @@ Current service transport:
 - Browser traffic is served by a standalone Python HTTPS proxy; the C++ bridge
   listens over plain HTTP on an explicitly configured loopback-only port.
 - LAN `7682` explicitly binds all interfaces and proxies to
-  `127.0.0.1:17682`. Tailscale Funnel publishes the loopback-only `7683`
-  proxy, which forwards to `127.0.0.1:17683`. The two bridge instances retain
-  separate parent and workspace state.
+  `127.0.0.1:17682`. Tailscale Funnel public port `10000` publishes the
+  loopback-only `7683` proxy, which forwards to `127.0.0.1:17683`. The two
+  bridge instances retain separate parent and workspace state.
 - The proxy requires HTTP Basic Auth for every HTTP request and WebSocket
   upgrade. Browsers retain successful credentials for the origin, so reloads
   and reconnects do not prompt repeatedly.
 - A configured `MOE_BRIDGE_ALLOWED_ORIGIN` makes the proxy reject WebSocket
-  upgrades with a missing or non-matching `Origin` header before checking
-  credentials. Funnel deployments set it to their exact HTTPS `*.ts.net`
-  origin.
+  upgrades with a missing `Origin` header or one outside its comma-separated
+  exact HTTPS allowlist before checking credentials. Funnel deployments allow
+  their exact HTTPS `*.ts.net` origin and may explicitly allow a loopback
+  browser origin for local testing.
 - The password file under `~/.secrets` stores only the username, scrypt
   parameters, random salt, and digest. TLS certificate and key files are also
   kept outside the repository.

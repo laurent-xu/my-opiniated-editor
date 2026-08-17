@@ -41,6 +41,8 @@ Current automated coverage:
 - `//tools/bridge:https_proxy_test` verifies authenticated HTTP forwarding,
   exact WebSocket origin enforcement, and WebSocket tunneling through the
   HTTPS proxy boundary.
+- `//src/bridge:http_protocol_test` covers case-insensitive HTTP header lookup,
+  including the WebSocket key spelling received through Tailscale Funnel.
 - Manual browser check on 2026-07-07 confirmed the network page loads, status
   reaches connected, two tabs show the same parent content, and refresh works.
 - Clipboard is intentionally parked until the HTTPS path has a focused live

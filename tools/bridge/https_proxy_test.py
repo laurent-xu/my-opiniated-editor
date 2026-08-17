@@ -16,6 +16,7 @@ from https_proxy import (
     parse_password_record,
     parse_args,
     validate_allowed_origin,
+    validate_allowed_origins,
     verify_basic_authorization,
 )
 
@@ -91,6 +92,17 @@ class HttpsProxyTest(unittest.TestCase):
             with self.subTest(origin=origin):
                 with self.assertRaisesRegex(ValueError, "must be an HTTPS origin"):
                     validate_allowed_origin(origin)
+
+    def test_allowed_origins_accepts_an_explicit_comma_separated_allowlist(self):
+        local_origin = "https://127.0.0.1:7683"
+
+        self.assertEqual(
+            validate_allowed_origins(f"{ALLOWED_ORIGIN}, {local_origin}"),
+            frozenset({ALLOWED_ORIGIN, local_origin}),
+        )
+        self.assertEqual(validate_allowed_origins(None), frozenset())
+        with self.assertRaisesRegex(ValueError, "comma-separated list"):
+            validate_allowed_origins(f"{ALLOWED_ORIGIN},")
 
     def test_serve_defaults_to_loopback_and_accepts_configured_origin(self):
         with patch.dict(

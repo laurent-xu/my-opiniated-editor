@@ -5,10 +5,33 @@
 #include <array>
 #include <cerrno>
 #include <stdexcept>
+#include <string_view>
 
 #include "src/bridge/socket_io.h"
 
 namespace moe::bridge {
+namespace {
+
+char ascii_lower(char const value) {
+  if (value >= 'A' && value <= 'Z') {
+    return static_cast<char>(value + ('a' - 'A'));
+  }
+  return value;
+}
+
+bool header_names_equal(std::string_view const left, std::string_view const right) {
+  if (left.size() != right.size()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < left.size(); ++index) {
+    if (ascii_lower(left[index]) != ascii_lower(right[index])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
 
 HttpRequest read_http_request(base::FileDescriptor const file_descriptor) {
   std::string request;
@@ -38,20 +61,31 @@ HttpRequest read_http_request(base::FileDescriptor const file_descriptor) {
 
 std::optional<std::string> header_value(HttpRequest const& request,
                                         std::string const& header_name) {
-  std::string const needle = "\r\n" + header_name + ":";
-  std::size_t const position = request.raw_headers.find(needle);
-  if (position == std::string::npos) {
+  std::size_t line_start = request.raw_headers.find("\r\n");
+  if (line_start == std::string::npos) {
     return std::nullopt;
   }
-  std::size_t value_start = position + needle.size();
-  while (value_start < request.raw_headers.size() && request.raw_headers[value_start] == ' ') {
-    ++value_start;
+  line_start += 2U;
+  while (line_start < request.raw_headers.size()) {
+    std::size_t const line_end = request.raw_headers.find("\r\n", line_start);
+    if (line_end == std::string::npos || line_end == line_start) {
+      return std::nullopt;
+    }
+    std::size_t const separator = request.raw_headers.find(':', line_start);
+    if (separator != std::string::npos && separator < line_end &&
+        header_names_equal(
+            std::string_view(request.raw_headers).substr(line_start, separator - line_start),
+            header_name)) {
+      std::size_t value_start = separator + 1U;
+      while (value_start < line_end && (request.raw_headers[value_start] == ' ' ||
+                                        request.raw_headers[value_start] == '\t')) {
+        ++value_start;
+      }
+      return request.raw_headers.substr(value_start, line_end - value_start);
+    }
+    line_start = line_end + 2U;
   }
-  std::size_t const value_end = request.raw_headers.find("\r\n", value_start);
-  if (value_end == std::string::npos) {
-    return std::nullopt;
-  }
-  return request.raw_headers.substr(value_start, value_end - value_start);
+  return std::nullopt;
 }
 
 void send_http_response(base::FileDescriptor const file_descriptor, std::string const& status,

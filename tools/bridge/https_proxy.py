@@ -168,6 +168,15 @@ def validate_allowed_origin(origin: str) -> str:
     return origin
 
 
+def validate_allowed_origins(origins: str | None) -> frozenset[str]:
+    if origins is None:
+        return frozenset()
+    values = [origin.strip() for origin in origins.split(",")]
+    if not values or any(not origin for origin in values):
+        raise ValueError("allowed origins must be a comma-separated list")
+    return frozenset(validate_allowed_origin(origin) for origin in values)
+
+
 def _write_private_file(path: Path, contents: str) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     path.parent.chmod(0o700)
@@ -285,15 +294,11 @@ class ProxyServer(ThreadingHTTPServer):
         allowed_origin: str | None = None,
         monotonic_time: Callable[[], float] = time.monotonic,
     ) -> None:
-        validated_origin = (
-            validate_allowed_origin(allowed_origin)
-            if allowed_origin is not None
-            else None
-        )
+        allowed_origins = validate_allowed_origins(allowed_origin)
         super().__init__(address, ProxyHandler)
         self.upstream_port = upstream_port
         self.password_record = password_record
-        self.allowed_origin = validated_origin
+        self.allowed_origins = allowed_origins
         self._monotonic_time = monotonic_time
         self._authentication_lock = threading.Lock()
         self._authentication_retry_deadline: float | None = None
@@ -335,8 +340,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
         websocket_upgrade = self.headers.get("Upgrade", "").lower() == "websocket"
         if (
             websocket_upgrade
-            and self.proxy_server.allowed_origin is not None
-            and self.headers.get("Origin") != self.proxy_server.allowed_origin
+            and self.proxy_server.allowed_origins
+            and self.headers.get("Origin") not in self.proxy_server.allowed_origins
         ):
             body = b"websocket origin not allowed\n"
             self.send_response(403)
@@ -377,6 +382,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
         if websocket_upgrade:
+            print(
+                f"https-proxy websocket client={self.client_address[0]} authenticated",
+                flush=True,
+            )
             self._proxy_websocket()
             return
         self._proxy_http()
@@ -457,6 +466,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
             )
             upstream.sendall(self._upstream_websocket_request())
             response = self._read_response_headers(upstream)
+            status_line = response.partition(b"\r\n")[0].decode(
+                "latin-1", errors="replace"
+            )
+            print(
+                f"https-proxy websocket client={self.client_address[0]} "
+                f"upstream={status_line}",
+                flush=True,
+            )
             self.connection.sendall(response)
         except OSError as error:
             self.send_error(502, f"bridge unavailable: {error}")
@@ -472,6 +489,10 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self._pump(upstream, self.connection)
         browser_to_bridge.join(timeout=1)
         upstream.close()
+        print(
+            f"https-proxy websocket client={self.client_address[0]} closed",
+            flush=True,
+        )
 
     def log_message(self, format_string: str, *args: object) -> None:
         print(f"https-proxy client={self.client_address[0]} {format_string % args}")
