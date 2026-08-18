@@ -157,11 +157,12 @@ tools/bridge/restart_bridge.sh 7683 /path/to/worktree
 The optional worktree path selects the checkout whose Python HTTPS proxy,
 prebuilt bridge, and parent binaries run for that public port.
 `restart_bridge.sh` builds that checkout and keeps the selection on both
-service instances until reboot or the next restart helper invocation. Its
-HTTPS service override directly selects the worktree launcher, so deployment
-also works while the installed service template still predates that launcher.
-Without the argument, each script uses the checkout that contains the invoked
-script.
+service instances across reboot and until the next restart helper invocation.
+It stores the choice in each instance's persistent systemd user-service
+drop-in under `~/.config/systemd/user`. Its HTTPS service override directly
+selects the worktree launcher, so deployment also works while the installed
+service template still predates that launcher. Without the argument, each
+script uses the checkout that contains the invoked script.
 
 Restarting the C++ bridge also restarts that instance's parent PTY. Browser
 reload and WebSocket reconnect do not.

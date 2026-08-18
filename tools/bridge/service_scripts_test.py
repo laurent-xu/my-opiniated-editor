@@ -233,7 +233,7 @@ class ServiceScriptsTest(unittest.TestCase):
             https_service,
         )
 
-    def test_restart_builds_before_restart(self):
+    def test_restart_builds_and_persists_worktree_before_restart(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             bin_dir = root / "bin"
@@ -276,10 +276,10 @@ class ServiceScriptsTest(unittest.TestCase):
                 log_path.read_text(encoding="utf-8").splitlines(),
                 [
                     f"bazel cwd={selected_worktree} args=--batch build //src/bridge:parent_ws_bridge //src/parent:workspace_parent",
-                    f"systemctl cwd={selected_worktree} args=--user edit --runtime --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge@8765.service",
+                    f"systemctl cwd={selected_worktree} args=--user edit --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge@8765.service",
                     "systemctl stdin=[Service]",
                     f'systemctl stdin=Environment="MOE_BRIDGE_WORKTREE={selected_worktree}"',
-                    f"systemctl cwd={selected_worktree} args=--user edit --runtime --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge-https@8765.service",
+                    f"systemctl cwd={selected_worktree} args=--user edit --stdin --drop-in=50-worktree.conf my-opiniated-editor-bridge-https@8765.service",
                     "systemctl stdin=[Service]",
                     f'systemctl stdin=Environment="MOE_BRIDGE_WORKTREE={selected_worktree}"',
                     "systemctl stdin=ExecStart=",
