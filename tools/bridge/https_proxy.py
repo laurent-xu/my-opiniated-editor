@@ -6,10 +6,13 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+from http.cookies import CookieError, SimpleCookie
 from dataclasses import dataclass
+from email.utils import formatdate
 import getpass
 import hashlib
 import hmac
+import html
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import math
@@ -18,13 +21,14 @@ from pathlib import Path
 import secrets
 import shutil
 import socket
+import sqlite3
 import ssl
 import subprocess
 import tempfile
 import threading
 import time
 from typing import Callable
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 
 SCRYPT_N = 16_384
@@ -32,6 +36,10 @@ SCRYPT_R = 8
 SCRYPT_P = 1
 PASSWORD_FORMAT = "moe-scrypt-v1"
 AUTHENTICATION_RETRY_DELAY_SECONDS = 3
+SESSION_COOKIE_NAME = "__Host-moe-session"
+SESSION_DURATION_SECONDS = 3 * 60 * 60
+PERSISTENT_SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60
+MAX_LOGIN_BODY_BYTES = 8 * 1024
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",
@@ -49,6 +57,12 @@ class PasswordRecord:
     username: str
     salt: bytes
     digest: bytes
+
+
+@dataclass(frozen=True)
+class AuthenticatedSession:
+    username: str
+    expires_at: int
 
 
 @dataclass(frozen=True)
@@ -133,22 +147,139 @@ def read_password_record(path: Path) -> PasswordRecord:
     return parse_password_record(path.read_text(encoding="utf-8"))
 
 
-def verify_basic_authorization(
-    authorization: str | None, record: PasswordRecord
-) -> bool:
-    if authorization is None or not authorization.startswith("Basic "):
-        return False
-    try:
-        decoded = base64.b64decode(authorization[6:], validate=True).decode("utf-8")
-    except (ValueError, UnicodeDecodeError):
-        return False
-    username, separator, password = decoded.partition(":")
-    if not separator:
-        return False
+def verify_credentials(username: str, password: str, record: PasswordRecord) -> bool:
     candidate = _password_digest(password, record.salt)
     return hmac.compare_digest(username, record.username) and hmac.compare_digest(
         candidate, record.digest
     )
+
+
+def _password_record_fingerprint(record: PasswordRecord) -> bytes:
+    digest = hashlib.sha256()
+    digest.update(record.username.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(record.salt)
+    digest.update(record.digest)
+    return digest.digest()
+
+
+def default_session_database(public_port: int) -> Path:
+    configured = os.environ.get("MOE_BRIDGE_SESSION_DATABASE")
+    if configured:
+        return Path(configured)
+    state_root = Path(
+        os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")
+    )
+    return (
+        state_root
+        / "my-opiniated-editor"
+        / "instances"
+        / f"port-{public_port}"
+        / "browser-sessions.sqlite3"
+    )
+
+
+class SessionStore:
+    def __init__(
+        self,
+        database: Path | str,
+        password_record: PasswordRecord,
+        current_time: Callable[[], float] = time.time,
+    ) -> None:
+        self._current_time = current_time
+        self._password_fingerprint = _password_record_fingerprint(password_record)
+        self._lock = threading.Lock()
+        if database != ":memory:":
+            database_path = Path(database)
+            database_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            database_path.parent.chmod(0o700)
+            try:
+                descriptor = os.open(
+                    database_path,
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                    0o600,
+                )
+            except FileExistsError:
+                pass
+            else:
+                os.close(descriptor)
+        self._connection = sqlite3.connect(database, check_same_thread=False)
+        if database != ":memory:":
+            Path(database).chmod(0o600)
+        with self._connection:
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token_digest BLOB PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    password_fingerprint BLOB NOT NULL,
+                    expires_at INTEGER NOT NULL
+                )
+                """
+            )
+            self._connection.execute(
+                "DELETE FROM sessions WHERE password_fingerprint != ? OR expires_at <= ?",
+                (self._password_fingerprint, self._now()),
+            )
+
+    def _now(self) -> int:
+        return int(self._current_time())
+
+    @staticmethod
+    def _token_digest(token: str) -> bytes:
+        return hashlib.sha256(token.encode("ascii")).digest()
+
+    def create(self, username: str, duration_seconds: int) -> tuple[str, int]:
+        token = secrets.token_urlsafe(32)
+        expires_at = self._now() + duration_seconds
+        with self._lock, self._connection:
+            self._connection.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?",
+                (self._now(),),
+            )
+            self._connection.execute(
+                """
+                INSERT INTO sessions (
+                    token_digest, username, password_fingerprint, expires_at
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    self._token_digest(token),
+                    username,
+                    self._password_fingerprint,
+                    expires_at,
+                ),
+            )
+        return token, expires_at
+
+    def authenticate(self, token: str | None) -> AuthenticatedSession | None:
+        if token is None or not token.isascii() or len(token) > 512:
+            return None
+        token_digest = self._token_digest(token)
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT username, expires_at
+                FROM sessions
+                WHERE token_digest = ? AND password_fingerprint = ?
+                """,
+                (token_digest, self._password_fingerprint),
+            ).fetchone()
+            if row is None:
+                return None
+            username, expires_at = row
+            if expires_at <= self._now():
+                with self._connection:
+                    self._connection.execute(
+                        "DELETE FROM sessions WHERE token_digest = ?",
+                        (token_digest,),
+                    )
+                return None
+        return AuthenticatedSession(username=username, expires_at=expires_at)
+
+    def close(self) -> None:
+        with self._lock:
+            self._connection.close()
 
 
 def validate_allowed_origin(origin: str) -> str:
@@ -282,6 +413,105 @@ def create_secrets(username: str, paths: SecretPaths) -> None:
     print(f"HTTPS secrets ready in {paths.password_file.parent}")
 
 
+def login_page(error: str | None = None) -> bytes:
+    error_markup = ""
+    if error is not None:
+        error_markup = f'<p class="error" role="alert">{html.escape(error)}</p>'
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in | my-opiniated-editor</title>
+    <style>
+      :root {{ color-scheme: dark; font-family: system-ui, sans-serif; }}
+      * {{ box-sizing: border-box; }}
+      body {{
+        align-items: center;
+        background: #0b0d0e;
+        color: #d9e2df;
+        display: flex;
+        justify-content: center;
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+      }}
+      main {{
+        background: #121715;
+        border: 1px solid #27302d;
+        border-radius: 10px;
+        max-width: 380px;
+        padding: 28px;
+        width: 100%;
+      }}
+      h1 {{ font-size: 1.35rem; margin: 0 0 24px; }}
+      label {{ display: block; font-size: 0.9rem; margin: 16px 0 6px; }}
+      input[type="text"], input[type="password"] {{
+        background: #0b0d0e;
+        border: 1px solid #3b4743;
+        border-radius: 5px;
+        color: inherit;
+        font: inherit;
+        padding: 10px;
+        width: 100%;
+      }}
+      .stay-connected {{ align-items: center; display: flex; gap: 8px; }}
+      .stay-connected input {{ margin: 0; }}
+      .hint {{ color: #9aa7a2; font-size: 0.8rem; margin: -2px 0 0 22px; }}
+      button {{
+        background: #d9e2df;
+        border: 0;
+        border-radius: 5px;
+        color: #0b0d0e;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 600;
+        margin-top: 20px;
+        padding: 10px 14px;
+        width: 100%;
+      }}
+      .error {{ color: #ff9b91; margin: 0 0 16px; }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Connect to the editor</h1>
+      {error_markup}
+      <form method="post" action="/auth/login">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <label class="stay-connected">
+          <input name="stay_connected" type="checkbox">
+          Stay connected
+        </label>
+        <p class="hint">30 days when selected; otherwise 3 hours.</p>
+        <button type="submit">Connect</button>
+      </form>
+    </main>
+  </body>
+</html>
+""".encode("utf-8")
+
+
+def session_cookie(token: str, expires_at: int | None = None) -> str:
+    cookie = f"{SESSION_COOKIE_NAME}={token}; Path=/; Secure; HttpOnly; SameSite=Strict"
+    if expires_at is not None:
+        cookie += (
+            f"; Max-Age={PERSISTENT_SESSION_DURATION_SECONDS}"
+            f"; Expires={formatdate(expires_at, usegmt=True)}"
+        )
+    return cookie
+
+
+def expired_session_cookie() -> str:
+    return (
+        f"{SESSION_COOKIE_NAME}=; Path=/; Secure; HttpOnly; SameSite=Strict"
+        "; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+    )
+
+
 class ProxyServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -291,33 +521,41 @@ class ProxyServer(ThreadingHTTPServer):
         address: tuple[str, int],
         upstream_port: int,
         password_record: PasswordRecord,
+        session_store: SessionStore,
         allowed_origin: str | None = None,
         monotonic_time: Callable[[], float] = time.monotonic,
+        wall_time: Callable[[], float] = time.time,
     ) -> None:
         allowed_origins = validate_allowed_origins(allowed_origin)
         super().__init__(address, ProxyHandler)
         self.upstream_port = upstream_port
         self.password_record = password_record
+        self.session_store = session_store
         self.allowed_origins = allowed_origins
         self._monotonic_time = monotonic_time
+        self.wall_time = wall_time
         self._authentication_lock = threading.Lock()
         self._authentication_retry_deadline: float | None = None
 
-    def authenticate(self, authorization: str | None) -> tuple[bool, int | None]:
-        if authorization is None:
-            return False, None
+    def authenticate_credentials(
+        self, username: str, password: str
+    ) -> tuple[bool, int | None]:
         with self._authentication_lock:
             now = self._monotonic_time()
             retry_deadline = self._authentication_retry_deadline
             if retry_deadline is not None and now < retry_deadline:
                 return False, max(1, math.ceil(retry_deadline - now))
-            if verify_basic_authorization(authorization, self.password_record):
+            if verify_credentials(username, password, self.password_record):
                 self._authentication_retry_deadline = None
                 return True, None
             self._authentication_retry_deadline = (
                 self._monotonic_time() + AUTHENTICATION_RETRY_DELAY_SECONDS
             )
             return False, None
+
+    def server_close(self) -> None:
+        super().server_close()
+        self.session_store.close()
 
 
 class ProxyHandler(BaseHTTPRequestHandler):
@@ -336,7 +574,158 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         self._proxy_request()
 
+    def do_POST(self) -> None:
+        self.close_connection = True
+        request_path = urlsplit(self.path).path
+        if request_path == "/auth/login":
+            self._login()
+            return
+        self._send_body(405, b"method not allowed\n", "text/plain; charset=utf-8")
+
+    def _session_token(self) -> str | None:
+        encoded_cookie = self.headers.get("Cookie")
+        if encoded_cookie is None:
+            return None
+        cookies = SimpleCookie()
+        try:
+            cookies.load(encoded_cookie)
+        except CookieError:
+            return None
+        session = cookies.get(SESSION_COOKIE_NAME)
+        return None if session is None else session.value
+
+    def _authenticated_session(self) -> AuthenticatedSession | None:
+        return self.proxy_server.session_store.authenticate(self._session_token())
+
+    def _send_body(
+        self,
+        status: int,
+        body: bytes,
+        content_type: str,
+        headers: tuple[tuple[str, str], ...] = (),
+    ) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
+        for name, value in headers:
+            self.send_header(name, value)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _redirect(self, location: str, cookie: str | None = None) -> None:
+        self.send_response(303)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        if self.close_connection:
+            self.send_header("Connection", "close")
+        if cookie is not None:
+            self.send_header("Set-Cookie", cookie)
+        self.end_headers()
+
+    def _send_login_page(
+        self,
+        status: int = 200,
+        error: str | None = None,
+        retry_after: int | None = None,
+        clear_cookie: bool = False,
+    ) -> None:
+        headers = [
+            (
+                "Content-Security-Policy",
+                "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
+                "base-uri 'none'; frame-ancestors 'none'",
+            ),
+            ("Referrer-Policy", "no-referrer"),
+            ("X-Content-Type-Options", "nosniff"),
+        ]
+        if retry_after is not None:
+            headers.append(("Retry-After", str(retry_after)))
+        if clear_cookie:
+            headers.append(("Set-Cookie", expired_session_cookie()))
+        self._send_body(
+            status,
+            login_page(error),
+            "text/html; charset=utf-8",
+            tuple(headers),
+        )
+
+    def _login(self) -> None:
+        content_type = self.headers.get("Content-Type", "").partition(";")[0]
+        try:
+            content_length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            content_length = -1
+        if (
+            content_type != "application/x-www-form-urlencoded"
+            or content_length < 0
+            or content_length > MAX_LOGIN_BODY_BYTES
+        ):
+            self._send_login_page(400, "Invalid login request.")
+            return
+        try:
+            fields = parse_qs(
+                self.rfile.read(content_length).decode("utf-8"),
+                keep_blank_values=True,
+            )
+        except UnicodeDecodeError:
+            self._send_login_page(400, "Invalid login request.")
+            return
+        usernames = fields.get("username", [])
+        passwords = fields.get("password", [])
+        if len(usernames) != 1 or len(passwords) != 1:
+            self._send_login_page(400, "Invalid login request.")
+            return
+        authenticated, retry_after = self.proxy_server.authenticate_credentials(
+            usernames[0], passwords[0]
+        )
+        if retry_after is not None:
+            self._send_login_page(
+                429,
+                f"Try again in {retry_after} seconds.",
+                retry_after=retry_after,
+            )
+            return
+        if not authenticated:
+            self._send_login_page(401, "Incorrect username or password.")
+            return
+        stay_connected = fields.get("stay_connected") == ["on"]
+        duration = (
+            PERSISTENT_SESSION_DURATION_SECONDS
+            if stay_connected
+            else SESSION_DURATION_SECONDS
+        )
+        token, expires_at = self.proxy_server.session_store.create(
+            self.proxy_server.password_record.username, duration
+        )
+        cookie_expiration = expires_at if stay_connected else None
+        self._redirect("/", session_cookie(token, cookie_expiration))
+
     def _proxy_request(self) -> None:
+        request_path = urlsplit(self.path).path
+        if request_path == "/login":
+            if self._authenticated_session() is not None:
+                self._redirect("/")
+                return
+            self._send_login_page(clear_cookie=self._session_token() is not None)
+            return
+        if request_path == "/auth/session":
+            if self._authenticated_session() is not None:
+                self._send_body(204, b"", "text/plain; charset=utf-8")
+                return
+            headers = (("Set-Cookie", expired_session_cookie()),)
+            self._send_body(
+                401,
+                b"authentication required\n",
+                "text/plain; charset=utf-8",
+                headers,
+            )
+            return
+
         websocket_upgrade = self.headers.get("Upgrade", "").lower() == "websocket"
         if (
             websocket_upgrade
@@ -354,39 +743,28 @@ class ProxyHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
-        authenticated, retry_after = self.proxy_server.authenticate(
-            self.headers.get("Authorization")
-        )
-        if not authenticated:
-            if retry_after is not None:
-                body = b"authentication retry not yet allowed\n"
-                self.send_response(429)
-                self.send_header("Retry-After", str(retry_after))
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.send_header("Connection", "close")
-                self.end_headers()
-                if self.command != "HEAD":
-                    self.wfile.write(body)
-                self.close_connection = True
-                return
-            body = b"authentication required\n"
-            self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Basic realm="My Opiniated Editor"')
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            if self.command != "HEAD":
-                self.wfile.write(body)
-            self.close_connection = True
+        session = self._authenticated_session()
+        if session is None:
+            if websocket_upgrade:
+                self._send_body(
+                    401,
+                    b"authentication required\n",
+                    "text/plain; charset=utf-8",
+                )
+            else:
+                cookie = (
+                    expired_session_cookie()
+                    if self._session_token() is not None
+                    else None
+                )
+                self._redirect("/login", cookie)
             return
         if websocket_upgrade:
             print(
                 f"https-proxy websocket client={self.client_address[0]} authenticated",
                 flush=True,
             )
-            self._proxy_websocket()
+            self._proxy_websocket(session)
             return
         self._proxy_http()
 
@@ -395,7 +773,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             name: value
             for name, value in self.headers.items()
             if name.lower() not in HOP_BY_HOP_HEADERS
-            and name.lower() != "authorization"
+            and name.lower() not in {"authorization", "cookie"}
         }
         headers["Host"] = f"127.0.0.1:{self.proxy_server.upstream_port}"
         headers["X-Forwarded-Proto"] = "https"
@@ -426,7 +804,12 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def _upstream_websocket_request(self) -> bytes:
         lines = [f"GET {self.path} HTTP/1.1"]
         for name, value in self.headers.items():
-            if name.lower() in {"authorization", "proxy-authorization", "host"}:
+            if name.lower() in {
+                "authorization",
+                "cookie",
+                "proxy-authorization",
+                "host",
+            }:
                 continue
             lines.append(f"{name}: {value}")
         lines.append(f"Host: 127.0.0.1:{self.proxy_server.upstream_port}")
@@ -458,7 +841,15 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 except OSError:
                     pass
 
-    def _proxy_websocket(self) -> None:
+    @staticmethod
+    def _shutdown_sockets(*sockets: socket.socket) -> None:
+        for current in sockets:
+            try:
+                current.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    def _proxy_websocket(self, session: AuthenticatedSession) -> None:
         self.close_connection = True
         try:
             upstream = socket.create_connection(
@@ -482,11 +873,20 @@ class ProxyHandler(BaseHTTPRequestHandler):
             upstream.close()
             return
         upstream.settimeout(None)
+        expiration_delay = max(0.0, session.expires_at - self.proxy_server.wall_time())
+        expiration_timer = threading.Timer(
+            expiration_delay,
+            self._shutdown_sockets,
+            args=(self.connection, upstream),
+        )
+        expiration_timer.daemon = True
+        expiration_timer.start()
         browser_to_bridge = threading.Thread(
             target=self._pump, args=(self.connection, upstream), daemon=True
         )
         browser_to_bridge.start()
         self._pump(upstream, self.connection)
+        expiration_timer.cancel()
         browser_to_bridge.join(timeout=1)
         upstream.close()
         print(
@@ -503,9 +903,11 @@ def serve_https(
     public_port: int,
     upstream_port: int,
     paths: SecretPaths,
+    session_database: Path,
     allowed_origin: str | None,
 ) -> None:
     password_record = read_password_record(paths.password_file)
+    session_store = SessionStore(session_database, password_record)
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(paths.certificate, paths.certificate_key)
@@ -513,6 +915,7 @@ def serve_https(
         (interface, public_port),
         upstream_port,
         password_record,
+        session_store,
         allowed_origin=allowed_origin,
     )
     server.socket = context.wrap_socket(server.socket, server_side=True)
@@ -565,6 +968,7 @@ def main() -> None:
         args.https_port,
         args.http_port,
         paths,
+        default_session_database(args.https_port),
         args.allowed_origin,
     )
 

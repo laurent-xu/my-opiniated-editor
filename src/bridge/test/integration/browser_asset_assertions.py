@@ -127,6 +127,8 @@ def assert_browser_assets(test_case: unittest.TestCase, port: int):
         "new WebSocket(`${protocol}//${window.location.host}/ws`",
         client_js,
     )
+    test_case.assertIn('fetch("/auth/session", { cache: "no-store" })', client_js)
+    test_case.assertIn('window.location.replace("/login")', client_js)
     test_case.assertNotIn("?token=", client_js)
     test_case.assertNotIn("window.location.search", client_js)
     test_case.assertIn(

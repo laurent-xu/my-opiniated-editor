@@ -893,6 +893,13 @@ std::string browser_client_js() {
       terminal.write(pendingPayload);
     }
     setConnectionState("disconnected");
+    fetch("/auth/session", { cache: "no-store" })
+      .then((response) => {
+        if (response.status === 401) {
+          window.location.replace("/login");
+        }
+      })
+      .catch(() => {});
   });
 
   window.addEventListener("resize", () => {

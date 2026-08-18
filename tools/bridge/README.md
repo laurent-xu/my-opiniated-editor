@@ -9,11 +9,12 @@ Tailscale Funnel :10000 -> HTTPS/auth proxy 127.0.0.1:7683
                         -> HTTP C++ bridge 127.0.0.1:17683
 ```
 
-The small Python proxy terminates TLS, verifies HTTP Basic credentials, and
-forwards HTTP and WebSocket traffic. The C++ bridge and parent PTY remain the
-application. Both layers and both instance examples bind loopback. Tailscale
-Funnel is the only public entry point, and neither authenticated proxy nor
-plain-HTTP upstream is directly reachable off-host.
+The small Python proxy terminates TLS, serves the login page, verifies the
+configured credentials, and forwards authenticated HTTP and WebSocket traffic.
+The C++ bridge and parent PTY remain the application. Both layers and both
+instance examples bind loopback. Tailscale Funnel is the only public entry
+point, and neither authenticated proxy nor plain-HTTP upstream is directly
+reachable off-host.
 
 When `MOE_BRIDGE_ALLOWED_ORIGIN` is set for an instance, the proxy rejects a
 WebSocket upgrade whose `Origin` header is missing or is not in that explicit
@@ -40,11 +41,19 @@ The files are:
 - `~/.secrets/my-opiniated-editor-certificate-key.pem`: TLS private key.
 
 The browser will require a one-time exception for the self-signed certificate.
-It caches successful Basic Auth credentials for the origin, so it does not ask
-again on every HTTP request, reload, or WebSocket reconnect. After a failed
-credential check, the proxy waits three seconds before accepting another
-authentication attempt from any client. The proxy enforces this cooldown on
-the server with a monotonic clock.
+The proxy exchanges a successful login for an opaque, `Secure`, `HttpOnly`,
+`SameSite=Strict` session cookie. With **Stay connected** unchecked, the cookie
+is browser-session-only and the server expires it after three hours. With the
+box checked, the browser and server expire it after 30 days. These are fixed
+deadlines rather than sliding timeouts. The proxy also closes an active
+WebSocket at its session deadline without stopping the parent PTY.
+
+The session database stores only token hashes and survives proxy restarts under
+the instance state directory as `browser-sessions.sqlite3`. Changing the
+password record invalidates existing sessions. After a failed credential check,
+the proxy waits three seconds before accepting another authentication attempt
+from any client. The proxy enforces this cooldown on the server with a monotonic
+clock.
 
 ## Install Both Instances
 
@@ -93,8 +102,8 @@ loginctl enable-linger "$USER"
 ```
 
 Funnel needs no inbound firewall opening for `7682`, `7683`, `17682`, or
-`17683`. Use `notmyfoo` and the configured password. Each proxy port owns separate
-parent state under
+`17683`. Use `notmyfoo` and the configured password on the login page. Each
+proxy port owns separate parent and browser-session state under
 `$XDG_STATE_HOME/my-opiniated-editor/instances/port-<public-port>`, or
 `$HOME/.local/state/my-opiniated-editor/instances/port-<public-port>` when
 `XDG_STATE_HOME` is unset.

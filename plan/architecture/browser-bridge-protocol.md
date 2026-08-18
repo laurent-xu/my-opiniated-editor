@@ -89,9 +89,13 @@ Current service transport:
   which forwards to `127.0.0.1:17682`. Public port `10000` similarly publishes
   the loopback-only `7683` proxy, which forwards to `127.0.0.1:17683`. The two
   bridge instances retain separate parent and workspace state.
-- The proxy requires HTTP Basic Auth for every HTTP request and WebSocket
-  upgrade. Browsers retain successful credentials for the origin, so reloads
-  and reconnects do not prompt repeatedly.
+- The proxy owns the login page and exchanges successful credentials for an
+  opaque session cookie. The cookie is `Secure`, `HttpOnly`, and
+  `SameSite=Strict`; only its SHA-256 digest is persisted by the proxy. A
+  browser-session cookie has a fixed three-hour server deadline. Selecting
+  **Stay connected** gives the browser cookie and server session a fixed 30-day
+  deadline. Every HTTP request and WebSocket upgrade is checked, and an active
+  WebSocket is closed when its session expires without stopping the parent PTY.
 - A configured `MOE_BRIDGE_ALLOWED_ORIGIN` makes the proxy reject WebSocket
   upgrades with a missing `Origin` header or one outside its comma-separated
   exact HTTPS allowlist before checking credentials. Funnel deployments allow
