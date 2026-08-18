@@ -96,6 +96,13 @@ Current service transport:
   **Stay connected** gives the browser cookie and server session a fixed 30-day
   deadline. Every HTTP request and WebSocket upgrade is checked, and an active
   WebSocket is closed when its session expires without stopping the parent PTY.
+- The proxy records bounded login-attempt security metadata in its private
+  session database and owns the authenticated `/auth/security` summary page.
+  A new session sees the summary on its first editor-page load. Existing
+  sessions atomically claim at most one automatic display per 24 hours.
+- Source addresses are the proxy's observed TCP peers. The summary clearly
+  reports limited IP visibility when Funnel presents only a loopback peer;
+  untrusted forwarding headers are not used as client identity.
 - A configured `MOE_BRIDGE_ALLOWED_ORIGIN` makes the proxy reject WebSocket
   upgrades with a missing `Origin` header or one outside its comma-separated
   exact HTTPS allowlist before checking credentials. Funnel deployments allow

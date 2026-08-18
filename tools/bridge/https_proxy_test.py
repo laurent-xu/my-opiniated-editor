@@ -15,7 +15,9 @@ from urllib.parse import urlencode
 sys.path.append(os.path.dirname(__file__))
 
 from https_proxy import (
+    AUTHENTICATION_ATTEMPT_RETENTION_SECONDS,
     PERSISTENT_SESSION_DURATION_SECONDS,
+    SECURITY_SUMMARY_INTERVAL_SECONDS,
     SESSION_COOKIE_NAME,
     SESSION_DURATION_SECONDS,
     ProxyServer,
@@ -185,6 +187,97 @@ class HttpsProxyTest(unittest.TestCase):
             self.assertIsNone(store.authenticate(token))
             store.close()
 
+    def test_existing_session_database_is_migrated_for_security_summaries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database = Path(temp_dir) / "browser-sessions.sqlite3"
+            connection = sqlite3.connect(database)
+            connection.execute(
+                """
+                CREATE TABLE sessions (
+                    token_digest BLOB PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    password_fingerprint BLOB NOT NULL,
+                    expires_at INTEGER NOT NULL
+                )
+                """
+            )
+            connection.commit()
+            connection.close()
+
+            store = SessionStore(database, self.record)
+            connection = sqlite3.connect(database)
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(sessions)")
+            }
+            attempt_table = connection.execute(
+                """
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name = 'authentication_attempts'
+                """
+            ).fetchone()
+            connection.close()
+            store.close()
+
+            self.assertIn("security_summary_shown_at", columns)
+            self.assertEqual(attempt_table, ("authentication_attempts",))
+
+    def test_security_summary_claim_is_atomic_and_due_every_twenty_four_hours(self):
+        current_time = [10_000.0]
+        store = SessionStore(
+            ":memory:", self.record, current_time=lambda: current_time[0]
+        )
+        token, _expires_at = store.create(USERNAME, PERSISTENT_SESSION_DURATION_SECONDS)
+
+        self.assertTrue(store.claim_security_summary(token))
+        self.assertFalse(store.claim_security_summary(token))
+        current_time[0] += SECURITY_SUMMARY_INTERVAL_SECONDS - 1
+        self.assertFalse(store.claim_security_summary(token))
+        current_time[0] += 1
+        self.assertTrue(store.claim_security_summary(token))
+        self.assertTrue(store.claim_security_summary(token, force=True))
+        store.close()
+
+    def test_security_summary_counts_failures_sources_and_active_sessions(self):
+        current_time = [20_000_000.0]
+        store = SessionStore(
+            ":memory:", self.record, current_time=lambda: current_time[0]
+        )
+        store.create(USERNAME, SESSION_DURATION_SECONDS)
+        store.record_authentication_attempt("203.0.113.10", "invalid_credentials")
+        current_time[0] += 1
+        store.record_authentication_attempt("203.0.113.10", "rate_limited")
+        current_time[0] += 1
+        store.record_authentication_attempt("2001:db8::1", "malformed")
+        current_time[0] += 1
+        store.record_authentication_attempt("2001:db8::1", "success")
+
+        summary = store.security_summary()
+
+        self.assertEqual(summary.retained.total, 4)
+        self.assertEqual(summary.retained.successful, 1)
+        self.assertEqual(summary.retained.failed, 3)
+        self.assertEqual(summary.retained.invalid_credentials, 1)
+        self.assertEqual(summary.retained.rate_limited, 1)
+        self.assertEqual(summary.retained.malformed, 1)
+        self.assertEqual(summary.retained.distinct_source_ips, 2)
+        self.assertEqual(summary.last_24_hours, summary.retained)
+        self.assertEqual(summary.active_sessions, 1)
+        self.assertEqual(
+            [source.source_ip for source in summary.sources],
+            [
+                "2001:db8::1",
+                "203.0.113.10",
+            ],
+        )
+        self.assertFalse(summary.source_ip_visibility_limited)
+
+        current_time[0] += AUTHENTICATION_ATTEMPT_RETENTION_SECONDS + 1
+        store.record_authentication_attempt("127.0.0.1", "success")
+        summary = store.security_summary()
+        self.assertEqual(summary.retained.total, 1)
+        self.assertTrue(summary.source_ip_visibility_limited)
+        store.close()
+
     def test_allowed_origin_requires_an_exact_https_origin(self):
         self.assertEqual(validate_allowed_origin(ALLOWED_ORIGIN), ALLOWED_ORIGIN)
         self.assertEqual(
@@ -327,6 +420,104 @@ class HttpsProxyTest(unittest.TestCase):
             proxy.server_close()
             upstream.server_close()
 
+    def test_new_session_shows_security_summary_once_then_again_after_one_day(self):
+        current_time = [1_000_000.0]
+        upstream = ThreadingHTTPServer(("127.0.0.1", 0), UpstreamHandler)
+        proxy = self.proxy_server(
+            upstream.server_port, wall_time=lambda: current_time[0]
+        )
+        self.start(upstream, proxy)
+        try:
+            status, headers, _body = self.request(
+                proxy.server_port, "GET", "/auth/security"
+            )
+            self.assertEqual(status, 303)
+            self.assertEqual(headers["Location"], "/login")
+
+            status, headers, _body = self.login(proxy.server_port, stay_connected=True)
+            self.assertEqual(status, 303)
+            cookie = self.cookie_header(headers)
+
+            status, headers, body = self.request(
+                proxy.server_port, "GET", "/", headers={"Cookie": cookie}
+            )
+            decoded = body.decode()
+            self.assertEqual(status, 200)
+            self.assertEqual(headers["Cache-Control"], "no-store")
+            self.assertIn("Connection security summary", decoded)
+            self.assertIn("Last 24 hours", decoded)
+            self.assertIn("Successful", decoded)
+            self.assertIn("Failed", decoded)
+            self.assertIn("Observed source IPs", decoded)
+            self.assertIn("Active sessions", decoded)
+            self.assertIn("End-user IP visibility is unavailable", decoded)
+            self.assertIn('href="/">Continue to editor', decoded)
+            self.assertEqual(UpstreamHandler.received_cookies, [])
+
+            status, _headers, body = self.request(
+                proxy.server_port, "GET", "/", headers={"Cookie": cookie}
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(body, b"upstream path=/\n")
+
+            current_time[0] += SECURITY_SUMMARY_INTERVAL_SECONDS - 1
+            status, _headers, body = self.request(
+                proxy.server_port, "GET", "/", headers={"Cookie": cookie}
+            )
+            self.assertEqual(body, b"upstream path=/\n")
+
+            current_time[0] += 1
+            status, _headers, body = self.request(
+                proxy.server_port, "GET", "/", headers={"Cookie": cookie}
+            )
+            self.assertEqual(status, 200)
+            self.assertIn(b"Connection security summary", body)
+        finally:
+            proxy.shutdown()
+            upstream.shutdown()
+            proxy.server_close()
+            upstream.server_close()
+
+    def test_security_summary_records_failed_and_rate_limited_logins(self):
+        monotonic_time = [100.0]
+        wall_time = [2_000_000.0]
+        proxy = self.proxy_server(
+            1,
+            monotonic_time=lambda: monotonic_time[0],
+            wall_time=lambda: wall_time[0],
+        )
+        self.start(proxy)
+        try:
+            status, _headers, _body = self.login(proxy.server_port, password="wrong")
+            self.assertEqual(status, 401)
+            status, _headers, _body = self.login(proxy.server_port)
+            self.assertEqual(status, 429)
+            monotonic_time[0] += 3
+            wall_time[0] += 3
+            status, headers, _body = self.login(proxy.server_port)
+            self.assertEqual(status, 303)
+            cookie = self.cookie_header(headers)
+
+            status, _headers, body = self.request(
+                proxy.server_port,
+                "GET",
+                "/auth/security",
+                headers={"Cookie": cookie},
+            )
+            decoded = body.decode()
+            self.assertEqual(status, 200)
+            self.assertIn(
+                "Failures: 1 incorrect credentials,\n        1 rate limited", decoded
+            )
+            self.assertIn("127.0.0.1", decoded)
+            summary = proxy.session_store.security_summary()
+            self.assertEqual(summary.retained.total, 3)
+            self.assertEqual(summary.retained.successful, 1)
+            self.assertEqual(summary.retained.failed, 2)
+        finally:
+            proxy.shutdown()
+            proxy.server_close()
+
     def test_checked_login_persists_for_thirty_days(self):
         current_time = [1_000.0]
         proxy = self.proxy_server(1, wall_time=lambda: current_time[0])
@@ -402,9 +593,14 @@ class HttpsProxyTest(unittest.TestCase):
                     "Content-Length": str(len(body)),
                     "Host": "127.0.0.1:7683",
                     "Origin": "https://funnel-browser-origin.example",
+                    "X-Forwarded-For": "203.0.113.99",
                 },
             )
             self.assertEqual(status, 303)
+            self.assertEqual(
+                proxy.session_store.security_summary().sources[0].source_ip,
+                "127.0.0.1",
+            )
         finally:
             proxy.shutdown()
             proxy.server_close()

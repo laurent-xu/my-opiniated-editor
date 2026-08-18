@@ -55,6 +55,24 @@ the proxy waits three seconds before accepting another authentication attempt
 from any client. The proxy enforces this cooldown on the server with a monotonic
 clock.
 
+The first editor-page load after authentication shows a connection security
+summary. An existing session sees it again on the first editor-page load after
+24 hours have passed since that session last saw it; concurrent tabs claim that
+display atomically, so only one receives the summary. It is also available on
+demand at `/auth/security`. The page reports successful and failed login
+attempts, failure reasons, observed source addresses, active sessions, and
+recent timestamps. Login-attempt history is kept in the same private database
+for up to 90 days and is capped at the 10,000 most recent attempts. Passwords,
+submitted usernames, cookies, and raw session tokens are never written to the
+attempt log.
+
+The current Tailscale Funnel HTTPS reverse-proxy mode does not pass the original
+internet client address to the local proxy. In that configuration the summary
+labels IP visibility as limited and counts the loopback Funnel peer rather than
+claiming it is an end-user IP. Tailscale's PROXY protocol mode would require a
+different listener topology before true client-IP counts can be shown safely;
+the proxy deliberately does not trust spoofable forwarding headers.
+
 ## Install Both Instances
 
 The common optional environment file controls the proxy bind interface and

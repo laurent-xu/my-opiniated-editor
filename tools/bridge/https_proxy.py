@@ -8,6 +8,7 @@ import base64
 import binascii
 from http.cookies import CookieError, SimpleCookie
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from email.utils import formatdate
 import getpass
 import hashlib
@@ -15,6 +16,7 @@ import hmac
 import html
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import ipaddress
 import math
 import os
 from pathlib import Path
@@ -39,6 +41,9 @@ AUTHENTICATION_RETRY_DELAY_SECONDS = 3
 SESSION_COOKIE_NAME = "__Host-moe-session"
 SESSION_DURATION_SECONDS = 3 * 60 * 60
 PERSISTENT_SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60
+SECURITY_SUMMARY_INTERVAL_SECONDS = 24 * 60 * 60
+AUTHENTICATION_ATTEMPT_RETENTION_SECONDS = 90 * 24 * 60 * 60
+MAX_RETAINED_AUTHENTICATION_ATTEMPTS = 10_000
 MAX_LOGIN_BODY_BYTES = 8 * 1024
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -63,6 +68,37 @@ class PasswordRecord:
 class AuthenticatedSession:
     username: str
     expires_at: int
+
+
+@dataclass(frozen=True)
+class AttemptCounts:
+    total: int
+    successful: int
+    failed: int
+    invalid_credentials: int
+    rate_limited: int
+    malformed: int
+    distinct_source_ips: int
+
+
+@dataclass(frozen=True)
+class SourceAttemptCounts:
+    source_ip: str
+    successful: int
+    failed: int
+    last_attempt_at: int
+
+
+@dataclass(frozen=True)
+class SecuritySummary:
+    retained: AttemptCounts
+    last_24_hours: AttemptCounts
+    retained_since: int | None
+    last_success_at: int | None
+    last_failure_at: int | None
+    active_sessions: int
+    sources: tuple[SourceAttemptCounts, ...]
+    source_ip_visibility_limited: bool
 
 
 @dataclass(frozen=True)
@@ -163,6 +199,13 @@ def _password_record_fingerprint(record: PasswordRecord) -> bytes:
     return digest.digest()
 
 
+def _is_loopback_address(address: str) -> bool:
+    try:
+        return ipaddress.ip_address(address).is_loopback
+    except ValueError:
+        return False
+
+
 def default_session_database(public_port: int) -> Path:
     configured = os.environ.get("MOE_BRIDGE_SESSION_DATABASE")
     if configured:
@@ -213,13 +256,36 @@ class SessionStore:
                     token_digest BLOB PRIMARY KEY,
                     username TEXT NOT NULL,
                     password_fingerprint BLOB NOT NULL,
-                    expires_at INTEGER NOT NULL
+                    expires_at INTEGER NOT NULL,
+                    security_summary_shown_at INTEGER
+                )
+                """
+            )
+            session_columns = {
+                row[1]
+                for row in self._connection.execute("PRAGMA table_info(sessions)")
+            }
+            if "security_summary_shown_at" not in session_columns:
+                self._connection.execute(
+                    "ALTER TABLE sessions ADD COLUMN security_summary_shown_at INTEGER"
+                )
+            self._connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS authentication_attempts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    occurred_at INTEGER NOT NULL,
+                    source_ip TEXT NOT NULL,
+                    outcome TEXT NOT NULL
                 )
                 """
             )
             self._connection.execute(
                 "DELETE FROM sessions WHERE password_fingerprint != ? OR expires_at <= ?",
                 (self._password_fingerprint, self._now()),
+            )
+            self._connection.execute(
+                "DELETE FROM authentication_attempts WHERE occurred_at < ?",
+                (self._now() - AUTHENTICATION_ATTEMPT_RETENTION_SECONDS,),
             )
 
     def _now(self) -> int:
@@ -276,6 +342,160 @@ class SessionStore:
                     )
                 return None
         return AuthenticatedSession(username=username, expires_at=expires_at)
+
+    def claim_security_summary(self, token: str | None, *, force: bool = False) -> bool:
+        if token is None or not token.isascii() or len(token) > 512:
+            return False
+        now = self._now()
+        due_before = now - SECURITY_SUMMARY_INTERVAL_SECONDS
+        conditions = (
+            ""
+            if force
+            else (
+                "AND (security_summary_shown_at IS NULL "
+                "OR security_summary_shown_at <= ?)"
+            )
+        )
+        parameters: tuple[object, ...] = (
+            now,
+            self._token_digest(token),
+            self._password_fingerprint,
+            now,
+        )
+        if not force:
+            parameters += (due_before,)
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                f"""
+                UPDATE sessions
+                SET security_summary_shown_at = ?
+                WHERE token_digest = ?
+                  AND password_fingerprint = ?
+                  AND expires_at > ?
+                  {conditions}
+                """,
+                parameters,
+            )
+        return cursor.rowcount == 1
+
+    def record_authentication_attempt(self, source_ip: str, outcome: str) -> None:
+        if outcome not in {
+            "success",
+            "invalid_credentials",
+            "rate_limited",
+            "malformed",
+        }:
+            raise ValueError("unsupported authentication outcome")
+        now = self._now()
+        with self._lock, self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO authentication_attempts (occurred_at, source_ip, outcome)
+                VALUES (?, ?, ?)
+                """,
+                (now, source_ip[:255], outcome),
+            )
+            self._connection.execute(
+                "DELETE FROM authentication_attempts WHERE occurred_at < ?",
+                (now - AUTHENTICATION_ATTEMPT_RETENTION_SECONDS,),
+            )
+            self._connection.execute(
+                """
+                DELETE FROM authentication_attempts
+                WHERE id NOT IN (
+                    SELECT id FROM authentication_attempts
+                    ORDER BY id DESC
+                    LIMIT ?
+                )
+                """,
+                (MAX_RETAINED_AUTHENTICATION_ATTEMPTS,),
+            )
+
+    @staticmethod
+    def _attempt_counts(row: tuple[object, ...]) -> AttemptCounts:
+        return AttemptCounts(*(int(value) for value in row))
+
+    def security_summary(self) -> SecuritySummary:
+        now = self._now()
+
+        def counts(since: int) -> AttemptCounts:
+            row = self._connection.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COALESCE(SUM(outcome = 'success'), 0),
+                    COALESCE(SUM(outcome != 'success'), 0),
+                    COALESCE(SUM(outcome = 'invalid_credentials'), 0),
+                    COALESCE(SUM(outcome = 'rate_limited'), 0),
+                    COALESCE(SUM(outcome = 'malformed'), 0),
+                    COUNT(DISTINCT source_ip)
+                FROM authentication_attempts
+                WHERE occurred_at >= ?
+                """,
+                (since,),
+            ).fetchone()
+            assert row is not None
+            return self._attempt_counts(row)
+
+        retention_start = now - AUTHENTICATION_ATTEMPT_RETENTION_SECONDS
+        with self._lock:
+            retained = counts(retention_start)
+            last_24_hours = counts(now - SECURITY_SUMMARY_INTERVAL_SECONDS)
+            retained_since, last_success_at, last_failure_at = self._connection.execute(
+                """
+                SELECT
+                    MIN(occurred_at),
+                    MAX(CASE WHEN outcome = 'success' THEN occurred_at END),
+                    MAX(CASE WHEN outcome != 'success' THEN occurred_at END)
+                FROM authentication_attempts
+                WHERE occurred_at >= ?
+                """,
+                (retention_start,),
+            ).fetchone()
+            active_sessions = self._connection.execute(
+                """
+                SELECT COUNT(*) FROM sessions
+                WHERE password_fingerprint = ? AND expires_at > ?
+                """,
+                (self._password_fingerprint, now),
+            ).fetchone()[0]
+            source_rows = self._connection.execute(
+                """
+                SELECT
+                    source_ip,
+                    COALESCE(SUM(outcome = 'success'), 0),
+                    COALESCE(SUM(outcome != 'success'), 0),
+                    MAX(occurred_at)
+                FROM authentication_attempts
+                WHERE occurred_at >= ?
+                GROUP BY source_ip
+                ORDER BY MAX(occurred_at) DESC
+                LIMIT 10
+                """,
+                (retention_start,),
+            ).fetchall()
+        sources = tuple(
+            SourceAttemptCounts(
+                source_ip=str(row[0]),
+                successful=int(row[1]),
+                failed=int(row[2]),
+                last_attempt_at=int(row[3]),
+            )
+            for row in source_rows
+        )
+        visibility_limited = bool(sources) and all(
+            _is_loopback_address(source.source_ip) for source in sources
+        )
+        return SecuritySummary(
+            retained=retained,
+            last_24_hours=last_24_hours,
+            retained_since=None if retained_since is None else int(retained_since),
+            last_success_at=None if last_success_at is None else int(last_success_at),
+            last_failure_at=None if last_failure_at is None else int(last_failure_at),
+            active_sessions=int(active_sessions),
+            sources=sources,
+            source_ip_visibility_limited=visibility_limited,
+        )
 
     def close(self) -> None:
         with self._lock:
@@ -495,6 +715,134 @@ def login_page(error: str | None = None) -> bytes:
 """.encode("utf-8")
 
 
+def _format_utc(timestamp: int | None) -> str:
+    if timestamp is None:
+        return "None recorded"
+    return datetime.fromtimestamp(timestamp, timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S UTC"
+    )
+
+
+def _attempt_window_markup(title: str, counts: AttemptCounts) -> str:
+    return f"""
+      <section class="window">
+        <h2>{html.escape(title)}</h2>
+        <div class="metrics">
+          <div><strong>{counts.total}</strong><span>Total attempts</span></div>
+          <div><strong>{counts.successful}</strong><span>Successful</span></div>
+          <div><strong>{counts.failed}</strong><span>Failed</span></div>
+          <div><strong>{counts.distinct_source_ips}</strong><span>Observed source IPs</span></div>
+        </div>
+        <p class="detail">Failures: {counts.invalid_credentials} incorrect credentials,
+        {counts.rate_limited} rate limited, {counts.malformed} malformed.</p>
+      </section>
+    """
+
+
+def security_summary_page(
+    summary: SecuritySummary, session: AuthenticatedSession
+) -> bytes:
+    source_rows = "".join(
+        f"""
+          <tr>
+            <td><code>{html.escape(source.source_ip)}</code></td>
+            <td>{source.successful}</td>
+            <td>{source.failed}</td>
+            <td>{_format_utc(source.last_attempt_at)}</td>
+          </tr>
+        """
+        for source in summary.sources
+    )
+    if not source_rows:
+        source_rows = '<tr><td colspan="4">No attempts recorded.</td></tr>'
+    visibility_note = ""
+    if summary.source_ip_visibility_limited:
+        visibility_note = """
+          <p class="notice" role="note"><strong>End-user IP visibility is unavailable.</strong>
+          The current reverse proxy is presenting only loopback source addresses. The
+          distinct-IP figures therefore describe proxy peers, not necessarily distinct
+          people or devices.</p>
+        """
+    retained_title = "Recorded history"
+    if summary.retained_since is not None:
+        retained_title += f" since {_format_utc(summary.retained_since)}"
+    return f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Connection security | my-opiniated-editor</title>
+    <style>
+      :root {{ color-scheme: dark; font-family: system-ui, sans-serif; }}
+      * {{ box-sizing: border-box; }}
+      body {{ background: #0b0d0e; color: #d9e2df; margin: 0; padding: 24px; }}
+      main {{ margin: 0 auto; max-width: 920px; }}
+      h1 {{ font-size: 1.6rem; margin: 0 0 6px; }}
+      h2 {{ font-size: 1rem; margin: 0 0 18px; }}
+      .lede, .detail, .timestamps {{ color: #9aa7a2; }}
+      .lede {{ margin: 0 0 24px; }}
+      .window, .session, .sources {{
+        background: #121715; border: 1px solid #27302d; border-radius: 10px;
+        margin: 16px 0; padding: 20px;
+      }}
+      .metrics {{ display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }}
+      .metrics div {{ background: #0b0d0e; border-radius: 6px; padding: 14px; }}
+      .metrics strong {{ display: block; font-size: 1.5rem; }}
+      .metrics span {{ color: #9aa7a2; font-size: 0.82rem; }}
+      .detail, .timestamps {{ font-size: 0.86rem; margin: 16px 0 0; }}
+      .notice {{
+        background: #282311; border: 1px solid #594d20; border-radius: 6px;
+        color: #eadb9b; padding: 12px;
+      }}
+      .table-wrap {{ overflow-x: auto; }}
+      table {{ border-collapse: collapse; width: 100%; }}
+      th, td {{ border-bottom: 1px solid #27302d; padding: 10px; text-align: left; }}
+      th {{ color: #9aa7a2; font-size: 0.8rem; }}
+      code {{ color: #c8d5d1; }}
+      .continue {{
+        background: #d9e2df; border-radius: 5px; color: #0b0d0e;
+        display: inline-block; font-weight: 600; margin-top: 8px;
+        padding: 10px 14px; text-decoration: none;
+      }}
+      @media (max-width: 680px) {{
+        .metrics {{ grid-template-columns: repeat(2, 1fr); }}
+      }}
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Connection security summary</h1>
+      <p class="lede">Shown after sign-in and at most once every 24 hours for this session.
+      History retains up to 90 days or the 10,000 most recent attempts.</p>
+      {_attempt_window_markup("Last 24 hours", summary.last_24_hours)}
+      {_attempt_window_markup(retained_title, summary.retained)}
+      <section class="session">
+        <h2>Session status</h2>
+        <div class="metrics">
+          <div><strong>{summary.active_sessions}</strong><span>Active sessions</span></div>
+          <div><strong>{summary.retained.distinct_source_ips}</strong><span>Observed source IPs</span></div>
+        </div>
+        <p class="timestamps">Current session expires: {_format_utc(session.expires_at)}<br>
+        Last successful sign-in: {_format_utc(summary.last_success_at)}<br>
+        Last failed attempt: {_format_utc(summary.last_failure_at)}</p>
+      </section>
+      <section class="sources">
+        <h2>Most recently active source addresses</h2>
+        {visibility_note}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Observed source</th><th>Successful</th><th>Failed</th><th>Last attempt</th></tr></thead>
+            <tbody>{source_rows}</tbody>
+          </table>
+        </div>
+      </section>
+      <a class="continue" href="/">Continue to editor</a>
+    </main>
+  </body>
+</html>
+""".encode("utf-8")
+
+
 def session_cookie(token: str, expires_at: int | None = None) -> str:
     cookie = f"{SESSION_COOKIE_NAME}={token}; Path=/; Secure; HttpOnly; SameSite=Strict"
     if expires_at is not None:
@@ -597,6 +945,11 @@ class ProxyHandler(BaseHTTPRequestHandler):
     def _authenticated_session(self) -> AuthenticatedSession | None:
         return self.proxy_server.session_store.authenticate(self._session_token())
 
+    def _record_authentication_attempt(self, outcome: str) -> None:
+        self.proxy_server.session_store.record_authentication_attempt(
+            str(self.client_address[0]), outcome
+        )
+
     def _send_body(
         self,
         status: int,
@@ -654,6 +1007,25 @@ class ProxyHandler(BaseHTTPRequestHandler):
             tuple(headers),
         )
 
+    def _send_security_summary(self, session: AuthenticatedSession) -> None:
+        headers = (
+            (
+                "Content-Security-Policy",
+                "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; "
+                "frame-ancestors 'none'",
+            ),
+            ("Referrer-Policy", "no-referrer"),
+            ("X-Content-Type-Options", "nosniff"),
+        )
+        self._send_body(
+            200,
+            security_summary_page(
+                self.proxy_server.session_store.security_summary(), session
+            ),
+            "text/html; charset=utf-8",
+            headers,
+        )
+
     def _login(self) -> None:
         content_type = self.headers.get("Content-Type", "").partition(";")[0]
         try:
@@ -665,6 +1037,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             or content_length < 0
             or content_length > MAX_LOGIN_BODY_BYTES
         ):
+            self._record_authentication_attempt("malformed")
             self._send_login_page(400, "Invalid login request.")
             return
         try:
@@ -673,17 +1046,20 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 keep_blank_values=True,
             )
         except UnicodeDecodeError:
+            self._record_authentication_attempt("malformed")
             self._send_login_page(400, "Invalid login request.")
             return
         usernames = fields.get("username", [])
         passwords = fields.get("password", [])
         if len(usernames) != 1 or len(passwords) != 1:
+            self._record_authentication_attempt("malformed")
             self._send_login_page(400, "Invalid login request.")
             return
         authenticated, retry_after = self.proxy_server.authenticate_credentials(
             usernames[0], passwords[0]
         )
         if retry_after is not None:
+            self._record_authentication_attempt("rate_limited")
             self._send_login_page(
                 429,
                 f"Try again in {retry_after} seconds.",
@@ -691,6 +1067,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
             )
             return
         if not authenticated:
+            self._record_authentication_attempt("invalid_credentials")
             self._send_login_page(401, "Incorrect username or password.")
             return
         stay_connected = fields.get("stay_connected") == ["on"]
@@ -702,6 +1079,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         token, expires_at = self.proxy_server.session_store.create(
             self.proxy_server.password_record.username, duration
         )
+        self._record_authentication_attempt("success")
         cookie_expiration = expires_at if stay_connected else None
         self._redirect("/", session_cookie(token, cookie_expiration))
 
@@ -758,6 +1136,22 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     else None
                 )
                 self._redirect("/login", cookie)
+            return
+        if request_path == "/auth/security":
+            if self.command == "GET":
+                self.proxy_server.session_store.claim_security_summary(
+                    self._session_token(), force=True
+                )
+            self._send_security_summary(session)
+            return
+        if (
+            self.command == "GET"
+            and request_path == "/"
+            and self.proxy_server.session_store.claim_security_summary(
+                self._session_token()
+            )
+        ):
+            self._send_security_summary(session)
             return
         if websocket_upgrade:
             print(
