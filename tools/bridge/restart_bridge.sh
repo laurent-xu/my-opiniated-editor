@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build first, then restart one port-keyed systemd user service.
+# Build first, persist the selected worktree, then restart one port-keyed
+# systemd user service pair.
 if [[ "$#" -lt 1 || "$#" -gt 2 || ! "$1" =~ ^[0-9]{1,5}$ ]]; then
   echo "usage: $0 <port> [worktree]" >&2
   exit 2
@@ -32,12 +33,12 @@ https_service="my-opiniated-editor-bridge-https@${port}.service"
 systemd_worktree="${worktree//\\/\\\\}"
 systemd_worktree="${systemd_worktree//\"/\\\"}"
 printf '[Service]\nEnvironment="MOE_BRIDGE_WORKTREE=%s"\n' "${systemd_worktree}" |
-  systemctl --user edit --runtime --stdin --drop-in=50-worktree.conf \
+  systemctl --user edit --stdin --drop-in=50-worktree.conf \
     "${bridge_service}"
 printf \
   '[Service]\nEnvironment="MOE_BRIDGE_WORKTREE=%s"\nExecStart=\nExecStart="%s/tools/bridge/run_https_proxy.sh" ${MOE_BRIDGE_HTTP_PORT} %%i\n' \
   "${systemd_worktree}" "${systemd_worktree}" |
-  systemctl --user edit --runtime --stdin --drop-in=50-worktree.conf \
+  systemctl --user edit --stdin --drop-in=50-worktree.conf \
     "${https_service}"
 systemctl --user restart "${bridge_service}"
 systemctl --user restart "${https_service}"
